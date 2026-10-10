@@ -1,4 +1,4 @@
-# Llama 5 — Build Tickets (Qt edition)
+# KoalaAmp — Build Tickets (Qt edition)
 
 **Format:** ticket = `ID · Title` with *Story*, *Tasks*, *Acceptance*, *Depends*, *Est.* (focused days, one experienced C++ dev). Spikes are timeboxed.
 

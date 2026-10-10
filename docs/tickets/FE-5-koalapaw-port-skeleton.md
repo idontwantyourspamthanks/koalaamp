@@ -8,7 +8,7 @@ De-risk the single biggest *assumption* in M3 before M1 spends weeks building on
 ## Tasks
 - [ ] Choose and pin: libcurl (version), JSON DOM library (nlohmann or simdjson — pick once for the whole codebase here).
 - [ ] Port `UdpServerDiscovery` (broadcast + response parse) to C++.
-- [ ] Port `AuthInterceptor` header building: `Authorization: MediaBrowser Client="Llama5" Device=... DeviceId=<derived> Version=...`; per-user DeviceId = hash(machineId, userId) — port koalapaw's derivation exactly (token-invalidation trap documented at `JellyfinGateway.kt:98`).
+- [ ] Port `AuthInterceptor` header building: `Authorization: MediaBrowser Client="KoalaAmp" Device=... DeviceId=<derived> Version=...`; per-user DeviceId = hash(machineId, userId) — port koalapaw's derivation exactly (token-invalidation trap documented at `JellyfinGateway.kt:98`).
 - [ ] Port `POST /Users/AuthenticateByName` → parse `AccessToken`, `ServerId`, session.
 - [ ] Port ONE browse call end-to-end: albums window (`JellyfinGateway.kt:689-706` — `IncludeItemTypes=MUSIC_ALBUM`, `Recursive`, paging) → C++ structs.
 - [ ] Wrap each call in the gateway result-type seam (no exceptions crossing the boundary; an internal worker thread is fine).

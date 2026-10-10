@@ -29,17 +29,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Deny copyleft in direct references
-        run: |
-          # No source deps yet; guard the docs' promise early.
-          # FE-0 extends this with a real dependency-manifest check.
-          if grep -rniE "^(?!.*(research|docs/)).*(gpl-3|agpl)" \
-              --include="*.md" --include="*.txt" --include="*.cmake" \
-              AGENTS.md docs/spec.md docs/tickets.md 2>/dev/null; then
-            echo "::error::GPL/AGPL reference found outside research citations"
-            exit 1
-          fi
-          echo "license audit: clean"
+      - name: Run scripts/license-audit.sh (GPL/AGPL denied, LGPL allowed)
+        run: bash scripts/license-audit.sh
 
   secrets-scan:
     name: secrets scan

@@ -1,4 +1,4 @@
-# Llama 5 — Project Documentation
+# KoalaAmp — Project Documentation
 
 Clean-room Winamp-style music player (working title; see feasibility §6.3 for naming constraints). **Qt 6.12 LTS / C++20** · Windows, macOS, Linux.
 

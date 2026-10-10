@@ -6,7 +6,7 @@
 A C++ Jellyfin `ITrackSource` that authenticates, discovers servers, and browses/searches music libraries — ported from the maintainer's field-tested koalapaw Android code rather than written against the API docs from scratch. This is transliteration work: the wire contracts, error handling, and header discipline are already solved in Kotlin; our job is a faithful C++ rendering of them.
 
 ## Tasks
-- [ ] Port `AuthInterceptor` logic: `Authorization: MediaBrowser Client="Llama5" Device=... DeviceId=<hash(machineId,userId)> Version=...` on every request; 401 → re-auth; **no** `X-Emby-Token`, **no `api_key` query param — anywhere, including the WS handshake**.
+- [ ] Port `AuthInterceptor` logic: `Authorization: MediaBrowser Client="KoalaAmp" Device=... DeviceId=<hash(machineId,userId)> Version=...` on every request; 401 → re-auth; **no** `X-Emby-Token`, **no `api_key` query param — anywhere, including the WS handshake**.
 - [ ] Port `POST /Users/AuthenticateByName` flow (username/password → `AccessToken`, `ServerId`, session info).
 - [ ] Port `UdpServerDiscovery` (broadcast probe + response parse) + manual-URL fallback.
 - [ ] Optional: QuickConnect flow (koalapaw implements it — port if cheap, else defer).

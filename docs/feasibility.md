@@ -1,6 +1,6 @@
-# Llama 5 — Feasibility Study
+# KoalaAmp — Feasibility Study
 
-*Working name "Llama 5" is a placeholder; it must not ship (see §6.3). Project formerly nicknamed "JellyAmp" — that name also must not ship (§6.3).*
+*"KoalaAmp" is the working name (2026-10-10). Handle and name searches came back clean — no GitHub org/repos, no npm/PyPI package, koalaamp.com unregistered, no existing product with the exact name — but it must survive the formal RL-1 trademark check (soft note: elf audio's "Koala Sampler" is an established adjacent-category music app; different word form/category, low confusion risk, but search-before-launch). Project formerly nicknamed "JellyAmp" — that name cannot ship (§6.3: Jellyfin discourages `Jelly[word]`).*
 
 A clean-room, Win/macOS/Linux music player in the spirit of classic Winamp: full **classic skin** compatibility, MilkDrop visualisations, a 10-band equaliser, local library, plus **Plex** and **Jellyfin** server integration. **UI stack: Qt 6 (C++/Widgets).**
 

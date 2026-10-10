@@ -1,8 +1,8 @@
-# Llama 5 — Technical Specification
+# KoalaAmp — Technical Specification
 
 **Status:** draft v2 (2026-10-10) — **Qt pivot edition** (v1 was Avalonia/.NET; decision record in `feasibility.md` §1a) · **Preceded by:** `feasibility.md` · **Evidence base:** `docs/research/{skins,visuals,audio,platform,servers,formats,frameworks}.md`
 
-Codename "Llama 5" is internal-only (naming constraints in feasibility §6.3). Target: **v1.0 = "classic Winamp 2.95-era experience, modern guts, three platforms."**
+Codename "KoalaAmp" is internal-only (naming constraints in feasibility §6.3). Target: **v1.0 = "classic Winamp 2.95-era experience, modern guts, three platforms."**
 
 ---
 
@@ -223,7 +223,7 @@ Smart views: Winamp grammar (`artist has "x" && rating > 3`, `[1 week ago]`) →
 - Progress/scrobble events flow to `ScrobbleCoordinator` (client Last.fm/ListenBrainz; server reporting separate; anti-double-scrobble setting per server).
 
 ### 8.2 Jellyfin (from koalapaw `jellyfin-api` + servers.md §1)
-- Auth: `POST /Users/AuthenticateByName` with `Authorization: MediaBrowser Client="Llama5" Device=... DeviceId=<per-user-derived> Version=...`; **no** `X-Emby-Token`, **no `api_key` query param** (both removed in server 12.0). Per-user DeviceId = hash(machineId+userId). Refresh on 401.
+- Auth: `POST /Users/AuthenticateByName` with `Authorization: MediaBrowser Client="KoalaAmp" Device=... DeviceId=<per-user-derived> Version=...`; **no** `X-Emby-Token`, **no `api_key` query param** (both removed in server 12.0). Per-user DeviceId = hash(machineId+userId). Refresh on 401.
 - Discovery: UDP broadcast (koalapaw `UdpServerDiscovery`) + manual URL; QuickConnect as secondary flow (koalapaw implements it).
 - Browsing: `/Items` by `IncludeItemTypes=MusicArtist|MusicAlbum|Audio`, `ParentId`, `SortBy`, `Recursive`; music windows (koalapaw `musicAlbumsWindow`/`musicArtistsWindow`/A-to-Z offsets) port directly; artwork via `/Items/{id}/Images/Primary`.
 - Playback: **direct play** `/Audio/{id}/stream?static=true` through our libcurl layer with the MediaBrowser header (not a tokened URL); HLS fallback `/Audio/{id}/master.m3u8` when transcode needed. `PlayMethod` reported correctly.
@@ -263,7 +263,7 @@ C++ ABI slots: `IInputPlugin` (decode→PCM), `IDspPlugin` (float blocks), `IGen
 ## 11. Platform integration
 - Tray icon (QSystemTrayIcon, menu: transport + exit).
 - Global hotkeys: `QHotkey`/platform-specific registration; default set mirrors `gen_hotkeys`.
-- File assoc + "Enqueue/Play in Llama5" verbs (registry / Info.plist / .desktop `MimeType`).
+- File assoc + "Enqueue/Play in KoalaAmp" verbs (registry / Info.plist / .desktop `MimeType`).
 - Single-instance + local-socket IPC forwarding.
 - ATF title formatting subset; default `[%artist% - ]$if2(%title%,$filepart(%filename%))`.
 - Updates: GitHub releases check per-OS.
