@@ -6,37 +6,79 @@ on:
   pull_request:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
-  # Placeholder until FE-0 lands real build scaffolding.
-  # FE-0 replaces the "true" steps with the CMake superbuild
-  # (Qt 6.12, libvlcpp, taglib, projectM, sqlite per-platform setup)
-  # and unit-test run. Matrix intended: windows-2022 (msvc),
-  # ubuntu-24.04 (gcc), macos-14 (clang/arm64).
+  # Real 3-platform build (FE-0). Pinned runner images — floating "latest"
+  # tags are avoided (a silent toolchain bump is a surprise change; upgrades
+  # are deliberate commits). Qt 6.12.0 is installed on every platform so CI is
+  # uniform and the local/CI Qt divergence (docs/spikes/fe0-deps.md) stays
+  # explicit.
   build:
-    name: placeholder (${{ matrix.os }})
+    name: build (${{ matrix.preset }})
+    runs-on: ${{ matrix.runner }}
     strategy:
       fail-fast: false
       matrix:
-        os: [windows-latest, ubuntu-latest, macos-latest]
-    runs-on: ${{ matrix.os }}
+        include:
+          - runner: ubuntu-24.04
+            preset: linux-gcc
+          - runner: windows-2022
+            preset: windows-msvc
+          - runner: macos-14
+            preset: macos-clang
     steps:
-      - uses: actions/checkout@v4
-      - name: Docs-only placeholder
-        run: echo "Repo is docs-only until FE-0; real build lands with FE-0 (see docs/tickets/ for the contract)."
+      - uses: actions/checkout@v5
 
+      - name: Install Qt 6.12.0
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.12.0'
+          cache: true
+
+      - name: Enable ccache
+        if: runner.os != 'Windows'
+        uses: hendrikmuhs/ccache-action@v1.2
+        with:
+          key: ${{ matrix.preset }}
+
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
+
+      - name: Build
+        run: cmake --build --preset ${{ matrix.preset }}
+
+      - name: Test (ctest)
+        run: ctest --preset ${{ matrix.preset }}
+
+      # Non-blocking style check (ticket: format check is a warning, not a gate).
+      - name: clang-format check (non-blocking)
+        if: runner.os == 'Linux'
+        continue-on-error: true
+        run: |
+          python3 -m pip install --user 'clang-format==18.1.8'
+          CF="$(python3 -c 'import sysconfig; print(sysconfig.get_path("scripts", "posix_user"))')/clang-format"
+          files=$(git ls-files '*.cpp' '*.hpp' '*.h')
+          [ -z "$files" ] || "$CF" --dry-run --Werror $files
+
+  # NOTE: branch protection on `master` requires these two status checks by
+  # exact job name. Keep the `name:` values byte-identical; if they must
+  # change, re-sync protection in the same change (see the coupling note in
+  # docs/tickets/FE-0-bootstrap.md).
   license-audit:
     name: license audit
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Run scripts/license-audit.sh (GPL/AGPL denied, LGPL allowed)
         run: bash scripts/license-audit.sh
 
   secrets-scan:
     name: secrets scan
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - name: Cheap pattern scan
         run: |
           # Lightweight guard; swap for gitleaks action when code lands.

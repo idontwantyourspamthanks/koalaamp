@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: MIT
+# KoalaAmp house style: LLVM base, 100 columns, 4-space indent
+# (rationale: docs/spikes/fe0-deps.md).
+---
+Language: Cpp
+BasedOnStyle: LLVM
+Standard: c++20
+ColumnLimit: 100
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+AccessModifierOffset: -4
+NamespaceIndentation: None
+PointerAlignment: Left
+DerivePointerAlignment: false
+AllowShortFunctionsOnASingleLine: Inline
+AllowShortIfStatementsOnASingleLine: WithoutElse
+SortIncludes: CaseSensitive
+IncludeBlocks: Regroup
+AlwaysBreakTemplateDeclarations: Yes
+BreakBeforeBraces: Attach
+...
