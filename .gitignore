@@ -1,0 +1,88 @@
+# --- Build outputs ---------------------------------------------------------
+build/
+build-*/
+out/
+dist/
+bin/
+lib/
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.so.*
+*.dylib
+*.dll
+*.exe
+*.app/
+CMakeLists.txt.user
+CMakeUserPresets.json
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+compile_commands.json
+_deps/
+install_manifest.txt
+Makefile
+
+# --- Qt / tooling ----------------------------------------------------------
+*.autosave
+*.qbs
+*.user
+*.user.*
+moc_*.cpp
+moc_*.h
+qrc_*.cpp
+ui_*.h
+*.qm
+/.qt/
+/.cache/
+/.clangd/
+/.vscode/
+/.idea/
+/.vs/
+*.code-workspace
+
+# --- C++ / test artifacts -------------------------------------------------------------------
+Debug/
+Release/
+RelWithDebInfo/
+*.gcda
+*.gcno
+*.gcov
+*.profraw
+coverage*/
+.asan/
+lsan-suppressions.local
+
+# --- Deps vendored by script, not committed ---------------------------------------------------
+third_party/
+!third_party/README.md
+
+# --- App runtime state (never commit user data) ------------------------------------------------
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+*.log
+logs/
+cache/
+settings.json
+*.eqf.bak
+
+# --- OS noise -------------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# --- Secrets guard (defense in depth — never commit credentials) ---------------------------
+.env
+.env.*
+*.pem
+*.key
+!test/fixtures/*.key
+secrets/
+*.local
+
+# --- Docs byproducts -----------------------------------------------------------------------
+*.tmp
+~$*

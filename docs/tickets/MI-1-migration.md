@@ -1,0 +1,40 @@
+# MI-1 · Winamp migration wizard
+
+- **Milestone:** M2 · **Est:** 4d · **Depends:** LI-3, AU-1, PL-1 · **Status:** unstarted
+
+## Story
+The on-ramp for the exact user this product is for: someone with 15 years of Winamp state. One wizard reads their real `%APPDATA%\Winamp` — playlists, the NDE media-library database (ratings, playcounts, last-played, ReplayGain), EQ presets, bookmarks, preferences — and merges it into our library idempotently, with a report of what didn't match.
+
+## Tasks
+- [ ] Detection: `%APPDATA%\Winamp` (honor `paths.ini` redirection: `inidir`, `inifile`, `m3udir`); "no Winamp found" → friendly empty state.
+- [ ] NDE reader (read-only): `main.dat`/`main.idx` — NDETABLE/NDEINDEX signatures, field IDs 0-41, record/column linked-list walk, u16-length strings, type tolerance (unknown types → skip field, count it).
+- [ ] Import mapping: filename (normalized path join), rating, playcount, lastplay, dateadded, RG gains/peaks, bpm, genre/comment → upsert onto scanned tracks by normalized path (case-insensitive on Windows/mac, sensitive on Linux + case-fallback pass).
+- [ ] Recent/history NDE (`recent.dat`/`recent.idx`) → play history feed (optional, default on).
+- [ ] Playlists: `plugins\ml\playlists\playlists.xml` index + the `.m3u` files it points to (PL-1 readers).
+- [ ] `winamp.ini`: volume, EQ state/preamp/limiter/eq_type, skin path, `config_titlefmt`, shuffle/repeat, windowshade flags.
+- [ ] `winamp.q1` EQ presets; `winamp.bm` bookmarks.
+- [ ] Skins: `%APPDATA%\Winamp\Skins` offered for copy into our skin folder.
+- [ ] Wizard UI (skinned, 3 steps): summary of found data → progress → unmatched report (paths listed, exportable).
+- [ ] Idempotency: re-run upserts (no duplicate rows); migration state stored in settings.
+
+## Acceptance
+- Fixture NDE database (generated from node-nde test data + one real-donation sample) imports 100% of documented fields.
+- Idempotent: second run changes nothing (row counts + fields identical).
+- Unmatched rate < 5% on the clean sample; every unmatched path appears in the report.
+- `winamp.q1` presets appear in SE-5's preset panel; `winamp.bm` bookmarks load.
+- ASAN clean over the NDE reader running the fuzz corpus (truncated/malformed `.dat`/`.idx`).
+
+## Out of scope
+- Writing back to Winamp's files (one-way, always — we never touch a real Winamp install's data destructively).
+- `studio.xnf` (modern-skin state) — Phase 3 alongside modern skins.
+- iTunes XML import (`ml_impex` equivalent) — v2.
+
+## References
+- `spec.md` §9 — the full migration surface
+- `docs/research/formats.md` §2-3 — NDE format (signatures, field types, ml_local column list 0-41), winamp.ini keys, q1/bm
+- node-nde (MIT) — reader semantics reference for test-fixture generation
+- `docs/tickets/PL-1-playlist-formats.md`-equivalent index entry + SE-5 preset panel (consumers)
+
+## Notes / risks
+- NDE field 13/14/15 (INT64/BINARY32/INT128) exist in later Winamps — parser must tolerate, skip, and count unknowns rather than fail (formats.md §2).
+- Path joining is the #1 source of unmatched rows (drive letters, moved folders); do a second case-insensitive/relative pass before reporting unmatched.

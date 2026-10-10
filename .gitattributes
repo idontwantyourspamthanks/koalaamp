@@ -1,0 +1,39 @@
+# Normalize text files: LF in repo, native at checkout only where tooling needs it.
+* text=auto eol=lf
+
+# Windows-specific files keep CRLF
+*.bat text eol=crlf
+*.cmd text eol=crlf
+*.ps1 text eol=crlf
+
+# Sources / docs
+*.c      text
+*.cpp    text
+*.h      text
+*.hpp    text
+*.inl    text
+*.cmake  text
+*.md     text
+*.json   text
+*.yml    text
+*.yaml   text
+*.sh     text eol=lf
+
+# Binary formats (no diff mangling)
+*.png    binary
+*.bmp    binary
+*.cur    binary
+*.ani    binary
+*.ico    binary
+*.icns   binary
+*.wsz    binary
+*.wal    binary
+*.eqf    binary
+*.milk   text
+*.sqlite binary
+*.db     binary
+*.m3u    text
+*.m3u8   text
+*.pls    text
+*.zip    binary
+*.pdf    binary

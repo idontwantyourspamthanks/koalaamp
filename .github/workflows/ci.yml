@@ -1,0 +1,54 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Placeholder until FE-0 lands real build scaffolding.
+  # FE-0 replaces the "true" steps with the CMake superbuild
+  # (Qt 6.12, libvlcpp, taglib, projectM, sqlite per-platform setup)
+  # and unit-test run. Matrix intended: windows-2022 (msvc),
+  # ubuntu-24.04 (gcc), macos-14 (clang/arm64).
+  build:
+    name: placeholder (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Docs-only placeholder
+        run: echo "Repo is docs-only until FE-0; real build lands with FE-0 (see docs/tickets/ for the contract)."
+
+  license-audit:
+    name: license audit
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deny copyleft in direct references
+        run: |
+          # No source deps yet; guard the docs' promise early.
+          # FE-0 extends this with a real dependency-manifest check.
+          if grep -rniE "^(?!.*(research|docs/)).*(gpl-3|agpl)" \
+              --include="*.md" --include="*.txt" --include="*.cmake" \
+              AGENTS.md docs/spec.md docs/tickets.md 2>/dev/null; then
+            echo "::error::GPL/AGPL reference found outside research citations"
+            exit 1
+          fi
+          echo "license audit: clean"
+
+  secrets-scan:
+    name: secrets scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Cheap pattern scan
+        run: |
+          # Lightweight guard; swap for gitleaks action when code lands.
+          ! grep -rniE "(api[_-]?key|secret|password|token)\s*[:=]\s*['\"][A-Za-z0-9+/]{16,}" \
+              --include="*.md" --include="*.yml" --include="*.json" \
+              . 2>/dev/null | grep -v "research/\|test/fixtures/"
