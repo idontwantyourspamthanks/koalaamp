@@ -100,6 +100,7 @@ private:
     // Black-frame instrumentation: a black "run" longer than 100 ms across a
     // preset switch is the failure mode the acceptance criteria name.
     qint64 blackRunStartNs_ = -1;
+    qint64 blackRunStartFrame_ = 0;
     double maxBlackRunMs_ = 0.0;
     qint64 switchStartNs_ = 0;
     double maxSwitchBlackMs_ = 0.0;

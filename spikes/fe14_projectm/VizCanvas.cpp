@@ -185,6 +185,9 @@ void VizCanvas::loadPreset(int index, bool smooth) {
     sumLoadMs_ += lastLoadMs_;
     ++loadCount_;
     stats_[index].loadMs = lastLoadMs_;
+    std::fprintf(stderr, "[fe14] load at frame %lld preset %s load_ms=%.2f\n",
+                 static_cast<long long>(totalFrames_),
+                 qPrintable(QFileInfo(presetFiles_.at(index)).fileName()), lastLoadMs_);
 
     // Start the black-frame watchdog window for this switch.
     switchStartNs_ = now;
@@ -235,6 +238,11 @@ void VizCanvas::closeBlackRun(qint64 nowNs) {
     }
     const double ms = static_cast<double>(nowNs - blackRunStartNs_) / 1e6;
     maxBlackRunMs_ = std::max(maxBlackRunMs_, ms);
+    if (ms > 100.0) {
+        std::fprintf(stderr, "[fe14] black run ended: %.1fms (started frame %lld, preset %s)\n", ms,
+                     static_cast<long long>(blackRunStartFrame_),
+                     current_ >= 0 ? qPrintable(presetFiles_.at(current_)) : "?");
+    }
     // Attribute to the switch only if this black run *started* inside the
     // watchdog window that opens when a preset is loaded.
     if (switchStartNs_ > 0 && blackRunStartNs_ >= switchStartNs_ &&
@@ -292,6 +300,7 @@ void VizCanvas::paintGL() {
     if (luma < kBlackLuma) {
         if (blackRunStartNs_ < 0) {
             blackRunStartNs_ = now;
+            blackRunStartFrame_ = totalFrames_;
             std::fprintf(stderr, "[fe14] black run starts at frame %lld (preset %s)\n",
                          static_cast<long long>(totalFrames_),
                          current_ >= 0 ? qPrintable(presetFiles_.at(current_)) : "?");
