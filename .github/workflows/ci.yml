@@ -66,6 +66,8 @@ jobs:
           vcpkg install curl:x64-windows
           echo "CMAKE_PREFIX_PATH=$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows" >> $env:GITHUB_ENV
 
+      - name: Configure
+        run: cmake --preset ${{ matrix.preset }}
       - name: Build
         run: cmake --build --preset ${{ matrix.preset }}
 
