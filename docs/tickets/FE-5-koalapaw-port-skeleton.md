@@ -1,19 +1,19 @@
 # FE-5 · Spike: koalapaw jellyfin-api port skeleton
 
-- **Milestone:** M0 · **Est:** 3d · **Depends:** FE-0 · **Status:** unstarted
+- **Milestone:** M0 · **Est:** 3d · **Depends:** FE-0 · **Status:** in-review
 
 ## Story
 De-risk the single biggest *assumption* in M3 before M1 spends weeks building on it: that the koalapaw Kotlin gateway ports cleanly to C++ over libcurl + a JSON DOM. One auth flow, one discovery, one browse call — enough to prove the transliteration pattern (result-type seams, header discipline, coroutines → thread pool) and leave a recorded fixture harness behind.
 
 ## Tasks
-- [ ] Choose and pin: libcurl (version), JSON DOM library (nlohmann or simdjson — pick once for the whole codebase here).
-- [ ] Port `UdpServerDiscovery` (broadcast + response parse) to C++.
-- [ ] Port `AuthInterceptor` header building: `Authorization: MediaBrowser Client="KoalaAmp" Device=... DeviceId=<derived> Version=...`; per-user DeviceId = hash(machineId, userId) — port koalapaw's derivation exactly (token-invalidation trap documented at `JellyfinGateway.kt:98`).
-- [ ] Port `POST /Users/AuthenticateByName` → parse `AccessToken`, `ServerId`, session.
-- [ ] Port ONE browse call end-to-end: albums window (`JellyfinGateway.kt:689-706` — `IncludeItemTypes=MUSIC_ALBUM`, `Recursive`, paging) → C++ structs.
-- [ ] Wrap each call in the gateway result-type seam (no exceptions crossing the boundary; an internal worker thread is fine).
-- [ ] Stand up Jellyfin 10.10 + 10.12 test containers (pinned digests) and a smoke binary that runs auth → discovery → browse against them.
-- [ ] Record request/response fixtures to files for offline replay.
+- [x] Choose and pin: libcurl (version), JSON DOM library (nlohmann or simdjson — pick once for the whole codebase here). → **libcurl 8.18.0** + **nlohmann/json 3.11.3** (`docs/spikes/koalapaw-port.md`); libcurl pinned in `deps/dependencies.json`.
+- [x] Port `UdpServerDiscovery` (broadcast + response parse) to C++.
+- [x] Port `AuthInterceptor` header building: `Authorization: MediaBrowser Client="KoalaAmp" Device=... DeviceId=<derived> Version=...`; per-user DeviceId derivation — implemented as `sha256(machineId:userKey)`; **koalapaw actually persists a random UUID per profile, not a hash** (documented in the spike report).
+- [x] Port `POST /Users/AuthenticateByName` → parse `AccessToken`, `ServerId`, session.
+- [x] Port ONE browse call end-to-end: albums window (`JellyfinGateway.kt:689-706` — `IncludeItemTypes=MUSIC_ALBUM`, `Recursive`, paging) → C++ structs.
+- [x] Wrap each call in the gateway result-type seam (no exceptions crossing the boundary; an internal worker thread is fine).
+- [x] Stand up Jellyfin test containers (pinned digests: 10.10.7 / 10.11.11 / 12.0 — no stable 10.12 exists) and a smoke binary that runs auth → discovery → browse against them.
+- [x] Record request/response fixtures to files for offline replay.
 
 ## Acceptance
 - Smoke binary: authenticate (MediaBrowser headers only), UDP-discover the container, list music albums from C++ — printed to stdout with album names.

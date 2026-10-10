@@ -58,11 +58,11 @@
     },
     {
       "name": "libcurl",
-      "version": "8.x",
+      "version": "8.18.0",
       "license": "curl",
       "link": "dynamic",
       "source": "https://curl.se/libcurl/",
-      "note": "Range-capable HTTP for server streams and discovery."
+      "note": "Range-capable HTTP for server streams and discovery. FE-5 verified pin: 8.18.0 (Ubuntu 24.04 libcurl4-openssl-dev, CURL::libcurl); project floor 8.x."
     },
     {
       "name": "JSON",
@@ -70,7 +70,7 @@
       "license": "MIT",
       "link": "header-only",
       "source": "https://github.com/nlohmann/json",
-      "note": "nlohmann/json; the one DOM FE-5/FE-14 use."
+      "note": "nlohmann/json; the one DOM FE-5/FE-14 use. Chosen over simdjson in FE-5 (docs/spikes/koalapaw-port.md)."
     },
     {
       "name": "Catch2",
