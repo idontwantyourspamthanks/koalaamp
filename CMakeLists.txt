@@ -58,6 +58,10 @@ include(CompilerWarnings)
 # --- Targets ----------------------------------------------------------------
 add_subdirectory(src)
 
+# Throwaway spikes (FE-14 projectM hosting demo). Targets inside skip
+# themselves when their native deps are not vendored.
+add_subdirectory(spikes)
+
 include(CTest)                  # defines BUILD_TESTING (default ON)
 if(BUILD_TESTING)
     add_subdirectory(tests)

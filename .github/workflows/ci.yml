@@ -101,6 +101,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v5
+      # vendor-deps.sh also fetches + builds libprojectM (shared, LGPL) from
+      # pinned source; it needs cmake/ninja and OpenGL dev headers.
+      - name: Native build deps (libprojectM)
+        run: sudo apt-get update && sudo apt-get install -y ninja-build libgl-dev
       - name: Fresh install, re-run no-op, --check
         run: |
           bash scripts/vendor-deps.sh

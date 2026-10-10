@@ -20,7 +20,7 @@ and adapted with attribution in the file header, not linked.
 | Qt (Core/Gui/Widgets/OpenGL) | 6.12.0 (CI Linux/macOS) · 6.10.3 (CI Windows) · 6.10.2 (local dev) | LGPL-3.0-only | dynamic | https://code.qt.io/cgit/qt/ |
 | libvlc | 3.0.x | LGPL-2.1-or-later | dynamic | https://code.videolan.org/videolan/vlc |
 | TagLib | 2.3.2 | LGPL-2.1-or-later OR MPL-2.0 | dynamic | https://github.com/taglib/taglib |
-| projectM | 4.1.8 | LGPL-2.1-or-later | dynamic | https://github.com/projectM-visualizer/projectm |
+| projectM | 4.2.0-dev (master @ 349b7cc2; 4.1.8 lacks the FBO API QOpenGLWidget needs) | LGPL-2.1-or-later | dynamic | https://github.com/projectM-visualizer/projectm |
 | SQLite (FTS5) | 3.46.x | public domain | static (permitted) | https://sqlite.org/ |
 | miniaudio | 0.11.22 | MIT-0 (dual public domain) | header-only | https://github.com/mackron/miniaudio |
 | libcurl | 8.18.0 | curl | dynamic | https://curl.se/libcurl/ |
@@ -34,7 +34,7 @@ and adapted with attribution in the file header, not linked.
 
 ## Notes
 
-- Qt modules used: QtCore, QtGui, QtWidgets, QtOpenGL, QtTest. QML and the
+- Qt modules used: QtCore, QtGui, QtWidgets, QtOpenGL, QtOpenGLWidgets, QtTest. QML and the
   copyleft-only Qt modules (Quick3D, Wayland Compositor, …) are excluded.
 - Qt is provided by the platform (distro packages on Linux, prebuilt on
   Windows/macOS via CI); relinking obligations are met by shipping it as
