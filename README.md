@@ -4,7 +4,7 @@
 
 Renders the classic Winamp 2 skin format pixel-faithfully (the weird and wonderful ones included, via real OS window masks), plays MilkDrop presets through projectM, and speaks to your **local library, Jellyfin, and Plex**. Windows, macOS, Linux.
 
-> **Naming:** "KoalaAmp" is the working title. It must survive the formal trademark check (ticket RL-1) before any public release; it deliberately avoids the "Winamp" and "Jelly[word]" naming constraints that rule out other candidates. This project is not affiliated with Winamp Group SA, Nullsoft, Jellyfin, or Plex — "Winamp" is their trademark; we merely read their skin format.
+> **Naming:** "KoalaAmp" is the working title, pending the RL-1 trademark check. It deliberately avoids the "Winamp" and "Jelly[word]" constraints that rule out other candidates — and it's a deliberate `Koala*` family sibling to KoalaPaw (the maker's Android TV Jellyfin/Plex client): expect shared koala branding and "from the maker of KoalaPaw" cross-recognition; if the paid-TV-app and free-desktop-player brands should stay visually distinct, that's a pre-listing decision, not a code one. This project is not affiliated with Winamp Group SA, Nullsoft, Jellyfin, or Plex — "Winamp" is their trademark; we merely read their skin format.
 
 **Status:** planning complete, pre-implementation. The full plan:
 

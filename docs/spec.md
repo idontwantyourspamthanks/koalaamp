@@ -2,7 +2,7 @@
 
 **Status:** draft v2 (2026-10-10) — **Qt pivot edition** (v1 was Avalonia/.NET; decision record in `feasibility.md` §1a) · **Preceded by:** `feasibility.md` · **Evidence base:** `docs/research/{skins,visuals,audio,platform,servers,formats,frameworks}.md`
 
-Codename "KoalaAmp" is internal-only (naming constraints in feasibility §6.3). Target: **v1.0 = "classic Winamp 2.95-era experience, modern guts, three platforms."**
+"KoalaAmp" is the working title, pending RL-1 trademark clearance (naming analysis in feasibility §6.3). Target: **v1.0 = "classic Winamp 2.95-era experience, modern guts, three platforms."**
 
 ---
 
