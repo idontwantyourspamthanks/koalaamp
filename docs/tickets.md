@@ -2,10 +2,11 @@
 
 **Format:** ticket = `ID · Title` with *Story*, *Tasks*, *Acceptance*, *Depends*, *Est.* (focused days, one experienced C++ dev). Spikes are timeboxed.
 
-**Per-ticket briefs:** fourteen tickets have expanded contracts in [`tickets/`](tickets/) — the AI-consumable task files (story, tasks, checkable DoD, out-of-scope, reference paths). Template: `tickets/_template.md`. This index remains the master for sequencing, estimates, and dependencies; expand remaining tickets from the template at pickup time.
+**Per-ticket briefs:** fifteen tickets have expanded contracts in [`tickets/`](tickets/) — the AI-consumable task files (story, tasks, checkable DoD, out-of-scope, reference paths). Template: `tickets/_template.md`. This index remains the master for sequencing, estimates, and dependencies; expand remaining tickets from the template at pickup time.
 
 | Expanded | File |
 |---|---|
+| FE-0 bootstrap (repo+CI) | `tickets/FE-0-bootstrap.md` |
 | FE-1 mask+GL spike | `tickets/FE-1-masked-gl-window.md` |
 | FE-2 libvlc callbacks+EQ | `tickets/FE-2-libvlc-callbacks-eq.md` |
 | FE-5 koalapaw port skeleton | `tickets/FE-5-koalapaw-port-skeleton.md` |
