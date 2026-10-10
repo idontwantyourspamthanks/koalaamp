@@ -1,0 +1,16 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://jellyfin.local:8096/Items?parentId=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee&recursive=true&includeItemTypes=MusicAlbum&sortBy=SortName&sortOrder=Ascending&startIndex=0&limit=50&fields=SortName&enableUserData=true",
+    "headers": [
+      ["Authorization", "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"<derived-device-id>\", Version=\"0.0.1\", Token=\"fixture-token-1\""],
+      ["Accept", "application/json"]
+    ],
+    "body": ""
+  },
+  "response": {
+    "status": 401,
+    "body": "",
+    "error": ""
+  }
+}

@@ -21,6 +21,20 @@ target_link_libraries(koalaamp_tests PRIVATE Catch2::Catch2WithMain)
 include(Catch)
 catch_discover_tests(koalaamp_tests)
 
+# FE-5: koalapaw Jellyfin port — unit tests + offline fixture replay through the
+# same JellyfinClient code path the smoke binary uses live.
+add_executable(jellyfin_port_tests jellyfin_port_test.cpp)
+koalaamp_enable_warnings(jellyfin_port_tests)
+target_include_directories(jellyfin_port_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/third_party/include")
+target_link_libraries(jellyfin_port_tests PRIVATE Catch2::Catch2WithMain koalaamp_jellyfin)
+target_compile_definitions(jellyfin_port_tests PRIVATE
+    KOALAAMP_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/jellyfin"
+    KOALAAMP_FIXTURE_UNAUTHORIZED_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/jellyfin-unauthorized"
+    KOALAAMP_SERVERS_SRC="${CMAKE_SOURCE_DIR}/src/servers")
+catch_discover_tests(jellyfin_port_tests)
+
 # Headless smoke test: launch the real application, prove the frameless toplevel
 # constructs and maps, then exit 0. Works on every desktop platform via Qt's
 # offscreen platform plugin.
