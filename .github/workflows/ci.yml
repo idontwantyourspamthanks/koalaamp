@@ -77,6 +77,17 @@ jobs:
       - name: Run scripts/license-audit.sh (GPL/AGPL denied, LGPL allowed)
         run: bash scripts/license-audit.sh
 
+  vendor-deps:
+    name: vendor-deps idempotency
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v5
+      - name: Fresh install, re-run no-op, --check
+        run: |
+          bash scripts/vendor-deps.sh
+          bash scripts/vendor-deps.sh --check
+          bash scripts/license-audit.sh
+
   secrets-scan:
     name: secrets scan
     runs-on: ubuntu-24.04
