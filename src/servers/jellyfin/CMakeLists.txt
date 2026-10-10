@@ -20,6 +20,12 @@ target_link_libraries(koalaamp_jellyfin
     PUBLIC koalaamp_library
     PRIVATE CURL::libcurl)
 
+# Raw-socket UDP discovery: Windows needs the winsock import library
+# (Linux/macOS have sockets in libc — no explicit link, hence the guard).
+if(WIN32)
+    target_link_libraries(koalaamp_jellyfin PRIVATE Ws2_32)
+endif()
+
 # Live smoke: auth → UDP discovery → album browse against a real server.
 add_executable(jellyfin_smoke smoke_jellyfin.cpp)
 koalaamp_enable_warnings(jellyfin_smoke)
