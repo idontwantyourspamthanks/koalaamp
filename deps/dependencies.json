@@ -10,7 +10,7 @@
   "dependencies": [
     {
       "name": "Qt",
-      "version": "6.12.0 (CI, target LTS) / 6.10.2 (local dev)",
+      "version": "6.12.0 (CI Linux/macOS) / 6.10.3 (CI Windows) / 6.10.2 (local dev)",
       "license": "LGPL-3.0-only",
       "link": "dynamic",
       "source": "https://code.qt.io/cgit/qt/",

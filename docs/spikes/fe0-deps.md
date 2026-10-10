@@ -29,23 +29,29 @@ none. The asymmetry is deliberate and documented (the ticket's Notes flag it).
 
 **CI Qt on Linux as well as Windows/macOS:** Ubuntu 24.04's Qt is 6.4, below
 our 6.10 floor, so CI installs a pinned Qt on all three runners via
-`jurplel/install-qt-action@v4` (`version: 6.12.0`). This keeps CI identical
-across platforms and keeps the interpolation between local and CI Qt explicit.
+`jurplel/install-qt-action@v4`. The pin is **per platform**: **6.12.0** on
+ubuntu-24.04 and macos-14, **6.10.3** on windows-2022. Qt 6.11/6.12 Windows
+packages are published (`qt6_6120/qt6_6120_msvc2022_64/Updates.xml` exists) but
+not yet installable by the action's pinned `aqt` 3.3.0, which still expects the
+old flat Windows repository layout — so Windows sits at the newest version the
+toolchain can actually install. Bump Windows to 6.12.x when aqt catches up;
+until then the matrix is deliberately non-uniform and that is recorded here.
 
 ## Decision: Qt floor `>= 6.10`, target line 6.12 LTS
 
 `find_package(Qt6 6.10 REQUIRED COMPONENTS Widgets Gui OpenGL)`.
 
-The project targets **Qt 6.12 LTS** (spec §1.1) and CI installs **6.12.0**,
-but the reference dev machine carries **6.10.2** (distro). The Widgets/Gui/
-OpenGL APIs used through M0 (`QWidget::setMask`, `QOpenGLWidget`, frameless
+The project targets **Qt 6.12 LTS** (spec §1.1); CI installs 6.12.0 on Linux
+and macOS, and 6.10.3 on Windows (see above), while the reference dev machine
+carries **6.10.2** (distro). The Widgets/Gui/OpenGL APIs used through M0
+(`QWidget::setMask`, `QOpenGLWidget`, frameless
 flags) predate 6.0 and are stable across 6.10→6.12, so accepting `>= 6.10`
 avoids failing local configure on a *toolchain* mismatch, not a code bug.
 If a genuinely 6.12-only API is ever needed, that is the moment to bump the
 local toolchain deliberately (aqtinstall) and raise the floor — never before.
 
-**Divergence is expected, not drift:** CI = 6.12.0, local = 6.10.2. The build
-log prints which line was found.
+**Divergence is expected, not drift:** CI = 6.12.0 (Win: 6.10.3),
+local = 6.10.2. The build log prints which line was found.
 
 ## Decision: raw libvlc C API, not libvlcpp
 
@@ -106,7 +112,8 @@ otherwise required contexts never report and non-admin merges hang on
 
 ## Pinned versions (single source of truth: `deps/dependencies.json`)
 
-Qt 6.12.0 (CI) / 6.10.2 (local) · libvlc 3.0.x · TagLib 2.3.2 · projectM 4.1.8 ·
+Qt 6.12.0 (CI Linux/macOS) · 6.10.3 (CI Windows) · 6.10.2 (local) ·
+libvlc 3.0.x · TagLib 2.3.2 · projectM 4.1.8 ·
 SQLite 3.46.x · miniaudio 0.11.22 · libcurl 8.x · nlohmann/json 3.11.3 ·
 Catch2 3.7.1. All upgrades are deliberate commits, never surprise CI drift
 (the `*-latest` → `ubuntu-24.04` class of problem is exactly what pinning
