@@ -1,0 +1,5 @@
+# FE-1 native-Wayland diagnostic: qt.qpa.* logging, first masked flush
+# (widget backing store clips its flush region to the setMask region, so the
+#  mask *does* affect Qt-level painting; no platform window shape/input region
+#  is set — see the report).
+qt.qpa.backingstore: Composing and flushing QRegion(size=38, bounds=(85,4 105x98) - [(138,4 1x1), (137,5 2x1), (137,6 3x1), (136,7 4x1), (95,8 84x32), (91,40 93x1), (85,41 105x1), (86,42 103x1), (87,43 101x1), (88,44 99x1), (89,45 97x1), (90,46 95x1), (91,47 93x1), (92,48 91x1), (93,49 89x1), (94,50 87x1), (95,51 85x1), (95,52 84x40), (107,92 19x1), (150,92 19x1), (107,93 17x1), (152,93 17x1), (10

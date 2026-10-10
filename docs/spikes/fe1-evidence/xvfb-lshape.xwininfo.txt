@@ -1,0 +1,27 @@
+
+xwininfo: Window id: 0x200008 "spike_fe1"
+
+  Absolute upper-left X:  100
+  Absolute upper-left Y:  100
+  Relative upper-left X:  100
+  Relative upper-left Y:  100
+  Width: 275
+  Height: 116
+  Depth: 24
+  Visual: 0x2a9
+  Visual Class: TrueColor
+  Border width: 0
+  Class: InputOutput
+  Colormap: 0x200007 (not installed)
+  Bit Gravity State: NorthWestGravity
+  Window Gravity State: NorthWestGravity
+  Backing Store State: NotUseful
+  Save Under State: no
+  Map State: IsViewable
+  Override Redirect State: no
+  Corners:  +100+100  -905+100  -905-584  +100-584
+  -geometry 275x116+100+100
+
+  Window shape extents:  275x116+0+0
+  No border shape defined
+
