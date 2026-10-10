@@ -1,0 +1,40 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "http://jellyfin.local:8096/Users/AuthenticateByName",
+    "headers": [
+      ["Authorization", "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"<derived-device-id>\", Version=\"0.0.1\""],
+      ["Accept", "application/json"],
+      ["Content-Type", "application/json"]
+    ],
+    "body": {
+      "Username": "tester",
+      "Pw": "correct-horse"
+    }
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "User": {
+        "Name": "tester",
+        "ServerId": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+        "Id": "11111111111111111111111111111111",
+        "HasPassword": true,
+        "Configuration": {
+          "AudioLanguagePreference": "",
+          "SubtitleLanguagePreference": "",
+          "SubtitleMode": "Default"
+        }
+      },
+      "SessionInfo": {
+        "Id": "session-1",
+        "UserId": "11111111111111111111111111111111",
+        "DeviceId": "<derived-device-id>",
+        "Client": "KoalaAmp"
+      },
+      "AccessToken": "fixture-token-1",
+      "ServerId": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"
+    },
+    "error": ""
+  }
+}
