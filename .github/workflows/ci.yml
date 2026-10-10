@@ -46,8 +46,25 @@ jobs:
         with:
           key: ${{ matrix.preset }}
 
-      - name: Configure
-        run: cmake --preset ${{ matrix.preset }}
+
+      # Nlohmann headers come from the pinned vendoring script (not runner state).
+      # libcurl: Linux distro package; macOS brew; Windows vcpkg per fe0-deps.md.
+      - name: Vendor header-only deps
+        run: bash scripts/vendor-deps.sh
+
+      - name: Install libcurl (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+
+      - name: Install libcurl (macOS)
+        if: runner.os == 'macOS'
+        run: brew install curl
+
+      - name: Install libcurl (Windows, vcpkg)
+        if: runner.os == 'Windows'
+        run: |
+          vcpkg install curl:x64-windows
+          echo "CMAKE_PREFIX_PATH=$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows" >> $env:GITHUB_ENV
 
       - name: Build
         run: cmake --build --preset ${{ matrix.preset }}
