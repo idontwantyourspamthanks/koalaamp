@@ -14,7 +14,7 @@
       "license": "LGPL-3.0-only",
       "link": "dynamic",
       "source": "https://code.qt.io/cgit/qt/",
-      "modules": ["QtCore", "QtGui", "QtWidgets", "QtOpenGL", "QtTest"],
+      "modules": ["QtCore", "QtGui", "QtWidgets", "QtOpenGL", "QtOpenGLWidgets", "QtTest"],
       "note": "Widgets/Gui/OpenGL only. No QML; no copyleft-only modules (Quick3D, Wayland Compositor)."
     },
     {
@@ -35,10 +35,11 @@
     },
     {
       "name": "projectM",
-      "version": "4.1.8",
+      "version": "4.2.0-dev (master @ 349b7cc2)",
       "license": "LGPL-2.1-or-later",
       "link": "dynamic",
-      "source": "https://github.com/projectM-visualizer/projectm"
+      "source": "https://github.com/projectM-visualizer/projectm",
+      "note": "Latest release 4.1.8 cannot host in QOpenGLWidget: projectm_opengl_render_frame() hardcodes draw framebuffer 0, but QOpenGLWidget renders into its own FBO. projectm_opengl_render_frame_fbo() (API 4.2.0, unreleased) renders the widget. Pinned to master until 4.2.0 ships. Spiked in FE-14 (docs/spikes/projectm-qt.md)."
     },
     {
       "name": "SQLite",
