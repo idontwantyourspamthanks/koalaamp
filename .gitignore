@@ -56,7 +56,7 @@ coverage*/
 lsan-suppressions.local
 
 # --- Deps vendored by script, not committed ---------------------------------------------------
-third_party/
+third_party/*
 !third_party/README.md
 
 # --- App runtime state (never commit user data) ------------------------------------------------

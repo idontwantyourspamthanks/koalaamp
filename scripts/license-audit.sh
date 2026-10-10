@@ -48,5 +48,65 @@ for f in $(find src/servers -type f 2>/dev/null || true); do
   fi
 done
 
+# 5) Dependency manifest — turn the license inventory into enforceable fact
+#    (FE-0). Every dependency must carry an allowed license; LGPL components
+#    must be dynamically linked; the required inventory must be complete.
+manifest="deps/dependencies.json"
+if [ -f "$manifest" ]; then
+  if python3 - "$manifest" <<'PY'
+import json
+import re
+import sys
+
+path = sys.argv[1]
+with open(path, encoding="utf-8") as fh:
+    data = json.load(fh)
+
+deps = data.get("dependencies", [])
+policy = data.get("policy", {})
+allowed = [a.lower() for a in policy.get("allowed_non_lgpl_licenses", [])]
+lgpl_link = policy.get("lgpl_link_mode", "dynamic")
+
+# Deny GPL/AGPL but never LGPL (the lookbehind excludes a preceding letter).
+denied = re.compile(r"(?<![A-Za-z])A?GPL", re.IGNORECASE)
+required = {"Qt", "libvlc", "TagLib", "projectM", "SQLite",
+            "miniaudio", "libcurl", "JSON", "Catch2"}
+
+errors = []
+for dep in deps:
+    name = dep.get("name", "<unnamed>")
+    lic = dep.get("license", "")
+    link = dep.get("link", "")
+    if denied.search(lic):
+        errors.append(f"manifest: denied license {lic!r} on {name}")
+    if "lgpl" in lic.lower():
+        if link != lgpl_link:
+            errors.append(
+                f"manifest: {name} is LGPL but link mode is {link!r} "
+                f"(must be {lgpl_link!r} — dynamic linking only)")
+    elif not any(token in lic.lower() for token in allowed):
+        errors.append(f"manifest: {name} has unrecognized license {lic!r}")
+
+present = {d.get("name") for d in deps}
+for missing in sorted(required - present):
+    errors.append(f"manifest: required dependency missing: {missing}")
+
+if errors:
+    for err in errors:
+        print(err, file=sys.stderr)
+    sys.exit(1)
+
+print(f"dependency manifest ok ({len(deps)} deps)")
+PY
+  then
+    :
+  else
+    fail=1
+  fi
+else
+  echo "ERROR: missing dependency manifest: $manifest" >&2
+  fail=1
+fi
+
 [ "$fail" -eq 0 ] && echo "license-audit: clean"
 exit $fail
