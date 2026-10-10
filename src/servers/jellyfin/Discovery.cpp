@@ -6,7 +6,7 @@
 #include <algorithm>
 #include <array>
 #include <chrono>
-#include <cstring>
+#include <stdexcept>
 #include <nlohmann/json.hpp>
 
 #if defined(_WIN32)
@@ -49,6 +49,39 @@ void closeSocket(int fd) {
 #endif
 }
 
+// Winsock needs one-time process initialization before any socket call;
+// Linux/macOS need nothing. RAII so every discovery entry point is covered
+// even if exceptions are added later.
+class WinsockGuard {
+  public:
+    WinsockGuard() {
+#if defined(_WIN32)
+        initialized_ = ::WSAStartup(MAKEWORD(2, 2), &data_) == 0;
+        if (!initialized_) {
+            throw std::runtime_error("WSAStartup failed");
+        }
+#endif
+    }
+    ~WinsockGuard() {
+#if defined(_WIN32)
+        if (initialized_) {
+            ::WSACleanup();
+        }
+#endif
+    }
+    WinsockGuard(const WinsockGuard&) = delete;
+    WinsockGuard& operator=(const WinsockGuard&) = delete;
+
+  private:
+#if defined(_WIN32)
+    bool initialized_ = false;
+    WSADATA data_{};
+#else
+    static constexpr bool initialized_ = true;
+    struct NoData {} data_;
+#endif
+};
+
 } // namespace
 
 std::optional<DiscoveredServer> parseDiscoveryReply(std::string_view bytes) {
@@ -79,6 +112,7 @@ std::optional<DiscoveredServer> parseDiscoveryReply(std::string_view bytes) {
 std::vector<DiscoveredServer> discoverServers(const DiscoveryConfig& config,
                                               const library::Cancellation& cancel) {
     std::vector<DiscoveredServer> found;
+    const WinsockGuard winsock; // no-op on POSIX; WSAStartup/WSACleanup on Windows
     const int fd = static_cast<int>(::socket(AF_INET, SOCK_DGRAM, 0));
     if (fd < 0) {
         return found;
