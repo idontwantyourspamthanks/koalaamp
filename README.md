@@ -21,4 +21,16 @@ No code from the 2024 Winamp source release (WCL license) or GPL projects is rea
 
 ## Build
 
-Nothing to build yet — the first implementation ticket is FE-0 (repo bootstrap + CI matrix). AI/human contributors: read [`AGENTS.md`](AGENTS.md) first.
+Requires CMake ≥ 3.24, a C++20 compiler (gcc 13+/clang 17+/MSVC 2022), and
+Qt ≥ 6.10 (Widgets/Gui/OpenGL; CI pins 6.12.0 — see
+[`docs/spikes/fe0-deps.md`](docs/spikes/fe0-deps.md)).
+
+```sh
+cmake --preset linux-gcc      # or linux-clang / windows-msvc / macos-clang
+cmake --build --preset linux-gcc
+ctest --preset linux-gcc
+```
+
+The binary is `build/<preset>/src/koalaamp` — an empty 275×116 frameless
+window until FE-1/SE-1 land. AI/human contributors: read
+[`AGENTS.md`](AGENTS.md) first.
