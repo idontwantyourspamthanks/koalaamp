@@ -62,3 +62,5 @@ include(CTest)                  # defines BUILD_TESTING (default ON)
 if(BUILD_TESTING)
     add_subdirectory(tests)
 endif()
+
+add_subdirectory(spikes)        # M0 verification probes (FE-1, ...)

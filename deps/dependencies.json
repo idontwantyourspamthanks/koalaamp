@@ -14,8 +14,8 @@
       "license": "LGPL-3.0-only",
       "link": "dynamic",
       "source": "https://code.qt.io/cgit/qt/",
-      "modules": ["QtCore", "QtGui", "QtWidgets", "QtOpenGL", "QtTest"],
-      "note": "Widgets/Gui/OpenGL only. No QML; no copyleft-only modules (Quick3D, Wayland Compositor)."
+      "modules": ["QtCore", "QtGui", "QtWidgets", "QtOpenGL", "QtOpenGLWidgets", "QtTest"],
+      "note": "Widgets/Gui/OpenGL(+OpenGLWidgets for QOpenGLWidget, spec \u00a76.1) only. No QML; no copyleft-only modules (Quick3D, Wayland Compositor)."
     },
     {
       "name": "libvlc",
