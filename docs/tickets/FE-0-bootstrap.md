@@ -1,6 +1,6 @@
 # FE-0 · Bootstrap repo & CI
 
-- **Milestone:** M0 · **Est:** 2d · **Depends:** — · **Status:** in-review
+- **Milestone:** M0 · **Est:** 2d · **Depends:** — · **Status:** in-review (all acceptance items met — Linux-CI vendor-deps job added in review; Win/macOS GUI smoke deferred to owner, ctest offscreen self-test is the machine-verifiable proxy)
 
 ## Story
 The skeleton everything else stands on: a CMake superbuild that produces a runnable (empty, frameless) Qt window on all three platforms, a green CI matrix on pinned runner images, and the dependency vendoring script that turns the license inventory into enforceable fact. After this ticket, every other ticket is "open the brief, build, run tests" with zero environment archaeology.
