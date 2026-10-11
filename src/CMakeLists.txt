@@ -11,6 +11,7 @@ add_subdirectory(interop)   # third-party façades (libvlc, projectM, TagLib, ..
                             # — before playback: it decides KOALAAMP_HAS_LIBVLC,
                             # which gates the FE-4 PlaybackCore target.
 add_subdirectory(playback)  # IAudioEngine, PlaybackCore (FE-4)
+add_subdirectory(audio)     # AU-1 DSP pipeline (ReplayGain, EQ, preamp, limiter)
 add_subdirectory(servers)   # IServerSource (Jellyfin/Plex)
 add_subdirectory(skins)     # ISkinLoader (WSZ)
 add_subdirectory(ui)        # Qt Widgets — windows

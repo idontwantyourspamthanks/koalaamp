@@ -115,3 +115,20 @@ target_compile_definitions(koalaamp_skins_fuzz_tests PRIVATE
     "KOALAAMP_FUZZ_SEED=\"${CMAKE_SOURCE_DIR}/third_party/skins-corpus/5e4f10275dcb1fb211d4a8b4f1bda236.wsz\"")
 catch_discover_tests(koalaamp_skins_fuzz_tests)
 message(STATUS "KoalaAmp: SE-1 WSZ loader tests enabled (unit + corpus + fuzz)")
+
+# AU-1: the DSP pipeline (ReplayGain, 10-band EQ, preamp, limiter), the
+# .eqf/winamp.q1 codec, golden transfer functions, the latency and
+# allocation-free soak, and the no-native-EQ guard generalised to src/audio.
+# The seam test (PlaybackCore::setPcmCallback) is compiled in when the core is
+# available, which is exactly where the transform gets installed.
+add_executable(koalaamp_dsp_tests dsp_test.cpp)
+koalaamp_enable_warnings(koalaamp_dsp_tests)
+target_link_libraries(koalaamp_dsp_tests PRIVATE Catch2::Catch2WithMain koalaamp_dsp)
+target_compile_definitions(koalaamp_dsp_tests PRIVATE
+    "KOALAAMP_AUDIO_SRC=\"${CMAKE_SOURCE_DIR}/src/audio\"")
+if(TARGET koalaamp_playback_core)
+    target_link_libraries(koalaamp_dsp_tests PRIVATE koalaamp_playback_core)
+    target_compile_definitions(koalaamp_dsp_tests PRIVATE KOALAAMP_HAS_PLAYBACK_CORE)
+endif()
+catch_discover_tests(koalaamp_dsp_tests PROPERTIES TIMEOUT 600)
+message(STATUS "KoalaAmp: AU-1 DSP tests enabled")
