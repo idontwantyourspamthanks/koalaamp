@@ -42,3 +42,15 @@ add_test(NAME app_smoke COMMAND $<TARGET_FILE:koalaamp> --self-test)
 set_tests_properties(app_smoke PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     TIMEOUT 30)
+
+# FE-2: guard for the spec §3.1 EQ rule (native EQ runs upstream of the libvlc
+# audio callback, so DSP mode never enables it). Built only where libvlc is
+# found; on machines without libvlc the test simply does not exist rather than
+# failing — but CI installs libvlc-dev on Linux so the rule is enforced there.
+if(KOALAAMP_HAS_LIBVLC)
+    add_executable(koalaamp_vlc_tests libvlc_eq_test.cpp)
+    koalaamp_enable_warnings(koalaamp_vlc_tests)
+    target_link_libraries(koalaamp_vlc_tests PRIVATE Catch2::Catch2WithMain koalaamp_vlc)
+    catch_discover_tests(koalaamp_vlc_tests)
+    message(STATUS "KoalaAmp: libvlc EQ-rule test enabled")
+endif()

@@ -5,14 +5,16 @@
 # gitignored third_party/ tree. Idempotent and re-runnable: a second run
 # reports "up to date" and touches nothing.
 #
-# Scope: only the dependencies that vendor cleanly as single files
-# (miniaudio, nlohmann/json). The native libraries — Qt, libvlc, TagLib,
-# projectM, SQLite, libcurl — are acquired per platform (system packages /
-# vcpkg / prebuilt-Qt) as recorded in docs/spikes/fe0-deps.md and enumerated
-# in deps/dependencies.json. When their integrations land (FE-2/FE-5/FE-14)
-# their pinned sources are added here; native libs stay separate files — never
-# single-file-merged, never statically linked into the app binary (LGPL
-# discipline, docs/feasibility.md §6).
+# Scope: the single-file dependencies (miniaudio, nlohmann/json) are fetched
+# into the gitignored third_party/ tree; the *native* libraries (Qt, libvlc,
+# TagLib, projectM, SQLite, libcurl) are acquired per platform (system packages
+# / vcpkg / prebuilt-Qt) as recorded in docs/spikes/fe0-deps.md and enumerated
+# in deps/dependencies.json. FE-2 added the native section below for libvlc:
+# on Linux the pinned version comes from the distro dev package (installed with
+# sudo when missing, verified when present); off Linux the vcpkg/Homebrew paths
+# from the table apply. Native libs stay separate files — never vendored into
+# the tree, never single-file-merged, never statically linked into the app
+# binary (LGPL discipline, docs/feasibility.md §6).
 #
 # Usage: scripts/vendor-deps.sh [--check | --clean]
 #   --check  verify everything is present and hash-correct; change nothing
@@ -183,6 +185,41 @@ else
             echo "installed: projectM ${pm_version} -> third_party/projectm"
         fi
     fi
+fi
+
+# --- native dependencies (FE-2) --------------------------------------------
+# name|package|probe command|install command. The probe prints the pinned
+# version; a non-empty result means the dependency is usable. On Linux libvlc
+# is a distro dev package; the build finds it via pkg-config (CMake). Off Linux
+# these are acquired through vcpkg (Windows) / Homebrew (macOS) per
+# docs/spikes/fe0-deps.md and are not handled here.
+native_linux=(
+    "libvlc|libvlc-dev|pkg-config --modversion libvlc|sudo apt-get install -y libvlc-dev"
+)
+
+if [[ "$(uname -s)" == "Linux" ]]; then
+    for spec in "${native_linux[@]}"; do
+        IFS='|' read -r name pkg probe install_cmd <<<"${spec}"
+        have="$(eval "${probe}" 2>/dev/null || true)"
+        if [[ -n "${have}" ]]; then
+            echo "present: ${name} ${have} (${pkg})"
+            continue
+        fi
+        if [[ "${mode}" == "check" ]]; then
+            echo "MISSING: ${name} (${pkg}); install with: ${install_cmd}" >&2
+            failed=1
+            continue
+        fi
+        echo "installing: ${name} (${install_cmd})"
+        if ! eval "${install_cmd}"; then
+            echo "ERROR: could not install ${name}; run manually: ${install_cmd}" >&2
+            failed=1
+            continue
+        fi
+        echo "installed: ${name} $(eval "${probe}" 2>/dev/null || echo '?')"
+    done
+else
+    echo "note: native deps (libvlc, TagLib, projectM) use vcpkg/Homebrew off Linux — see docs/spikes/fe0-deps.md"
 fi
 
 if [[ "${failed}" -ne 0 ]]; then

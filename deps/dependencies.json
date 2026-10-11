@@ -23,7 +23,7 @@
       "license": "LGPL-2.1-or-later",
       "link": "dynamic",
       "source": "https://code.videolan.org/videolan/vlc",
-      "note": "Raw C API headers; no libvlcpp wrapper (avoids compiling an LGPL header into the binary)."
+      "note": "Raw C API headers; no libvlcpp wrapper (avoids compiling an LGPL header into the binary). Linux: distro libvlc-dev (apt), verified/installed by scripts/vendor-deps.sh; nothing vendored into the tree."
     },
     {
       "name": "TagLib",

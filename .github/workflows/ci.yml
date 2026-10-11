@@ -46,25 +46,25 @@ jobs:
         with:
           key: ${{ matrix.preset }}
 
+# Native deps for the M0 spike targets, per platform (fe0-deps.md table).
+# Linux: libvlc-dev (FE-2 callback path) + vendored headers via the script.
+# libcurl: distro (Linux) / brew (macOS) / vcpkg (Windows).
+- name: Vendor header-only deps
+  run: bash scripts/vendor-deps.sh
 
-      # Nlohmann headers come from the pinned vendoring script (not runner state).
-      # libcurl: Linux distro package; macOS brew; Windows vcpkg per fe0-deps.md.
-      - name: Vendor header-only deps
-        run: bash scripts/vendor-deps.sh
+- name: Install native deps (Linux)
+  if: runner.os == 'Linux'
+  run: sudo apt-get update && sudo apt-get install -y libvlc-dev libcurl4-openssl-dev
 
-      - name: Install libcurl (Linux)
-        if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libcurl4-openssl-dev
+- name: Install libcurl (macOS)
+  if: runner.os == 'macOS'
+  run: brew install curl
 
-      - name: Install libcurl (macOS)
-        if: runner.os == 'macOS'
-        run: brew install curl
-
-      - name: Install libcurl (Windows, vcpkg)
-        if: runner.os == 'Windows'
-        run: |
-          vcpkg install curl:x64-windows
-          echo "CMAKE_PREFIX_PATH=$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows" >> $env:GITHUB_ENV
+- name: Install libcurl (Windows, vcpkg)
+  if: runner.os == 'Windows'
+  run: |
+    vcpkg install curl:x64-windows
+    echo "CMAKE_PREFIX_PATH=$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows" >> $env:GITHUB_ENV
 
       - name: Configure
         run: cmake --preset ${{ matrix.preset }}
@@ -107,6 +107,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y ninja-build libgl-dev
       - name: Fresh install, re-run no-op, --check
         run: |
+          # FE-2: the script now also verifies the native libvlc dev package.
+          sudo apt-get update && sudo apt-get install -y libvlc-dev
           bash scripts/vendor-deps.sh
           bash scripts/vendor-deps.sh --check
           bash scripts/license-audit.sh
