@@ -66,7 +66,7 @@ void writeSineWav(const std::filesystem::path& path, double hz, unsigned rate, u
 
 } // namespace
 
-TEST_CASE("libvlc hands the callback post-native-EQ PCM (spec §3.1 EQ rule)", "[vlc][eq]") {
+TEST_CASE("libvlc hands the callback post-native-EQ PCM (spec 3.1 EQ rule)", "[vlc][eq]") {
     const std::filesystem::path wav =
         std::filesystem::temp_directory_path() / "koalaamp_fe2_eq_rule_tone.wav";
     writeSineWav(wav, 1000.0, 48000, 2, 9);

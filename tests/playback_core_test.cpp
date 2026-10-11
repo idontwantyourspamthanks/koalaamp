@@ -690,7 +690,7 @@ TEST_CASE("PlaybackCore: ring regime selects the latency profile", "[fe4][core][
 //  static + runtime guards (spec §2.1/§2.2 Qt-free, §3.1 EQ rule)
 // ===========================================================================
 
-TEST_CASE("src/playback is Qt-free and never uses libvlc native EQ (spec §2.2/§3.1)",
+TEST_CASE("src/playback is Qt-free and never uses libvlc native EQ (spec 2.2/3.1)",
           "[fe4][core]") {
     const fs::path dir = KOALAAMP_PLAYBACK_SRC;
     REQUIRE(fs::exists(dir));
@@ -732,7 +732,7 @@ TEST_CASE("src/playback is Qt-free and never uses libvlc native EQ (spec §2.2/�
     CHECK(offenders.empty());
 }
 
-TEST_CASE("PlaybackCore never enables libvlc native EQ (spec §3.1 EQ rule)",
+TEST_CASE("PlaybackCore never enables libvlc native EQ (spec 3.1 EQ rule)",
           "[fe4][core][eq]") {
     FixtureDir fixtures;
     const fs::path wav = writeSineWav(fixtures.file("tone.wav"), 1000.0, 48000, 2, 4.0);

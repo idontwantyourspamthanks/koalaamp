@@ -709,7 +709,7 @@ TEST_CASE("DSP pipeline: steady-state is allocation-free (10k-block soak)", "[au
 //  seam installation + no-native-EQ guard (generalised to the DSP-on path)
 // ===========================================================================
 
-TEST_CASE("src/audio never touches libvlc native EQ or Qt (spec §2.2/§3.1)", "[au1][dsp][guard]") {
+TEST_CASE("src/audio never touches libvlc native EQ or Qt (spec 2.2/3.1)", "[au1][dsp][guard]") {
     const fs::path dir = KOALAAMP_AUDIO_SRC;
     REQUIRE(fs::exists(dir));
     std::vector<std::string> offenders;
