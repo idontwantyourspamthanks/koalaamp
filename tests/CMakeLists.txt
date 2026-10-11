@@ -155,15 +155,16 @@ target_compile_definitions(koalaamp_se2_interaction_tests PRIVATE
     "KOALAAMP_CORPUS_DIR=\"${CMAKE_SOURCE_DIR}/third_party/skins-corpus\"")
 # Widget tests need a platform plugin; the offscreen one exists everywhere.
 # DISCOVERY_MODE PRE_TEST: Catch2's default build-time discovery executes the
-# exe directly (no test ENVIRONMENT applies — the earlier set(ENV) attempt
-# failed precisely because ENV{...} is configure-scope only). PRE_TEST moves
-# discovery to ctest time, where the ENVIRONMENT below applies. Headless CI
-# then picks offscreen instead of dying on xcb with no display.
-add_test(NAME se2_interaction_smoke
-    COMMAND $<TARGET_FILE:koalaamp_se2_interaction_tests> "[se2][interaction]")
-set_tests_properties(se2_interaction_smoke PROPERTIES
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
-    TIMEOUT 120)
+# exe directly where no test ENVIRONMENT applies; PRE_TEST defers discovery to
+# ctest time. Belt-and-braces: CI also exports QT_QPA_PLATFORM=offscreen at
+# the job level (build tool + ctest inherit it), so neither the discovery
+# invocation nor any run can pick xcb on a headless runner.
+#
+# No separate hand-declared smoke add_test: the discovered "SE-2 interaction
+# parity checklist" entry IS the suite (a raw add_test would need its own
+# SKIP_RETURN_CODE wiring to treat Catch2's skip exit 4 as pass — the
+# discovered tests already handle that; a duplicate wrapper just misreports
+# skips as failures).
 catch_discover_tests(koalaamp_se2_interaction_tests PROPERTIES
     DISCOVERY_MODE PRE_TEST
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
