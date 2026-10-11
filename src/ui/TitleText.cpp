@@ -1,0 +1,326 @@
+// SPDX-License-Identifier: MIT
+#include "ui/TitleText.hpp"
+
+#include <array>
+#include <utility>
+
+namespace koalaamp::ui {
+
+namespace {
+
+/// Webamp `utils.ts` diacritic-fold table (MIT), pinned at
+/// webamp@e6283c0eabe9b1313cd41df16d2875e897719696. Covers the fold regex
+/// `/[À-ÖØ-öø-ÿĀ-ſ]/g`; every other codepoint is
+/// passed through unchanged.
+constexpr std::array<std::pair<char32_t, char32_t>, 190> kDiacriticFold = {{
+// clang-format off
+    {0x00C0, 0x0041},
+    {0x00C1, 0x0041},
+    {0x00C2, 0x0041},
+    {0x00C3, 0x0041},
+    {0x00C4, 0x0041},
+    {0x00C5, 0x0041},
+    {0x00C6, 0x0041},
+    {0x00C7, 0x0043},
+    {0x00C8, 0x0045},
+    {0x00C9, 0x0045},
+    {0x00CA, 0x0045},
+    {0x00CB, 0x0045},
+    {0x00CC, 0x0049},
+    {0x00CD, 0x0049},
+    {0x00CE, 0x0049},
+    {0x00CF, 0x0049},
+    {0x00D0, 0x0044},
+    {0x00D1, 0x004E},
+    {0x00D2, 0x004F},
+    {0x00D3, 0x004F},
+    {0x00D4, 0x004F},
+    {0x00D5, 0x004F},
+    {0x00D6, 0x004F},
+    {0x00D8, 0x004F},
+    {0x00D9, 0x0055},
+    {0x00DA, 0x0055},
+    {0x00DB, 0x0055},
+    {0x00DC, 0x0055},
+    {0x00DD, 0x0059},
+    {0x00DE, 0x0054},
+    {0x00DF, 0x0073},
+    {0x00E0, 0x0061},
+    {0x00E1, 0x0061},
+    {0x00E2, 0x0061},
+    {0x00E3, 0x0061},
+    {0x00E4, 0x0061},
+    {0x00E5, 0x0061},
+    {0x00E6, 0x0061},
+    {0x00E7, 0x0063},
+    {0x00E8, 0x0065},
+    {0x00E9, 0x0065},
+    {0x00EA, 0x0065},
+    {0x00EB, 0x0065},
+    {0x00EC, 0x0069},
+    {0x00ED, 0x0069},
+    {0x00EE, 0x0069},
+    {0x00EF, 0x0069},
+    {0x00F0, 0x0064},
+    {0x00F1, 0x006E},
+    {0x00F2, 0x006F},
+    {0x00F3, 0x006F},
+    {0x00F4, 0x006F},
+    {0x00F5, 0x006F},
+    {0x00F6, 0x006F},
+    {0x00F8, 0x006F},
+    {0x00F9, 0x0075},
+    {0x00FA, 0x0075},
+    {0x00FB, 0x0075},
+    {0x00FC, 0x0075},
+    {0x00FD, 0x0079},
+    {0x00FE, 0x0074},
+    {0x00FF, 0x0079},
+    {0x0100, 0x0041},
+    {0x0101, 0x0061},
+    {0x0102, 0x0041},
+    {0x0103, 0x0061},
+    {0x0104, 0x0041},
+    {0x0105, 0x0061},
+    {0x0106, 0x0043},
+    {0x0107, 0x0063},
+    {0x0108, 0x0043},
+    {0x0109, 0x0063},
+    {0x010A, 0x0043},
+    {0x010B, 0x0063},
+    {0x010C, 0x0043},
+    {0x010D, 0x0063},
+    {0x010E, 0x0044},
+    {0x010F, 0x0064},
+    {0x0110, 0x0044},
+    {0x0111, 0x0064},
+    {0x0112, 0x0045},
+    {0x0113, 0x0065},
+    {0x0114, 0x0045},
+    {0x0115, 0x0065},
+    {0x0116, 0x0045},
+    {0x0117, 0x0065},
+    {0x0118, 0x0045},
+    {0x0119, 0x0065},
+    {0x011A, 0x0045},
+    {0x011B, 0x0065},
+    {0x011C, 0x0047},
+    {0x011D, 0x0067},
+    {0x011E, 0x0047},
+    {0x011F, 0x0067},
+    {0x0120, 0x0047},
+    {0x0121, 0x0067},
+    {0x0122, 0x0047},
+    {0x0123, 0x0067},
+    {0x0124, 0x0048},
+    {0x0125, 0x0068},
+    {0x0126, 0x0048},
+    {0x0127, 0x0068},
+    {0x0128, 0x0049},
+    {0x0129, 0x0069},
+    {0x012A, 0x0049},
+    {0x012B, 0x0069},
+    {0x012C, 0x0049},
+    {0x012D, 0x0069},
+    {0x012E, 0x0049},
+    {0x012F, 0x0069},
+    {0x0130, 0x0049},
+    {0x0131, 0x0069},
+    {0x0132, 0x0049},
+    {0x0133, 0x0069},
+    {0x0134, 0x004A},
+    {0x0135, 0x006A},
+    {0x0136, 0x004B},
+    {0x0137, 0x006B},
+    {0x0138, 0x006B},
+    {0x0139, 0x004C},
+    {0x013A, 0x006C},
+    {0x013B, 0x004C},
+    {0x013C, 0x006C},
+    {0x013D, 0x004C},
+    {0x013E, 0x006C},
+    {0x013F, 0x004C},
+    {0x0140, 0x006C},
+    {0x0141, 0x004C},
+    {0x0142, 0x006C},
+    {0x0143, 0x004E},
+    {0x0144, 0x006E},
+    {0x0145, 0x004E},
+    {0x0146, 0x006E},
+    {0x0147, 0x004E},
+    {0x0148, 0x006E},
+    {0x0149, 0x0027},
+    {0x014A, 0x004E},
+    {0x014B, 0x006E},
+    {0x014C, 0x004F},
+    {0x014D, 0x006F},
+    {0x014E, 0x004F},
+    {0x014F, 0x006F},
+    {0x0150, 0x004F},
+    {0x0151, 0x006F},
+    {0x0152, 0x004F},
+    {0x0153, 0x006F},
+    {0x0154, 0x0052},
+    {0x0155, 0x0072},
+    {0x0156, 0x0052},
+    {0x0157, 0x0072},
+    {0x0158, 0x0052},
+    {0x0159, 0x0072},
+    {0x015A, 0x0053},
+    {0x015B, 0x0073},
+    {0x015C, 0x0053},
+    {0x015D, 0x0073},
+    {0x015E, 0x0053},
+    {0x015F, 0x0073},
+    {0x0160, 0x0053},
+    {0x0161, 0x0073},
+    {0x0162, 0x0054},
+    {0x0163, 0x0074},
+    {0x0164, 0x0054},
+    {0x0165, 0x0074},
+    {0x0166, 0x0054},
+    {0x0167, 0x0074},
+    {0x0168, 0x0055},
+    {0x0169, 0x0075},
+    {0x016A, 0x0055},
+    {0x016B, 0x0075},
+    {0x016C, 0x0055},
+    {0x016D, 0x0075},
+    {0x016E, 0x0055},
+    {0x016F, 0x0075},
+    {0x0170, 0x0055},
+    {0x0171, 0x0075},
+    {0x0172, 0x0055},
+    {0x0173, 0x0075},
+    {0x0174, 0x0057},
+    {0x0175, 0x0077},
+    {0x0176, 0x0059},
+    {0x0177, 0x0079},
+    {0x0178, 0x0059},
+    {0x0179, 0x005A},
+    {0x017A, 0x007A},
+    {0x017B, 0x005A},
+    {0x017C, 0x007A},
+    {0x017D, 0x005A},
+    {0x017E, 0x007A},
+    {0x017F, 0x0073},
+// clang-format on
+}};
+
+/// Webamp `UC`: combining marks are dropped after folding.
+constexpr bool isCombiningMark(char32_t cp) {
+    return (cp >= 0x0300 && cp <= 0x036F) || (cp >= 0xFE20 && cp <= 0xFE2F) ||
+           (cp >= 0x20D0 && cp <= 0x20FF);
+}
+
+}  // namespace
+
+char32_t nextCodepoint(std::string_view text, std::size_t& pos) {
+    if (pos >= text.size()) {
+        return U'\0';
+    }
+    const auto byte = [&](std::size_t i) {
+        return static_cast<unsigned char>(text[i]);
+    };
+    const unsigned char lead = byte(pos);
+    std::size_t length = 1;
+    char32_t cp = lead;
+    if ((lead & 0xE0) == 0xC0) {
+        length = 2;
+        cp = lead & 0x1Fu;
+    } else if ((lead & 0xF0) == 0xE0) {
+        length = 3;
+        cp = lead & 0x0Fu;
+    } else if ((lead & 0xF8) == 0xF0) {
+        length = 4;
+        cp = lead & 0x07u;
+    } else if (lead < 0x80) {
+        pos += 1;
+        return cp;
+    } else {
+        pos += 1;  // continuation byte or invalid lead: one-byte resync
+        return U'\uFFFD';
+    }
+    if (pos + length > text.size()) {
+        pos = text.size();
+        return U'\uFFFD';
+    }
+    for (std::size_t i = 1; i < length; ++i) {
+        const unsigned char cont = byte(pos + i);
+        if ((cont & 0xC0) != 0x80) {
+            pos += 1;
+            return U'\uFFFD';
+        }
+        cp = (cp << 6) | (cont & 0x3Fu);
+    }
+    pos += length;
+    return cp;
+}
+
+std::size_t codepointCount(std::string_view text) {
+    std::size_t pos = 0;
+    std::size_t count = 0;
+    while (pos < text.size()) {
+        nextCodepoint(text, pos);
+        ++count;
+    }
+    return count;
+}
+
+char32_t foldForFont(char32_t cp) {
+    char32_t folded = cp;
+    for (const auto& [from, to] : kDiacriticFold) {
+        if (from == cp) {
+            folded = to;
+            break;
+        }
+    }
+    if (isCombiningMark(folded)) {
+        return U'\uFFFD';
+    }
+    // Webamp lower-cases the folded character for the glyph lookup; text.bmp's
+    // cells are case-shared and `fontGlyph` accepts either case, but folding
+    // case here keeps the lookup (and the tests) unambiguous.
+    if (folded >= U'A' && folded <= U'Z') {
+        folded += 0x20;
+    }
+    return folded;
+}
+
+bool marqueeScrolls(std::string_view title) {
+    return codepointCount(title) >= 31;
+}
+
+std::string marqueeDisplay(std::string_view title) {
+    if (marqueeScrolls(title)) {
+        std::string out;
+        out.reserve(title.size() * 2 + kMarqueeSeparator.size());
+        out.append(title);
+        out.append(kMarqueeSeparator);
+        out.append(title);
+        return out;
+    }
+    std::string out(title);
+    for (std::size_t cells = codepointCount(title); cells < kMarqueeCells; ++cells) {
+        out.push_back(' ');
+    }
+    return out;
+}
+
+int marqueeScrollPx(std::string_view title, int step) {
+    if (!marqueeScrolls(title)) {
+        return 0;
+    }
+    const int cells = static_cast<int>(codepointCount(title));
+    const int period = 5 * (cells + static_cast<int>(kMarqueeSeparator.size()));
+    if (period <= 0) {
+        return 0;
+    }
+    int offset = (5 * step) % period;
+    if (offset < 0) {
+        offset += period;
+    }
+    return offset;
+}
+
+}  // namespace koalaamp::ui

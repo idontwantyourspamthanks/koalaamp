@@ -40,8 +40,9 @@ and adapted with attribution in the file header, not linked.
     layout (`css/main-window.css`) plus selector mapping (`js/skinSelectors.ts`)
     were transcribed at commit `e6283c0eabe9b1313cd41df16d2875e897719696`, with
     attribution in the file headers. SE-1 promoted the FE-3 transcription into
-    `src/skins/SkinSprites.hpp`; the layout constants remain spike-only in
-    `spikes/fe3_wsz/MainWindowRenderer.cpp` (rendering is SE-2).
+    `src/skins/SkinSprites.hpp`; SE-2 promoted the layout into
+    `src/ui/PlayerRenderer.{hpp,cpp}` (the spike's renderer was deleted and the
+    Webamp diff harness now exercises the app renderer).
   - **Webamp** (MIT) — SE-1's lenient text parsers (`src/skins/SkinText.cpp`)
     port the *behaviour* of `js/utils.ts` (`parseIni`, `parseViscolors`),
     `js/skinParserUtils.ts` (`getPlaylistStyle`) and `js/regionParser.ts`
@@ -49,6 +50,14 @@ and adapted with attribution in the file header, not linked.
     the same pinned commit, with the divergences documented in the header.
     `src/skins/SkinSet.cpp` (fallbacks, last-member-wins lookup order) follows
     `js/skinParser.js` / `skinParserUtils.ts` `getFileFromZip`.
+  - **Webamp** (MIT) — SE-2's main-window control surface ports three more
+    pieces of the same pinned commit, with attribution in the file headers:
+    `js/utils.ts`'s 190-entry diacritic-fold table (the 5x6 `text.bmp` font's
+    uppercase-only set) into `src/ui/TitleText.cpp`; `js/components/Marquee.tsx`
+    (31-cell pad, `"  ***  "` doubling, one-cell scroll per step) into the same
+    file; and `js/visualizer/FFT.ts` + `js/visualizer/Visualizer.ts` (the
+    1024-point Winamp spectrum transform, 75-band projection, falloff/peak
+    decay and the 75-point oscilloscope) into `src/ui/VisData.{hpp,cpp}`.
   - Webamp is also used, unmodified, as a *test-only* headless renderer
     (`spikes/fe3_wsz/reference/`) to produce the pixel-diff reference; the
     bundle is fetched to the gitignored `third_party/webamp/`, never committed.
