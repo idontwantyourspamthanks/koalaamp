@@ -2,7 +2,7 @@
 
 **Format:** ticket = `ID · Title` with *Story*, *Tasks*, *Acceptance*, *Depends*, *Est.* (focused days, one experienced C++ dev). Spikes are timeboxed.
 
-**Per-ticket briefs:** sixteen tickets have expanded contracts in [`tickets/`](tickets/) — the AI-consumable task files (story, tasks, checkable DoD, out-of-scope, reference paths). Template: `tickets/_template.md`. This index remains the master for sequencing, estimates, and dependencies; expand remaining tickets from the template at pickup time.
+**Per-ticket briefs:** seventeen tickets have expanded contracts in [`tickets/`](tickets/) — the AI-consumable task files (story, tasks, checkable DoD, out-of-scope, reference paths). Template: `tickets/_template.md`. This index remains the master for sequencing, estimates, and dependencies; expand remaining tickets from the template at pickup time.
 
 | Expanded | File |
 |---|---|
@@ -23,6 +23,7 @@
 | SV-1 Jellyfin port | `tickets/SV-1-jellyfin-port.md` |
 | SV-2 Jellyfin playback | `tickets/SV-2-jellyfin-playback.md` |
 | SV-4 Plex playback | `tickets/SV-4-plex-playback.md` |
+| CI-1 Windows playback compile coverage | `tickets/CI-1-windows-playback-coverage.md` |
 
 **Sequencing:** M0 → M1 → M2 → M3 (v1.0 ships after M3). M4+ = Phase 3. Server tickets are *ports* of the maintainer's koalapaw Android code — wire contracts are field-tested; the work is transliteration.
 
