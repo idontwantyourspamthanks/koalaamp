@@ -55,6 +55,21 @@ if(KOALAAMP_HAS_LIBVLC)
     message(STATUS "KoalaAmp: libvlc EQ-rule test enabled")
 endif()
 
+# FE-4: PlaybackCore end-to-end (transport/seek/volume/EndReached/queue), the
+# core-level EQ rule + Qt-free static guard, and the 200-track-change soak.
+# Gated on the core target because it wraps the libvlc chain; the soak gets a
+# generous timeout (200 real track activations, slower under ASAN).
+if(TARGET koalaamp_playback_core)
+    add_executable(koalaamp_playback_tests playback_core_test.cpp)
+    koalaamp_enable_warnings(koalaamp_playback_tests)
+    target_link_libraries(koalaamp_playback_tests PRIVATE Catch2::Catch2WithMain
+        koalaamp_playback_core)
+    target_compile_definitions(koalaamp_playback_tests PRIVATE
+        "KOALAAMP_PLAYBACK_SRC=\"${CMAKE_SOURCE_DIR}/src/playback\"")
+    catch_discover_tests(koalaamp_playback_tests PROPERTIES TIMEOUT 900)
+    message(STATUS "KoalaAmp: FE-4 PlaybackCore tests enabled")
+endif()
+
 # FE-3: WSZ/BMP decode + ported sprite table. Decoder cases use synthetic BMPs;
 # the base-2.91 cases skip when the gitignored fixture has not been fetched
 # (spikes/fe3_wsz/fetch-skin.sh).
