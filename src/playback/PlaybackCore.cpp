@@ -407,8 +407,11 @@ struct PlaybackCore::Impl {
         return std::nullopt;
     }
 
-    /// Requires `stateMutex` held (const access to m_rngState is fine: we only
-    /// ever touch it from the dispatch thread).
+    /// Requires `stateMutex` held. That lock — not a thread assumption — is
+    /// what makes this safe: `peekNext()` is public and can be called from any
+    /// thread, while `planAdvance` shuffles from the dispatch thread.
+    /// `m_rngState` is `mutable` only because a const *peek* still advances the
+    /// candidate order.
     std::size_t peekShuffleIndexLocked() const {
         if (session.size() <= 1) {
             return 0;
