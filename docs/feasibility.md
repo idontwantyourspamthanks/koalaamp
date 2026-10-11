@@ -29,7 +29,7 @@ Research date: 2026-10-10. Full evidence: `docs/research/*.md` (skins, visuals, 
 | Input clipping (clicks fall outside shape) | Mask hints clip input on Windows/X11; macOS layer mask is visual-only → app-level hit-testing there (we do custom hit-testing anyway for sprite hot-areas) | Qt docs (`qwidget.html#setMask`); `qcocoawindow.mm` |
 | No-compositor Linux | Masks are geometry — work on bare X11 with zero compositing | frameworks.md §0 |
 | GPU visualizer | projectM is itself distributed with a Qt frontend; `QOpenGLWidget` hosting is the *supported* path (LGPL dynamic link) | projectM repo; frameworks.md §3 |
-| Audio engine in-process | libvlc via libvlcpp (or QtMultimedia/FFmpeg — qtamp uses it); C++ all the way down, no IPC | frameworks.md §3 |
+| Audio engine in-process | libvlc via its raw C API (libvlcpp rejected: LGPL C++ wrapper would compile into our binary — FE-0/FE-2 decision); C++ all the way down, no IPC | frameworks.md §3; docs/spikes/fe0-deps.md |
 | Pixel-perfect bitmaps | `QPainter`, `SmoothPixmapTransform` off = exact nearest-neighbour; trivial | frameworks.md §3 |
 | License | QtWidgets/QtGui/QtOpenGL are **LGPLv3** — dynamic linking keeps a closed app compliant (same discipline as VLC's own Qt frontend) | Qt licensing docs |
 | Precedent | Qmmp + Audacious ship classic-skin players on Qt (GPL, study-only); qtWasabi proves pixel-exact Wasabi-era rendering on Qt6/Wayland/HiDPI | frameworks.md §2 |
@@ -72,7 +72,7 @@ Rejected alternatives and their reasons are in `research/frameworks.md` §11 (El
 | 4 | MilkDrop visualisations | **Proven** — projectM 4.1.8 (LGPL, active); ships Qt frontends; we feed PCM, it renders GL | visuals.md §3.1 |
 | 5 | projectM embedded in Qt | **Low risk** — `QOpenGLWidget` hosting is the project-supported path (vs Avalonia's unproven ANGLE/GLES question) | visuals.md §6; frameworks.md §3 |
 | 6 | AVS | **Not practical** — 32-bit APE DLL ecosystem; out of v1 | visuals.md §4.3 |
-| 7 | Audio engine (decode) | **Proven** — libvlc 3.0.x via libvlcpp in-process (LGPL); FFmpeg inside covers FLAC/MP3/AAC/Opus/Vorbis/WavPack/APE/MPC/WAV | audio.md §2.2 |
+| 7 | Audio engine (decode) | **Proven** — libvlc 3.0.x in-process via its raw C API (LGPL); FFmpeg inside covers FLAC/MP3/AAC/Opus/Vorbis/WavPack/APE/MPC/WAV | audio.md §2.2 |
 | 8 | PCM tap + output sink | **Proven pattern** — libvlc audio callbacks (vmem/amem) deliver decoded PCM; **the user-filter chain (incl. equalizer) runs upstream of the callback** (verified in VLC source: `media_player.c:2231` sets `audio-filter`; `dec.c` builds the filter pipeline before the aout's `play`) — so in DSP mode we must *not* enable libvlc's EQ to avoid double-EQ; output via miniaudio (public-domain/MIT-0, single-file, WASAPI/CoreAudio/ALSA/Pulse) | VLC source, fetched 2026-10-10; miniaudio README |
 | 9 | Gapless + ReplayGain | **Feasible, client-side** — no server or engine does it for us; pre-buffer next track, apply RG in the float pipeline | servers.md §1.6/§3.2-3.3 |
 | 10 | Local library | **Proven** — TagLib 2.3.2 (LGPL/MPL, native C++, covers ID3/Vorbis/MP4/FLAC/APE/MPC/WavPack + tracker files); SQLite + FTS5 | taglib.org; audio.md §6-7 |
@@ -96,7 +96,7 @@ flowchart TB
     end
     subgraph Core[PlaybackCore]
         Mgr[TrackScheduler<br/>queue, gapless handoff]
-        VLC[libvlcpp engine<br/>audio callbacks on]
+        VLC[libvlc C API engine<br/>audio callbacks on]
         DSP[float DSP<br/>RG, EQ, limiter]
         Tap[PCM ring buffer]
         MA[miniaudio sink]

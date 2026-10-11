@@ -42,7 +42,7 @@ llama5 (Qt Widgets app)
  ├─ library/    (Scanner, TagReader→TagLib, SQLite/FTS5, smart views)
  ├─ servers/    (jellyfin/, plex/ — ports of koalapaw gateways; Scrobbler)
  ├─ skins/      (WszLoader, SkinSprites, region/viscolor/pledit parsers)
- └─ interop/    (libvlcpp wrapper, projectM-4 C API, TagLib façade)
+ └─ interop/    (libvlc C API, projectM-4 C API, TagLib façade)
 ```
 
 Single process. Qt event loop on the main thread; audio-callback threads (libvlc calls us) touch lock-free ring buffers only — **no GUI calls from audio threads**.
@@ -81,7 +81,9 @@ public:
 
 ## 3. Audio engine
 
-### 3.1 Chosen engine: **libvlc 3.0.x (libvlcpp) + miniaudio sink**
+### 3.1 Chosen engine: **libvlc 3.0.x (raw C API) + miniaudio sink**
+
+*Binding decision (FE-0/FE-2, `docs/spikes/fe0-deps.md`): raw libvlc C headers, not libvlcpp — avoids compiling an LGPL C++ wrapper into our binary; the C API is thin and stable.*
 
 Rationale: only mainstream engine with a decoded-PCM callback path *and* the Winamp band table as a native reference; LGPL; in-process C++ (no IPC); audio.md §2.2.
 
