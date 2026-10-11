@@ -55,8 +55,8 @@ through the real `DspPipeline` and compared to reference curves computed *indepe
 `tests/dsp_test.cpp` from the RBJ Audio-EQ-Cookbook magnitude response (not from the
 production coefficient code), within 0.6 dB — all 10 bands ±12 dB, both modes; plus the
 analytic property |H(f₀)| = requested gain at every centre frequency (0.25 dB) and a full
-"Rock" preset vs the product of per-band references. ASAN+UBSAN clean; full suite 92/92
-(72 baseline + 20 new).
+"Rock" preset vs the product of per-band references. ASAN+UBSAN clean; full suite 93/93
+(72 baseline + 21 new).
 
 **Deviations / decisions.**
 - Sink-ownership seat: `PcmCb` is a `const float*` per spec §2.3, but the seam hands the
