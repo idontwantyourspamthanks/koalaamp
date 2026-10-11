@@ -3,7 +3,7 @@
 - **Milestone:** M1 · **Est:** 4d · **Depends:** FE-3 · **Status:** unstarted
 
 ## Story
-The loader that never says die: every skin in the 100k museum corpus opens without a crash, every documented quirk (RLE8, palettes, case games, missing optional files, folder skins) handled, and the parsed result becomes the single `SkinSet` structure every window renders from. This is the foundation SE-2/SE-3/SE-5 stand on — correctness here is 80% of skin compatibility.
+**REUSE, DON'T REIMPLEMENT:** FE-3 already shipped the diff-verified pieces — promote `spikes/fe3_wsz/{ZipReader,BmpDecoder,Skin,SkinSprites}.cpp/hpp` into `src/skins/` as the starting point (zip + RLE8/palette BMP decode, byte-identical to Chrome/Skia on all 18 base-2.91 sheets, and the full 212-sprite table). SE-1's new work is *breadth* (folder containers, text parsers, SkinSet assembly, corpus, fuzz) on top of those proven modules — re-deriving ZIP/RLE8 from scratch re-introduces exactly the bugs FE-3 fixed (see the balance.bmp delta-run trap and the four corrected geometry values in the FE-3 report).
 
 ## Tasks
 - [ ] Container: ZIP + `.wsz` + `.zip` + extracted folders; case-insensitive member lookup by lowercased basename; tolerate one nesting level.
@@ -30,7 +30,7 @@ The loader that never says die: every skin in the 100k museum corpus opens witho
 - `spec.md` §5.1 — file list, fallbacks, coordinate-table ownership
 - `docs/research/skins.md` §1.1-1.4 — the full format tables incl. RLE8 warning, region.txt sections, gen/genex RGB(0,198,255) marker
 - Webamp `skinParser.js` / `regionParser.ts` (MIT) — the leniency behavior to port
-- `docs/research/formats.md` §1 — playlist-format side of skin folders (not this ticket, but adjacent)
+- `docs/spikes/fe3-wsz-render.md` + `docs/tickets/FE-3-wsz-loader-render.md` — **the FE-3 findings this ticket builds on**: RLE8 delta-run trap (balance.bmp), corrected geometry (monoster 58×24, text 155×74, eq_ex 275×82, gen 194×109), Qt-vs-Skia decoder divergences, and the proven modules in `spikes/fe3_wsz/` to promote
 
 ## Notes / risks
 - RLE8 is the #1 real-world loader failure (skins.md §1.2 cites eversolo's measurement — Android's own decoder fails on these); write dedicated tests with hand-crafted RLE8 fixtures before trusting any library.
