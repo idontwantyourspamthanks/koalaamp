@@ -64,6 +64,14 @@ if(TARGET koalaamp_fe3_wsz)
     target_link_libraries(koalaamp_fe3_tests PRIVATE Catch2::Catch2WithMain koalaamp_fe3_wsz)
     target_compile_definitions(koalaamp_fe3_tests PRIVATE
         "KOALAAMP_FE3_SKIN=\"${CMAKE_SOURCE_DIR}/third_party/skins/base-2.91.wsz\"")
-    catch_discover_tests(koalaamp_fe3_tests)
+    # Windows: the test exe links Qt DLLs; Catch2's discovery step runs it at
+    # build time and needs them on PATH (0xc0000135 otherwise). install-qt-action
+    # puts the DLLs in the Qt bin dir.
+    if(WIN32)
+        catch_discover_tests(koalaamp_fe3_tests
+            ENVIRONMENT "PATH=$<SHELL_PATH:$<TARGET_RUNTIME_DLL_DIRS:koalaamp_fe3_tests>;$ENV:PATH>")
+    else()
+        catch_discover_tests(koalaamp_fe3_tests)
+    endif()
     message(STATUS "KoalaAmp: FE-3 WSZ decode/table tests enabled")
 endif()
