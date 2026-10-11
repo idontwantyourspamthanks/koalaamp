@@ -89,6 +89,17 @@ emits 41 states × {1×, 2×} = 82 SHA-256 digests; `tests/fixtures/se2/goldens.
 normalised RGB triples, so they are platform-neutral; the PNGs themselves are Nullsoft artwork and
 are never committed (`spike_fe3 --all <dir>` writes them locally).
 
+### Paint-path budget (acceptance item 3)
+`spike_fe3 --bench 600` times the two costs the animation loop pays — a full chrome
+re-composition (only when the state changes; the marquee steps ~4.5x/s) and a cached-chrome
+blit plus the visualiser overlay (every 16 ms tick) — plus the per-tick FFT:
+```
+bench (600 frames): chrome=0.123 ms  frame=0.104 ms  fft=0.018 ms
+bench: 60 fps -> 7.880 ms/s = 0.79% of one core
+```
+Measured on the reference box (i7-13700, RelWithDebInfo); the budget is 5 % of one core for the
+paint path, so there is ~6x headroom. The animation ticker stops entirely while stopped.
+
 ### Recorded constants
 - Vis transform: FFT size 1024 → 512 bins; envelope `(0.5+0.5·sin(2πi/N − π/2))^1`; equalise
   `log10(1+a+(i+1)·t)` with `a` starting at 0.04 and decaying ×1/1.0025, `t` recomputed from the

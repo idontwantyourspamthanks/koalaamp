@@ -15,6 +15,7 @@
 //   spike_fe3 --skin <file.wsz> --all <dir>            # every state, 1x and 2x
 //   spike_fe3 --skin <file.wsz> --dump-sheets <dir>    # decoded sheets -> PNG
 //   spike_fe3 --skin <file.wsz> --info                 # per-sheet BMP header facts
+#include <chrono>
 #include <cstdio>
 #include <cstring>
 #include <filesystem>
@@ -26,6 +27,7 @@
 #include <vector>
 
 #include <QImage>
+#include <QPainter>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QJsonValue>
@@ -38,6 +40,7 @@
 #include "ui/PlayerRenderer.hpp"
 #include "ui/TitleText.hpp"
 #include "ui/VisData.hpp"
+#include "ui/VisData.hpp"
 
 namespace {
 
@@ -46,10 +49,14 @@ using koalaamp::ui::PlayerState;
 using koalaamp::ui::PlayerStatus;
 using koalaamp::ui::VisMode;
 
+constexpr int kMainWidthPx = 275;
+constexpr int kMainHeightPx = 116;
+
 void usage() {
     std::fputs("usage: spike_fe3 --skin <file.wsz> [--out <png> | --dump-sheets <dir> | --info]\n"
                "                [--state <name> | --from-json <json> --state-name <name>]\n"
-               "                [--scale N] [--all <dir>] [--list-states] [--goldens]\n",
+               "                [--scale N] [--all <dir>] [--list-states] [--goldens]\n"
+               "                [--bench <frames>]\n",
                stderr);
 }
 
@@ -148,6 +155,7 @@ int main(int argc, char** argv) {
     bool info = false;
     bool listStates = false;
     bool goldens = false;
+    int benchFrames = 0;
 
     for (int i = 1; i < argc; ++i) {
         const std::string arg = argv[i];
@@ -172,6 +180,8 @@ int main(int argc, char** argv) {
             listStates = true;
         } else if (arg == "--goldens") {
             goldens = true;
+        } else if (arg == "--bench") {
+            benchFrames = std::stoi(next());
         } else if (arg == "--info") {
             info = true;
         } else if (arg == "-h" || arg == "--help") {
@@ -222,6 +232,66 @@ int main(int argc, char** argv) {
         return 1;
     }
     const SkinSet& set = *skin;
+
+    if (benchFrames > 0) {
+        // Paint-path budget check (docs/tickets/SE-2-main-window.md acceptance:
+        // 60 fps with <= 5 % of one core). Measures the two costs the animation
+        // loop actually pays: a full chrome re-composition (only when the state
+        // changes — the marquee steps ~4.5x/s) and a cached-chrome blit plus the
+        // live visualiser overlay (every 16 ms tick).
+        const PlayerState* playingState = koalaamp::ui::goldenState("spectrum");
+        if (playingState == nullptr) {
+            std::fprintf(stderr, "spike_fe3: no spectrum state\n");
+            return 2;
+        }
+        PlayerState state = *playingState;
+        state.title = "01. artist - a very long track title";  // scrolls
+        const PlayerState* chromeState = playingState;
+        (void)chromeState;
+
+        QImage chrome = koalaamp::ui::renderChrome(set.sheets, set.visColor, state, 1);
+        QImage target(kMainWidthPx, kMainHeightPx, QImage::Format_RGB32);
+        const auto now = [] { return std::chrono::steady_clock::now(); };
+        double chromeMs = 0.0;
+        double frameMs = 0.0;
+        for (int frame = 0; frame < benchFrames; ++frame) {
+            // Chrome: every marquee step (one cell per 220 ms).
+            auto start = now();
+            const QImage composed = koalaamp::ui::renderMainWindow(set.sheets, set.visColor,
+                                                                   state, 1);
+            chrome = composed;
+            chromeMs += std::chrono::duration<double, std::milli>(now() - start).count();
+            // Frame: blit the cached chrome + draw the live vis columns.
+            start = now();
+            target.fill(Qt::black);
+            QPainter painter(&target);
+            painter.drawImage(0, 0, chrome);
+            koalaamp::ui::drawVisualizerOverlay(painter, set.visColor, state, 1);
+            painter.end();
+            frameMs += std::chrono::duration<double, std::milli>(now() - start).count();
+            state.visFrame = koalaamp::ui::syntheticVisFrame(frame);
+            state.marqueeOffsetPx = koalaamp::ui::marqueeScrollPx(state.title, frame / 14);
+        }
+        const double perChromeMs = chromeMs / benchFrames;
+        const double perFrameMs = frameMs / benchFrames;
+        const double fftMs = [] {
+            koalaamp::ui::VisAnalyzer analyzer;
+            std::vector<float> samples(1024, 0.5F);
+            koalaamp::ui::VisFrame frame;
+            const auto start = std::chrono::steady_clock::now();
+            for (int i = 0; i < 100; ++i) {
+                analyzer.analyze(samples.data(), samples.size(), frame);
+            }
+            return std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - start)
+                   .count() / 100.0;
+        }();
+        const double perSecondMs = 60.0 * (perFrameMs + fftMs) + 4.5 * perChromeMs;
+        std::printf("bench (%d frames): chrome=%.3f ms  frame=%.3f ms  fft=%.3f ms\n",
+                    benchFrames, perChromeMs, perFrameMs, fftMs);
+        std::printf("bench: 60 fps -> %.3f ms/s = %.2f%% of one core\n", perSecondMs,
+                    perSecondMs / 10.0);
+        return 0;
+    }
 
     if (goldens) {
         // The golden manifest consumed by tests/se2_render_test.cpp: one line
