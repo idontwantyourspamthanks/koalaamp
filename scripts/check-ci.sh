@@ -43,5 +43,23 @@ assert ci['jobs']['license-audit']['name'] == 'license audit', "protected name d
 assert ci['jobs']['secrets-scan']['name'] == 'secrets scan', "protected name drifted: secrets scan"
 print(f"check-ci: step order OK ({steps})")
 print("check-ci: protected job names intact")
+
+# deps/dependencies.json parses and its name set matches LICENSES.md
+# (the ranged-PUT-clobbers-entry bug class: a dropped dep line would
+# otherwise pass silently).
+import json, re
+manifest = json.load(open('deps/dependencies.json'))
+names = {d['name'] for d in manifest['dependencies']}
+lic_text = open('LICENSES.md').read()
+runtime = re.search(r'## Runtime dependencies.*?##', lic_text, re.S).group(0)
+buildtest = re.search(r'## Build / test dependencies.*?##', lic_text, re.S).group(0)
+table_names = set(re.findall(r'^\| ([^|]+?) \|', runtime + buildtest, re.M))
+table_names.discard('Dependency')  # header row
+if names != table_names:
+    print(f"check-ci: FAIL — manifest vs LICENSES.md mismatch:")
+    print(f"  manifest only: {sorted(names - table_names)}")
+    print(f"  LICENSES.md only: {sorted(table_names - names)}")
+    sys.exit(1)
+print(f"check-ci: manifest ({len(names)} deps) matches LICENSES.md")
 EOF
 echo "check-ci: PASS"

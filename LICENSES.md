@@ -17,15 +17,15 @@ and adapted with attribution in the file header, not linked.
 
 | Dependency | Version | License | Link mode | Source |
 |---|---|---|---|---|
-| Qt (Core/Gui/Widgets/OpenGL) | 6.12.0 (CI Linux/macOS) · 6.10.3 (CI Windows) · 6.10.2 (local dev) | LGPL-3.0-only | dynamic | https://code.qt.io/cgit/qt/ |
+| Qt | 6.12.0 (CI Linux/macOS; Core/Gui/Widgets/OpenGL) · 6.10.3 (CI Windows) · 6.10.2 (local dev) | LGPL-3.0-only | dynamic | https://code.qt.io/cgit/qt/ |
 | libvlc | 3.0.x | LGPL-2.1-or-later | dynamic | https://code.videolan.org/videolan/vlc |
 | TagLib | 2.3.2 | LGPL-2.1-or-later OR MPL-2.0 | dynamic | https://github.com/taglib/taglib |
 | projectM | 4.2.0-dev (master @ 349b7cc2; 4.1.8 lacks the FBO API QOpenGLWidget needs) | LGPL-2.1-or-later | dynamic | https://github.com/projectM-visualizer/projectm |
-| SQLite (FTS5) | 3.46.x | public domain | static (permitted) | https://sqlite.org/ |
+| SQLite | 3.46.x (FTS5) | public domain | static (permitted) | https://sqlite.org/ |
 | miniaudio | 0.11.22 | MIT-0 (dual public domain) | header-only | https://github.com/mackron/miniaudio |
 | libcurl | 8.18.0 | curl | dynamic | https://curl.se/libcurl/ |
 | zlib | system (Linux/macOS) / vcpkg (Windows) | zlib | dynamic | https://zlib.net/ |
-| nlohmann/json | 3.11.3 | MIT | header-only | https://github.com/nlohmann/json |
+| JSON | 3.11.3 (nlohmann/json) | MIT | header-only | https://github.com/nlohmann/json |
 ## Build / test dependencies (not shipped)
 
 | Dependency | Version | License | Link mode | Source |

@@ -64,14 +64,13 @@ if(TARGET koalaamp_fe3_wsz)
     target_link_libraries(koalaamp_fe3_tests PRIVATE Catch2::Catch2WithMain koalaamp_fe3_wsz)
     target_compile_definitions(koalaamp_fe3_tests PRIVATE
         "KOALAAMP_FE3_SKIN=\"${CMAKE_SOURCE_DIR}/third_party/skins/base-2.91.wsz\"")
-    # Windows: the test exe links Qt DLLs; Catch2's discovery step runs it at
-    # build time and needs them on PATH (0xc0000135 otherwise). install-qt-action
-    # puts the DLLs in the Qt bin dir.
-    if(WIN32)
-        catch_discover_tests(koalaamp_fe3_tests
-            ENVIRONMENT "PATH=$<SHELL_PATH:$<TARGET_RUNTIME_DLL_DIRS:koalaamp_fe3_tests>;$ENV:PATH>")
-    else()
-        catch_discover_tests(koalaamp_fe3_tests)
-    endif()
+    # Windows note: the test exe links Qt + zlib DLLs; Catch2's build-time
+    # discovery needs them on PATH. That is provided once, at the CI level
+    # (vcpkg installed/x64-windows/bin prepended to PATH, and Qt's bin via
+    # the toolchain) — deliberately NOT per-test here: $<TARGET_RUNTIME_DLL_DIRS>
+    # only covers SHARED targets and FindZLIB's imported target is UNKNOWN,
+    # so a per-test override is redundant at best and can clobber the working
+    # PATH if the genex fails to expand in ENVIRONMENT.
+    catch_discover_tests(koalaamp_fe3_tests)
     message(STATUS "KoalaAmp: FE-3 WSZ decode/table tests enabled")
 endif()
