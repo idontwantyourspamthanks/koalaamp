@@ -6,7 +6,7 @@
 The audio identity of the player: a C++ float pipeline that applies ReplayGain, a Winamp-semantics 10-band EQ, preamp, and limiter to every sample, allocation-free, at ≤ 50ms latency — and the guard that makes sure libvlc's native EQ never fights ours on the callback path.
 
 ## Tasks
-- [ ] Pipeline skeleton: deinterleave → stages → interleave → miniaudio sink; fixed 1024-frame blocks; pre-allocated buffers (steady-state heap diff = 0).
+- [ ] **Sink ownership (binding, FE-4):** `PlaybackCore` owns the chain `tap → SPSC ring → miniaudio sink` — AU-1 does NOT build a second sink or re-plumb anything. The DSP is a *transform* installed at the existing seam: `IAudioEngine::setPcmCallback` (post-gain, pre-ring float blocks, `src/playback/PlaybackCore.hpp:27,95`). Stages run inside that callback: deinterleave → RG → EQ biquads → preamp/limiter → interleave → return; 1024-frame blocks; pre-allocated buffers (steady-state heap diff = 0).
 - [ ] ReplayGain stage: album/track modes, preamp, peak-aware clip prevention, −6 dB untagged fallback; R128 (LUFS→gain) tags.
 - [ ] EQ stage: 10 peaking biquads, Winamp band table (60…16000 Hz); Winamp-curve and Constant-Q modes (`eq_type`); 0-64 UI values (31=0dB); coefficients double-precision, recomputed on change only.
 - [ ] Preamp + soft limiter (1.5:1 knee at −0.1 dBFS), Winamp "limiter" flag semantics.
@@ -33,6 +33,7 @@ The audio identity of the player: a C++ float pipeline that applies ReplayGain, 
 - VLC `equalizer_presets.h` — the verified band table cross-check
 - `docs/research/audio.md` §3-4 — EQ semantics, biquad approach, RG modes
 - `docs/tickets/FE-2-libvlc-callbacks-eq.md` — the upstream-EQ evidence this builds on
+- `src/playback/PlaybackCore.hpp` + `docs/tickets/FE-4-playback-core.md` — **the seam you plug into** (setPcmCallback, post-gain pre-ring) and the core's threading contract
 
 ## Notes / risks
 - Biquad coefficient drift on parameter change: crossfade coefficients over one block (SE-5's acceptance requires glitch-free preset switching) — build the crossfade into the stage now, not later.
