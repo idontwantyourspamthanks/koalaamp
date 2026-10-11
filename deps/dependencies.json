@@ -80,6 +80,14 @@
       "link": "header-only",
       "source": "https://github.com/catchorg/Catch2",
       "note": "Test framework, fetched at configure time via CMake FetchContent (URL+SHA256)."
+    },
+    {
+      "name": "zlib",
+      "version": "system (Linux/macOS) / vcpkg (Windows)",
+      "license": "zlib",
+      "link": "dynamic",
+      "source": "https://zlib.net/",
+      "note": "WSZ/WAL containers are ZIPs (FE-3/SE-1). Permissive license; pre-allowed in allowed_non_lgpl_licenses."
     }
   ]
 }

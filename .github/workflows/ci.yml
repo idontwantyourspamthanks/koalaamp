@@ -60,11 +60,15 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install curl
 
-      - name: Install libcurl (Windows, vcpkg)
+      - name: Install libcurl + zlib (Windows, vcpkg)
         if: runner.os == 'Windows'
         run: |
-          vcpkg install curl:x64-windows
+          vcpkg install curl:x64-windows zlib:x64-windows
           echo "CMAKE_PREFIX_PATH=$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows" >> $env:GITHUB_ENV
+          # vcpkg dynamic triplet: runtime DLLs (zlib1.dll, libcurl.dll) live in
+          # installed/x64-windows/bin; put them on PATH for build-time test
+          # discovery (CatchAddTests executes the test exes) and for ctest.
+          echo "PATH=$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin;$env:PATH" >> $env:GITHUB_ENV
 
       - name: Configure
         run: cmake --preset ${{ matrix.preset }}

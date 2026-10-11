@@ -24,8 +24,8 @@ and adapted with attribution in the file header, not linked.
 | SQLite (FTS5) | 3.46.x | public domain | static (permitted) | https://sqlite.org/ |
 | miniaudio | 0.11.22 | MIT-0 (dual public domain) | header-only | https://github.com/mackron/miniaudio |
 | libcurl | 8.18.0 | curl | dynamic | https://curl.se/libcurl/ |
+| zlib | system (Linux/macOS) / vcpkg (Windows) | zlib | dynamic | https://zlib.net/ |
 | nlohmann/json | 3.11.3 | MIT | header-only | https://github.com/nlohmann/json |
-
 ## Build / test dependencies (not shipped)
 
 | Dependency | Version | License | Link mode | Source |
