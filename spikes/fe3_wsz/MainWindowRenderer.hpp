@@ -10,7 +10,7 @@
 
 #include <QImage>
 
-#include "Skin.hpp"
+#include "skins/Skin.hpp"
 
 namespace fe3 {
 
@@ -38,6 +38,6 @@ struct MainWindowState {
 };
 
 /// Renders the window into a fresh 275x116 RGB32 image.
-QImage renderMainWindow(const Skin &skin, const MainWindowState &state);
+QImage renderMainWindow(const koalaamp::skins::Skin &skin, const MainWindowState &state);
 
 }  // namespace fe3

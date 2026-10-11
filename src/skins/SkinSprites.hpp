@@ -7,9 +7,9 @@
 // Webamp: https://github.com/captbaritone/webamp — attribution in LICENSES.md.
 //
 // The table is *format data* (fixed sprite rectangles baked into Winamp), not
-// artwork. FONT_LOOKUP is the 5x6 `text.bmp` bitmap-font grid (31x3 cells);
-// the FE-3 spike ported the full main-window set and left the remaining
-// sheets (EQ/PLEDIT/GEN) in place for SE-1 to consume unchanged.
+// artwork. FONT_LOOKUP is the 5x6 `text.bmp` bitmap-font grid (31x3 cells).
+// The FE-3 spike ported the complete table (212 sprites + 69 glyphs); SE-1
+// promoted it here unchanged (git mv from spikes/fe3_wsz/SkinSprites.hpp).
 #pragma once
 
 #include <array>
@@ -17,7 +17,7 @@
 #include <optional>
 #include <string_view>
 
-namespace fe3 {
+namespace koalaamp::skins {
 
 struct SpriteRect {
     int x = 0;
@@ -384,4 +384,4 @@ inline constexpr std::array<SpriteDef, 20> kSpritesGEN = {{
     {"GEN_CLOSE_SELECTED", {148, 42, 9, 9}},
 }};
 
-}  // namespace fe3
+}  // namespace koalaamp::skins

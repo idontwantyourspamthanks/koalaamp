@@ -1,12 +1,12 @@
 // SPDX-License-Identifier: MIT
-#include "BmpDecoder.hpp"
+#include "skins/BmpDecoder.hpp"
 
 #include <array>
 #include <cstring>
 
 #include <QColor>
 
-namespace fe3 {
+namespace koalaamp::skins {
 namespace {
 
 std::uint16_t rd16(const std::uint8_t *p) {
@@ -53,6 +53,12 @@ std::optional<BmpInfo> bmpInfo(const std::vector<std::uint8_t> &b) {
     info.compression = rd32(&b[30]);
     info.pixelOffset = rd32(&b[10]);
     if (info.width <= 0 || info.height <= 0) {
+        return std::nullopt;
+    }
+    // SE-1 hardening: reject absurd declared geometry before anyone allocates for
+    // it (classic skin sheets are at most a few hundred pixels per side).
+    constexpr int kMaxDimension = 16384;
+    if (info.width > kMaxDimension || info.height > kMaxDimension) {
         return std::nullopt;
     }
     return info;
@@ -197,4 +203,4 @@ std::optional<QImage> decodeBmp(const std::vector<std::uint8_t> &b) {
     return std::nullopt;  // BI_RLE4 / BI_BITFIELDS: not needed for classic skins
 }
 
-}  // namespace fe3
+}  // namespace koalaamp::skins

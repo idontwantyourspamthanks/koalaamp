@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
-#include "Skin.hpp"
+#include "skins/Skin.hpp"
 
 #include <algorithm>
 #include <cctype>
 #include <span>
 
-#include "BmpDecoder.hpp"
+#include "skins/BmpDecoder.hpp"
 
-namespace fe3 {
+namespace koalaamp::skins {
 namespace {
 
 std::string upper(std::string s) {
@@ -43,6 +43,12 @@ std::span<const SpriteDef> spriteSpanFor(std::string_view sheet) {
 
 }  // namespace
 
+std::string sheetKey(std::string_view name) { return stemOf(std::string(name)); }
+
+void Skin::addSheet(std::string_view name, QImage image) {
+    m_sheets.insert_or_assign(sheetKey(name), std::move(image));
+}
+
 std::optional<Skin> Skin::load(const std::string &path) {
     auto entries = readZipFile(path);
     if (!entries) {
@@ -66,8 +72,13 @@ std::optional<Skin> Skin::load(const std::string &path) {
 }
 
 const QImage *Skin::sheet(std::string_view name) const {
-    const auto it = m_sheets.find(std::string(name));
+    const auto it = m_sheets.find(sheetKey(name));
     return it == m_sheets.end() ? nullptr : &it->second;
+}
+
+QSize Skin::sheetSize(std::string_view name) const {
+    const QImage *image = sheet(name);
+    return image == nullptr ? QSize() : image->size();
 }
 
 std::optional<SpriteRect> Skin::spriteRect(std::string_view sheetName,
@@ -110,4 +121,4 @@ bool Skin::blitRect(QPainter &painter, std::string_view sheetName, const QRect &
     return true;
 }
 
-}  // namespace fe3
+}  // namespace koalaamp::skins

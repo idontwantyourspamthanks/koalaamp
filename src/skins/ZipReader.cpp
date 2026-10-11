@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-#include "ZipReader.hpp"
+#include "skins/ZipReader.hpp"
 
 #include <algorithm>
 #include <cctype>
@@ -8,7 +8,7 @@
 
 #include <zlib.h>
 
-namespace fe3 {
+namespace koalaamp::skins {
 namespace {
 
 std::uint16_t rd16(const std::uint8_t *p) {
@@ -81,6 +81,14 @@ std::optional<std::vector<ZipEntry>> readZip(const std::vector<std::uint8_t> &by
     const std::uint16_t count = rd16(&bytes[eocd + 10]);
     const std::uint32_t cdOffset = rd32(&bytes[eocd + 16]);
 
+    // SE-1 hardening for the fuzz target: bound the member count and refuse
+    // offsets that point outside the buffer before walking the directory.
+    constexpr std::uint16_t kMaxEntries = 8192;
+    constexpr std::uint32_t kMaxMemberBytes = 32u * 1024u * 1024u;
+    if (count > kMaxEntries || cdOffset >= bytes.size()) {
+        return std::nullopt;
+    }
+
     std::vector<ZipEntry> entries;
     entries.reserve(count);
     std::size_t p = cdOffset;
@@ -105,9 +113,17 @@ std::optional<std::vector<ZipEntry>> readZip(const std::vector<std::uint8_t> &by
         const std::uint16_t lNameLen = rd16(&bytes[localOffset + 26]);
         const std::uint16_t lExtraLen = rd16(&bytes[localOffset + 28]);
         const std::size_t dataStart = localOffset + 30 + lNameLen + lExtraLen;
-        const std::uint32_t uncompSize = rd32(&bytes[localOffset + 22]);
-        if (dataStart + compSize > bytes.size()) {
+        // The central directory is authoritative: local headers may carry 0
+        // sizes when the archive streams with a data descriptor.
+        std::uint32_t uncompSize = rd32(&bytes[p + 24]);
+        if (uncompSize == 0 && compSize != 0) {
+            uncompSize = rd32(&bytes[localOffset + 22]);
+        }
+        if (dataStart > bytes.size() || dataStart + compSize > bytes.size()) {
             return std::nullopt;
+        }
+        if (uncompSize > kMaxMemberBytes) {
+            return std::nullopt;  // zip-bomb guard
         }
 
         ZipEntry entry;
@@ -141,4 +157,4 @@ std::optional<std::vector<ZipEntry>> readZipFile(const std::string &path) {
     return readZip(bytes);
 }
 
-}  // namespace fe3
+}  // namespace koalaamp::skins

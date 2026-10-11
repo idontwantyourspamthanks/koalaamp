@@ -9,6 +9,13 @@ Nullsoft `base-2.91.wsz`: ZIP open → RLE8/paletted BMP decode → Webamp's spr
 table blitted with QPainter integer (nearest-neighbour) copies → main window at
 1×, pixel-diffed against **Webamp itself** rendered headlessly.
 
+> **SE-1 follow-up (2026-10-11).** The decode core described below
+> (`ZipReader`, `BmpDecoder`, `Skin`, `SkinSprites.hpp`) was promoted from this
+> spike into `src/skins/` by ticket SE-1; paths quoted in this report are the
+> original spike locations. The spike now *links* the promoted modules instead of
+> duplicating them, and the §3 pixel-diff has been re-run on that build
+> (0/31900, both states).
+
 ## 1. Bottom line
 
 1. **The main window matches Webamp exactly: 0 / 31 900 pixels differ

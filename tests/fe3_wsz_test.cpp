@@ -11,10 +11,10 @@
 
 #include <catch2/catch_test_macros.hpp>
 
-#include "BmpDecoder.hpp"
+#include "skins/BmpDecoder.hpp"
 #include "MainWindowRenderer.hpp"
-#include "Skin.hpp"
-#include "SkinSprites.hpp"
+#include "skins/Skin.hpp"
+#include "skins/SkinSprites.hpp"
 
 namespace {
 
@@ -62,7 +62,7 @@ std::vector<std::uint8_t> make8BitBmp(int w, int h, std::uint32_t compression,
 }
 
 QImage decodeOrFail(const std::vector<std::uint8_t> &bytes) {
-    auto image = fe3::decodeBmp(bytes);
+    auto image = koalaamp::skins::decodeBmp(bytes);
     REQUIRE(image.has_value());
     return *image;
 }
@@ -119,23 +119,23 @@ TEST_CASE("BMP BI_RLE8 absolute and delta runs", "[fe3][bmp]") {
 
 TEST_CASE("decodeBmp rejects non-BMP input", "[fe3][bmp]") {
     const std::vector<std::uint8_t> junk = {'N', 'O', 'P', 'E'};
-    CHECK_FALSE(fe3::decodeBmp(junk).has_value());
+    CHECK_FALSE(koalaamp::skins::decodeBmp(junk).has_value());
 }
 
 TEST_CASE("sprite table matches the Webamp coordinates", "[fe3][sprites]") {
-    using fe3::SpriteRect;
+    using koalaamp::skins::SpriteRect;
     const auto find = [](std::string_view sheet, std::string_view name) -> SpriteRect {
-        std::span<const fe3::SpriteDef> span;
-        if (sheet == "MAIN") span = fe3::kSpritesMAIN;
-        else if (sheet == "CBUTTONS") span = fe3::kSpritesCBUTTONS;
-        else if (sheet == "POSBAR") span = fe3::kSpritesPOSBAR;
-        else if (sheet == "VOLUME") span = fe3::kSpritesVOLUME;
-        else if (sheet == "BALANCE") span = fe3::kSpritesBALANCE;
-        else if (sheet == "TITLEBAR") span = fe3::kSpritesTITLEBAR;
-        else if (sheet == "SHUFREP") span = fe3::kSpritesSHUFREP;
-        else if (sheet == "MONOSTER") span = fe3::kSpritesMONOSTER;
-        else if (sheet == "PLAYPAUS") span = fe3::kSpritesPLAYPAUS;
-        else if (sheet == "NUMBERS") span = fe3::kSpritesNUMBERS;
+        std::span<const koalaamp::skins::SpriteDef> span;
+        if (sheet == "MAIN") span = koalaamp::skins::kSpritesMAIN;
+        else if (sheet == "CBUTTONS") span = koalaamp::skins::kSpritesCBUTTONS;
+        else if (sheet == "POSBAR") span = koalaamp::skins::kSpritesPOSBAR;
+        else if (sheet == "VOLUME") span = koalaamp::skins::kSpritesVOLUME;
+        else if (sheet == "BALANCE") span = koalaamp::skins::kSpritesBALANCE;
+        else if (sheet == "TITLEBAR") span = koalaamp::skins::kSpritesTITLEBAR;
+        else if (sheet == "SHUFREP") span = koalaamp::skins::kSpritesSHUFREP;
+        else if (sheet == "MONOSTER") span = koalaamp::skins::kSpritesMONOSTER;
+        else if (sheet == "PLAYPAUS") span = koalaamp::skins::kSpritesPLAYPAUS;
+        else if (sheet == "NUMBERS") span = koalaamp::skins::kSpritesNUMBERS;
         for (const auto &def : span) {
             if (def.name == name) return def.rect;
         }
@@ -163,11 +163,11 @@ TEST_CASE("sprite table matches the Webamp coordinates", "[fe3][sprites]") {
 
 TEST_CASE("text.bmp font glyph cells use the 5x6 grid", "[fe3][sprites]") {
     // 'a'..'z' occupy row 0; digits/symbols row 1; accented row 2.
-    CHECK(fe3::fontGlyph(U'a') == fe3::SpriteRect{0, 0, 5, 6});
-    CHECK(fe3::fontGlyph(U'z') == fe3::SpriteRect{125, 0, 5, 6});
-    CHECK(fe3::fontGlyph(U'0') == fe3::SpriteRect{0, 6, 5, 6});
-    CHECK(fe3::fontGlyph(U'?') == fe3::SpriteRect{15, 12, 5, 6});
-    CHECK_FALSE(fe3::fontGlyph(U'\u0001').has_value());
+    CHECK(koalaamp::skins::fontGlyph(U'a') == koalaamp::skins::SpriteRect{0, 0, 5, 6});
+    CHECK(koalaamp::skins::fontGlyph(U'z') == koalaamp::skins::SpriteRect{125, 0, 5, 6});
+    CHECK(koalaamp::skins::fontGlyph(U'0') == koalaamp::skins::SpriteRect{0, 6, 5, 6});
+    CHECK(koalaamp::skins::fontGlyph(U'?') == koalaamp::skins::SpriteRect{15, 12, 5, 6});
+    CHECK_FALSE(koalaamp::skins::fontGlyph(U'\u0001').has_value());
 }
 
 TEST_CASE("base-2.91 fixture decodes and renders", "[fe3][fixture]") {
@@ -175,7 +175,7 @@ TEST_CASE("base-2.91 fixture decodes and renders", "[fe3][fixture]") {
     if (!std::filesystem::exists(skinPath)) {
         SKIP("fixture missing — run spikes/fe3_wsz/fetch-skin.sh");
     }
-    const auto skin = fe3::Skin::load(skinPath.string());
+    const auto skin = koalaamp::skins::Skin::load(skinPath.string());
     REQUIRE(skin.has_value());
 
     // Sizes must match the decoded header geometry (docs/research/skins.md §1.2).

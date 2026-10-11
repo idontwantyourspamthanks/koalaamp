@@ -6,6 +6,9 @@
 // of Nullsoft's own base-skin sheets use.
 //
 // Clean-room: implemented from the public BITMAPINFOHEADER/BI_RLE8 layout.
+// Promoted from the FE-3 spike into `src/skins/` by SE-1 (`git mv`, namespace
+// `fe3` -> `koalaamp::skins`); SE-1 added the dimension cap in `bmpInfo`.
+// BI_RLE4 is deliberately not decoded (outside the classic-skin surface).
 #pragma once
 
 #include <cstdint>
@@ -14,7 +17,7 @@
 
 #include <QImage>
 
-namespace fe3 {
+namespace koalaamp::skins {
 
 /// Parsed header facts, useful for diagnostics and format findings.
 struct BmpInfo {
@@ -32,4 +35,4 @@ std::optional<BmpInfo> bmpInfo(const std::vector<std::uint8_t> &bytes);
 /// Decodes to a top-left-origin RGB32 QImage (classic skins carry no alpha).
 std::optional<QImage> decodeBmp(const std::vector<std::uint8_t> &bytes);
 
-}  // namespace fe3
+}  // namespace koalaamp::skins

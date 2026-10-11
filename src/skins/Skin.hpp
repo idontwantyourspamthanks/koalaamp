@@ -1,7 +1,10 @@
 // SPDX-License-Identifier: MIT
 //
-// Skin — a decoded classic `.wsz`: a case-insensitive map of sheet name
-// ("MAIN", "TITLEBAR", ...) to the decoded QImage, plus sprite blitting.
+// Skin — a decoded classic skin: a case-insensitive map of sheet name ("MAIN",
+// "TITLEBAR", ...) to the decoded QImage, plus sprite blitting.
+//
+// Promoted from the FE-3 spike (`spikes/fe3_wsz/Skin.*`) by SE-1; the loading
+// entry point is now the container-agnostic `loadSkinSet` in SkinSet.hpp.
 #pragma once
 
 #include <map>
@@ -12,22 +15,33 @@
 #include <QImage>
 #include <QPainter>
 
-#include "SkinSprites.hpp"
-#include "ZipReader.hpp"
+#include "skins/SkinSprites.hpp"
+#include "skins/ZipReader.hpp"
 
-namespace fe3 {
+namespace koalaamp::skins {
 
 class Skin {
 public:
-    /// Loads and decodes every `*.bmp` in the archive. Returns nullopt when the
-    /// file is not a readable ZIP.
+    /// Convenience loader for a single ZIP archive (the FE-3 spike path).
+    /// SE-1 callers use `loadSkinSet` for archive *and* folder containers.
     static std::optional<Skin> load(const std::string &path);
+
+    /// Stores a decoded sheet under its upper-case base name ("MAIN"), replacing
+    /// any previous sheet with that name.
+    void addSheet(std::string_view name, QImage image);
 
     /// Decoded sheet by upper-case base name ("MAIN"), or nullptr.
     const QImage *sheet(std::string_view name) const;
 
+    /// Decoded size of a sheet, or a null size when it is absent.
+    QSize sheetSize(std::string_view name) const;
+
+    bool empty() const { return m_sheets.empty(); }
+
     /// Source rect for `spriteName` on the named sheet, if present in the table
-    /// and inside the decoded sheet's bounds.
+    /// and inside the decoded sheet's bounds. A sprite that runs off an
+    /// undersized sheet reports nullopt, which callers render as a hole — the
+    /// classic Winamp behavior for art smaller than the sprite table expects.
     std::optional<SpriteRect> spriteRect(std::string_view sheet, std::string_view spriteName) const;
 
     /// Copies the sprite `name` from `sheetName` onto `painter` at (x, y),
@@ -48,4 +62,7 @@ private:
     std::map<std::string, QImage, std::less<>> m_sheets;
 };
 
-}  // namespace fe3
+/// Upper-cases a sheet stem ("main" -> "MAIN").
+std::string sheetKey(std::string_view name);
+
+}  // namespace koalaamp::skins

@@ -6,6 +6,10 @@
 #include <QPainter>
 
 namespace fe3 {
+
+using koalaamp::skins::fontGlyph;   // promoted sprite table (src/skins/SkinSprites.hpp)
+using koalaamp::skins::kCharWidth;
+
 namespace {
 
 // --- Layout constants (ported from Webamp css/main-window.css, MIT) ---------
@@ -59,7 +63,7 @@ int thumbLeft(int value, int minValue, int maxValue, int trackW) {
     return static_cast<int>(std::lround(fraction * (trackW - kThumbW)));
 }
 
-void drawDigits(const Skin &skin, QPainter &painter, int seconds) {
+void drawDigits(const koalaamp::skins::Skin &skin, QPainter &painter, int seconds) {
     // Time layout: #time at (39,26); digit lefts 9/21/39/51 (Webamp CSS).
     static constexpr int kDigitX[4] = {39 + 9, 39 + 21, 39 + 39, 39 + 51};
     const int minutes = seconds / 60;
@@ -71,7 +75,7 @@ void drawDigits(const Skin &skin, QPainter &painter, int seconds) {
     }
 }
 
-void drawMarquee(const Skin &skin, QPainter &painter, const std::string &text) {
+void drawMarquee(const koalaamp::skins::Skin &skin, QPainter &painter, const std::string &text) {
     int x = kMarquee.x;
     for (unsigned char c : text) {
         const auto glyph = fontGlyph(static_cast<char32_t>(c));
@@ -90,7 +94,7 @@ void drawMarquee(const Skin &skin, QPainter &painter, const std::string &text) {
 
 }  // namespace
 
-QImage renderMainWindow(const Skin &skin, const MainWindowState &state) {
+QImage renderMainWindow(const koalaamp::skins::Skin &skin, const MainWindowState &state) {
     QImage canvas(275, 116, QImage::Format_RGB32);
     canvas.fill(Qt::black);
 

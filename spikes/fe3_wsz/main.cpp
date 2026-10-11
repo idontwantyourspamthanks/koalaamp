@@ -15,10 +15,10 @@
 
 #include <QImage>
 
-#include "BmpDecoder.hpp"
+#include "skins/BmpDecoder.hpp"
 #include "MainWindowRenderer.hpp"
-#include "Skin.hpp"
-#include "ZipReader.hpp"
+#include "skins/Skin.hpp"
+#include "skins/ZipReader.hpp"
 
 namespace {
 
@@ -61,14 +61,14 @@ int main(int argc, char **argv) {
     }
 
     if (info) {
-        auto entries = fe3::readZipFile(skinPath);
+        auto entries = koalaamp::skins::readZipFile(skinPath);
         if (!entries) {
             std::fprintf(stderr, "spike_fe3: cannot read '%s'\n", skinPath.c_str());
             return 1;
         }
         std::printf("%-16s %-11s %-6s %-12s %s\n", "sheet", "size", "bpp", "compression", "bytes");
         for (const auto &e : *entries) {
-            const auto bi = fe3::bmpInfo(e.data);
+            const auto bi = koalaamp::skins::bmpInfo(e.data);
             if (!bi) {
                 continue;
             }
@@ -84,7 +84,7 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    const auto skin = fe3::Skin::load(skinPath);
+    const auto skin = koalaamp::skins::Skin::load(skinPath);
     if (!skin) {
         std::fprintf(stderr, "spike_fe3: failed to load skin '%s'\n", skinPath.c_str());
         return 1;

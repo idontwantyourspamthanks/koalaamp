@@ -6,7 +6,9 @@
 // which is how Winamp matches skin files across nesting/name-case quirks.
 //
 // Clean-room: written from the public PKWARE APPNOTE field layout; no Winamp
-// source consulted.
+// source consulted. Promoted from the FE-3 spike into `src/skins/` by SE-1
+// (`git mv`, namespace `fe3` -> `koalaamp::skins`); SE-1 added the entry/size
+// caps in `readZip` for the fuzz target.
 #pragma once
 
 #include <cstdint>
@@ -14,7 +16,7 @@
 #include <string>
 #include <vector>
 
-namespace fe3 {
+namespace koalaamp::skins {
 
 /// Raw bytes of a ZIP member plus the metadata the skin loader needs.
 struct ZipEntry {
@@ -30,4 +32,4 @@ std::optional<std::vector<ZipEntry>> readZip(const std::vector<std::uint8_t> &by
 /// Convenience: reads a file from disk and parses it as a ZIP.
 std::optional<std::vector<ZipEntry>> readZipFile(const std::string &path);
 
-}  // namespace fe3
+}  // namespace koalaamp::skins

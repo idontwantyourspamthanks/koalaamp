@@ -2,19 +2,16 @@
 # FE-3 spike — load base-2.91.wsz and render the classic main window
 # (docs/tickets.md · FE-3, deliverable docs/spikes/fe3-wsz-render.md).
 #
-# Standalone: does not link any app module. The shared static library is used by
-# both the spike binary and the Catch2 decoder/table tests.
+# SE-1 promoted the decoder core (ZipReader/BmpDecoder/Skin/SkinSprites) into
+# src/skins/; this spike now links that app module for the decode path and keeps
+# only its own renderer (rendering is SE-2's job, not the app's yet).
 find_package(Qt6 REQUIRED COMPONENTS Gui)
-find_package(ZLIB REQUIRED)
 
 add_library(koalaamp_fe3_wsz STATIC
-    ZipReader.cpp
-    BmpDecoder.cpp
-    Skin.cpp
     MainWindowRenderer.cpp)
 koalaamp_enable_warnings(koalaamp_fe3_wsz)
 target_include_directories(koalaamp_fe3_wsz PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
-target_link_libraries(koalaamp_fe3_wsz PUBLIC Qt6::Gui PRIVATE ZLIB::ZLIB)
+target_link_libraries(koalaamp_fe3_wsz PUBLIC koalaamp_skins Qt6::Gui)
 
 add_executable(spike_fe3 main.cpp)
 koalaamp_enable_warnings(spike_fe3)
