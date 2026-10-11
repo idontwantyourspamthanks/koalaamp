@@ -47,6 +47,9 @@ bool MiniAudioSink::start(const SinkConfig& config) {
         break;
     case SinkBackend::Auto:
         break;
+    case SinkBackend::Null:
+        backends[count++] = ma_backend_null;
+        break;
     }
 
     ma_context_config contextConfig = ma_context_config_init();

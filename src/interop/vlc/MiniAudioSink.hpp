@@ -20,7 +20,13 @@ struct ma_device; // miniaudio (third_party/include/miniaudio.h)
 
 namespace koalaamp::interop::vlc {
 
-enum class SinkBackend { Auto, Alsa, Pulse };
+enum class SinkBackend {
+    Auto,
+    Alsa,
+    Pulse,
+    Null, ///< miniaudio null backend: runs the device thread + data callback,
+          ///< renders nothing. Deterministic headless path for tests/CI (FE-4).
+};
 
 struct SinkConfig {
     unsigned sampleRate{48000};

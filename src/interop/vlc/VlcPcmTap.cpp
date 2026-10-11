@@ -23,6 +23,19 @@ VlcPcmTap::VlcPcmTap(std::size_t ringFloats) : m_ring(ringFloats) {}
 VlcPcmTap::~VlcPcmTap() {
     if (m_mp) {
         libvlc_media_player_stop(m_mp);
+    }
+    if (m_eventManager) {
+        libvlc_event_detach(m_eventManager, libvlc_MediaPlayerEndReached, &VlcPcmTap::cbEvent, this);
+        libvlc_event_detach(m_eventManager, libvlc_MediaPlayerEncounteredError, &VlcPcmTap::cbEvent,
+                            this);
+        libvlc_event_detach(m_eventManager, libvlc_MediaPlayerPlaying, &VlcPcmTap::cbEvent, this);
+        libvlc_event_detach(m_eventManager, libvlc_MediaPlayerPaused, &VlcPcmTap::cbEvent, this);
+        libvlc_event_detach(m_eventManager, libvlc_MediaPlayerStopped, &VlcPcmTap::cbEvent, this);
+        libvlc_event_detach(m_eventManager, libvlc_MediaPlayerLengthChanged, &VlcPcmTap::cbEvent,
+                            this);
+        m_eventManager = nullptr;
+    }
+    if (m_mp) {
         libvlc_media_player_release(m_mp);
     }
     if (m_media) {
@@ -33,7 +46,7 @@ VlcPcmTap::~VlcPcmTap() {
     }
 }
 
-bool VlcPcmTap::open(const std::string& path) {
+bool VlcPcmTap::ensureInstance() {
     if (!m_instance) {
         // DSP-mode profile (docs/spec.md §3.1): video/SPU off, time-stretch off,
         // hardware decode off, empty user-filter chain to start from.
@@ -64,15 +77,61 @@ bool VlcPcmTap::open(const std::string& path) {
         // amem blocks are codec-sized; 1<<15 floats covers the largest we have
         // seen (FLAC 4608 frames * 2 ch) with room to spare.
         m_scratch.resize(1u << 15);
+        if (!attachEvents()) {
+            return false;
+        }
     }
-    return setMedia(path);
+    return true;
+}
+
+// The media player's event manager lives for the player's lifetime (libvlc
+// 3.0.x creates it in libvlc_media_player_new and frees it on release), so we
+// attach once, when the player is created, and detach in the destructor.
+bool VlcPcmTap::attachEvents() {
+    m_eventManager = libvlc_media_player_event_manager(m_mp);
+    if (!m_eventManager) {
+        return false;
+    }
+    struct {
+        libvlc_event_type_t type;
+    } const types[] = {
+        {libvlc_MediaPlayerEndReached},
+        {libvlc_MediaPlayerEncounteredError},
+        {libvlc_MediaPlayerPlaying},
+        {libvlc_MediaPlayerPaused},
+        {libvlc_MediaPlayerStopped},
+        {libvlc_MediaPlayerLengthChanged},
+    };
+    for (const auto& t : types) {
+        if (libvlc_event_attach(m_eventManager, t.type, &VlcPcmTap::cbEvent, this) != 0) {
+            return false;
+        }
+    }
+    return true;
+}
+
+bool VlcPcmTap::open(const std::string& path) {
+    return ensureInstance() && setMediaImpl(path, false);
+}
+
+bool VlcPcmTap::openLocation(const std::string& url) {
+    return ensureInstance() && setMediaImpl(url, true);
 }
 
 bool VlcPcmTap::setMedia(const std::string& path) {
+    return m_instance != nullptr && m_mp != nullptr && setMediaImpl(path, false);
+}
+
+bool VlcPcmTap::setMediaLocation(const std::string& url) {
+    return m_instance != nullptr && m_mp != nullptr && setMediaImpl(url, true);
+}
+
+bool VlcPcmTap::setMediaImpl(const std::string& source, bool location) {
     if (!m_instance || !m_mp) {
         return false;
     }
-    libvlc_media_t* media = libvlc_media_new_path(m_instance, path.c_str());
+    libvlc_media_t* media = location ? libvlc_media_new_location(m_instance, source.c_str())
+                                     : libvlc_media_new_path(m_instance, source.c_str());
     if (!media) {
         return false;
     }
@@ -81,29 +140,61 @@ bool VlcPcmTap::setMedia(const std::string& path) {
         libvlc_media_release(m_media);
     }
     m_media = media;
+    // Bump after the switch: events emitted from here on belong to this media,
+    // and anything tagged with an older generation is stale (FE-4).
+    m_generation.fetch_add(1, std::memory_order_release);
     return true;
 }
 
 void VlcPcmTap::play() {
-    libvlc_media_player_play(m_mp);
+    if (m_mp) {
+        libvlc_media_player_play(m_mp);
+    }
 }
 void VlcPcmTap::pause() {
-    libvlc_media_player_set_pause(m_mp, 1);
+    if (m_mp) {
+        libvlc_media_player_set_pause(m_mp, 1);
+    }
+}
+void VlcPcmTap::resume() {
+    if (m_mp) {
+        libvlc_media_player_set_pause(m_mp, 0);
+    }
 }
 void VlcPcmTap::stop() {
-    libvlc_media_player_stop(m_mp);
+    if (m_mp) {
+        libvlc_media_player_stop(m_mp);
+    }
 }
 
 void VlcPcmTap::seekMs(std::int64_t ms) {
-    libvlc_media_player_set_time(m_mp, ms);
+    if (m_mp) {
+        libvlc_media_player_set_time(m_mp, ms);
+    }
 }
 
 bool VlcPcmTap::isPlaying() const {
-    return libvlc_media_player_is_playing(m_mp) != 0;
+    return m_mp != nullptr && libvlc_media_player_is_playing(m_mp) != 0;
 }
 
 std::int64_t VlcPcmTap::timeMs() const {
-    return libvlc_media_player_get_time(m_mp);
+    return m_mp ? libvlc_media_player_get_time(m_mp) : -1;
+}
+
+std::int64_t VlcPcmTap::lengthMs() const {
+    return m_mp ? libvlc_media_player_get_length(m_mp) : -1;
+}
+
+void VlcPcmTap::setEventListener(TapEventListener listener) {
+    m_listener = std::move(listener);
+}
+
+void VlcPcmTap::setPcmObserver(TapPcmObserver observer) {
+    m_pcmObserver = std::move(observer);
+}
+
+void VlcPcmTap::setOutputGain(float linear) {
+    m_gain.store(linear, std::memory_order_relaxed);
 }
 
 void VlcPcmTap::setEqualizerGainDb(double db) {
@@ -173,11 +264,19 @@ void VlcPcmTap::cbPlay(void* data, const void* samples, unsigned count, std::int
         }
         float* f = self->m_scratch.data();
         constexpr float scale = 1.0f / 32768.0f; // VLC S16N is full-scale 32768
+        const float gain = self->m_gain.load(std::memory_order_relaxed);
         double sum = 0.0;
         for (std::size_t i = 0; i < n; ++i) {
-            const float v = static_cast<float>(in[i]) * scale;
+            const float v = static_cast<float>(in[i]) * scale * gain;
             f[i] = v;
             sum += static_cast<double>(v) * static_cast<double>(v);
+        }
+        // PCM observer = the DSP-mode insertion seam (docs/spec.md §3.1). It
+        // sees the float block post-gain, pre-ring — the same samples the sink
+        // renders. Set before play(); no lock is taken on this path.
+        if (self->m_pcmObserver) {
+            self->m_pcmObserver(f, count, self->m_format.sampleRate.load(std::memory_order_relaxed),
+                                channels);
         }
         const double blockMs = sum / static_cast<double>(n);
         const double prev = self->m_msEma.load(std::memory_order_relaxed);
@@ -226,6 +325,41 @@ void VlcPcmTap::cbFlush(void* data, std::int64_t) {
 
 void VlcPcmTap::cbDrain(void* data) {
     static_cast<VlcPcmTap*>(data)->m_stats.drains.fetch_add(1, std::memory_order_relaxed);
+}
+
+// libvlc thread. Marshal only — never call back into libvlc from here.
+void VlcPcmTap::cbEvent(const libvlc_event_t* event, void* data) {
+    auto* self = static_cast<VlcPcmTap*>(data);
+    if (!self->m_listener || event == nullptr) {
+        return;
+    }
+    // Sampled here, at emit time: the consumer compares it against the current
+    // generation to tell a live event from one belonging to a media it has
+    // already replaced (see TapEventListener).
+    const std::uint64_t generation = self->m_generation.load(std::memory_order_acquire);
+    switch (event->type) {
+    case libvlc_MediaPlayerEndReached:
+        self->m_listener(TapEvent::EndReached, 0, generation);
+        break;
+    case libvlc_MediaPlayerEncounteredError:
+        self->m_listener(TapEvent::EncounteredError, 0, generation);
+        break;
+    case libvlc_MediaPlayerPlaying:
+        self->m_listener(TapEvent::Playing, 0, generation);
+        break;
+    case libvlc_MediaPlayerPaused:
+        self->m_listener(TapEvent::Paused, 0, generation);
+        break;
+    case libvlc_MediaPlayerStopped:
+        self->m_listener(TapEvent::Stopped, 0, generation);
+        break;
+    case libvlc_MediaPlayerLengthChanged:
+        self->m_listener(TapEvent::LengthChanged,
+                         event->u.media_player_length_changed.new_length, generation);
+        break;
+    default:
+        break;
+    }
 }
 
 int VlcPcmTap::cbSetup(void** data, char* format, unsigned* rate, unsigned* channels) {
