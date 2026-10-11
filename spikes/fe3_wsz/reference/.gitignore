@@ -1,0 +1,3 @@
+# Node deps for the FE-3 Webamp reference harness — installed on demand, never committed.
+node_modules/
+package-lock.json

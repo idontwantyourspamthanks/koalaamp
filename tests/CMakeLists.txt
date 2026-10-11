@@ -54,3 +54,16 @@ if(KOALAAMP_HAS_LIBVLC)
     catch_discover_tests(koalaamp_vlc_tests)
     message(STATUS "KoalaAmp: libvlc EQ-rule test enabled")
 endif()
+
+# FE-3: WSZ/BMP decode + ported sprite table. Decoder cases use synthetic BMPs;
+# the base-2.91 cases skip when the gitignored fixture has not been fetched
+# (spikes/fe3_wsz/fetch-skin.sh).
+if(TARGET koalaamp_fe3_wsz)
+    add_executable(koalaamp_fe3_tests fe3_wsz_test.cpp)
+    koalaamp_enable_warnings(koalaamp_fe3_tests)
+    target_link_libraries(koalaamp_fe3_tests PRIVATE Catch2::Catch2WithMain koalaamp_fe3_wsz)
+    target_compile_definitions(koalaamp_fe3_tests PRIVATE
+        "KOALAAMP_FE3_SKIN=\"${CMAKE_SOURCE_DIR}/third_party/skins/base-2.91.wsz\"")
+    catch_discover_tests(koalaamp_fe3_tests)
+    message(STATUS "KoalaAmp: FE-3 WSZ decode/table tests enabled")
+endif()

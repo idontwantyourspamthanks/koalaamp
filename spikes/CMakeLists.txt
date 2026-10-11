@@ -8,5 +8,6 @@ option(KOALAAMP_BUILD_SPIKES "Build the M0 spike executables" ON)
 
 if(KOALAAMP_BUILD_SPIKES)
     add_subdirectory(fe1)
+    add_subdirectory(fe3_wsz)
 endif()
 add_subdirectory(fe14_projectm)

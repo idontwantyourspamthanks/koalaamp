@@ -1,0 +1,9 @@
+{
+  "name": "fe3-webamp-reference",
+  "private": true,
+  "type": "module",
+  "description": "FE-3 spike: headless Webamp render used as the independent reference for the main-window pixel diff.",
+  "dependencies": {
+    "puppeteer-core": "^23.0.0"
+  }
+}
