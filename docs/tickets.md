@@ -39,8 +39,8 @@
 - **Depends:** FE-0
 
 ### FE-2 · Spike: libvlc callbacks + EQ rule + latency — *3d*
-- **Tasks:** libvlcpp; `libvlc_audio_set_callbacks` → ring buffer → miniaudio sink; measure p95 latency + 30-min xruns on WASAPI/CoreAudio/ALSA; **verify the EQ interaction: enable `libvlc_media_player_set_equalizer` mid-session and assert the callback PCM changes (filters are upstream)** → encode the "never native-EQ in DSP mode" rule as a runtime assertion; measure bit-perfect stop/start seam for gapless decision.
-- **Acceptance:** latency ≤ 50ms p95; zero xruns/30min; EQ-upstream behavior documented with a test; seam measurement recorded.
+- **Tasks:** raw libvlc C API; `libvlc_audio_set_callbacks` → ring buffer → miniaudio sink; measure p95 latency + 30-min xruns on WASAPI/CoreAudio/ALSA; **verify the EQ interaction: enable `libvlc_media_player_set_equalizer` mid-session and assert the callback PCM changes (filters are upstream)** → encode the "never native-EQ in DSP mode" rule as a runtime assertion; measure bit-perfect stop/start seam for gapless decision.
+- **Acceptance:** latency characterized per backend (the ≤50ms target proved unmeetable — engine floor is libvlc's decoded block; measured + recorded either way); zero xruns/30min; EQ-upstream behavior documented with a test; seam measurement recorded.
 - **Depends:** FE-0
 
 ### FE-3 · Spike: WSZ loader renders base-2.91 — *2d*

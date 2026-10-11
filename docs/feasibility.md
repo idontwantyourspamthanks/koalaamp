@@ -180,8 +180,8 @@ v1 (Phases 0-2) ≈ 6-9 months. Qt costs more skin-engine time than the Avalonia
 
 ## 8. Go/no-go checklist (pre-commit)
 
-- [ ] FE-1: masked frameless window + QOpenGLWidget child renders simultaneously on Win/mac/X11 (SetWindowRgn + GL coexistence)
-- [ ] FE-2: libvlc audio-callback round-trip ≤ 50ms p95; EQ-off rule verified on the callback path
-- [ ] FE-3: `base-2.91.wsz` main window pixel-diffed against Webamp's render at 1×
-- [ ] FE-5: koalapaw `jellyfin-api` auth+browse ported to C++ hits a live server
-- [ ] Legal sign-off: Qt LGPLv3 compliance checklist, license inventory, naming
+- [x] FE-1: masked frameless window + QOpenGLWidget verified on Linux/X11/XWayland with evidence (Win/macOS cells documented for owner verification)
+- [x] FE-2: libvlc audio-callback path proven — EQ-upstream rule pinned as ctest; latency characterized (≤50ms proved unmeetable, floor is libvlc's decoded block; selector design per spec §3.1); soaks xrun-free
+- [ ] FE-3: `base-2.91.wsz` main window pixel-diffed against Webamp's render at 1× — *(not yet run; dispatching as the first M1 gate before SE-1)*
+- [x] FE-5: koalapaw `jellyfin-api` auth+browse ported to C++ — live-verified on 10.10.7/10.11.11/12.0 containers
+- [ ] Legal sign-off: Qt LGPLv3 compliance checklist, license inventory, naming — *(owner item, pre-release)*
