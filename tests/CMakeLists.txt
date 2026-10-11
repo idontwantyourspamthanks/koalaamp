@@ -74,3 +74,29 @@ if(TARGET koalaamp_fe3_wsz)
     catch_discover_tests(koalaamp_fe3_tests)
     message(STATUS "KoalaAmp: FE-3 WSZ decode/table tests enabled")
 endif()
+
+# SE-1: WSZ loader unit tests (all fixtures synthetic), the 30-skin corpus
+# harness (SKIPs when the gitignored corpus has not been fetched:
+# scripts/fetch-corpus.sh) and the fuzz target (100 mutated containers — the
+# target the ASAN/UBSAN parser build runs).
+add_executable(koalaamp_skins_tests skins_test.cpp)
+koalaamp_enable_warnings(koalaamp_skins_tests)
+target_include_directories(koalaamp_skins_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(koalaamp_skins_tests PRIVATE Catch2::Catch2WithMain koalaamp_skins)
+catch_discover_tests(koalaamp_skins_tests)
+
+add_executable(koalaamp_skins_corpus_tests skins_corpus_test.cpp)
+koalaamp_enable_warnings(koalaamp_skins_corpus_tests)
+target_link_libraries(koalaamp_skins_corpus_tests PRIVATE Catch2::Catch2WithMain koalaamp_skins)
+target_compile_definitions(koalaamp_skins_corpus_tests PRIVATE
+    "KOALAAMP_CORPUS_DIR=\"${CMAKE_SOURCE_DIR}/third_party/skins-corpus\"")
+catch_discover_tests(koalaamp_skins_corpus_tests)
+
+add_executable(koalaamp_skins_fuzz_tests skins_fuzz_test.cpp)
+koalaamp_enable_warnings(koalaamp_skins_fuzz_tests)
+target_include_directories(koalaamp_skins_fuzz_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(koalaamp_skins_fuzz_tests PRIVATE Catch2::Catch2WithMain koalaamp_skins)
+target_compile_definitions(koalaamp_skins_fuzz_tests PRIVATE
+    "KOALAAMP_FUZZ_SEED=\"${CMAKE_SOURCE_DIR}/third_party/skins-corpus/5e4f10275dcb1fb211d4a8b4f1bda236.wsz\"")
+catch_discover_tests(koalaamp_skins_fuzz_tests)
+message(STATUS "KoalaAmp: SE-1 WSZ loader tests enabled (unit + corpus + fuzz)")
