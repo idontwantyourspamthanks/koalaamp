@@ -46,6 +46,15 @@ jobs:
         with:
           key: ${{ matrix.preset }}
 
+      # Linux native deps (FE-2): libvlc-dev for the callback path + the
+      # vendored single-file headers (miniaudio) the FE-2 targets need.
+      - name: Install native deps (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libvlc-dev
+          bash scripts/vendor-deps.sh
+
       - name: Configure
         run: cmake --preset ${{ matrix.preset }}
 
@@ -84,6 +93,8 @@ jobs:
       - uses: actions/checkout@v5
       - name: Fresh install, re-run no-op, --check
         run: |
+          # FE-2: the script now also verifies the native libvlc dev package.
+          sudo apt-get update && sudo apt-get install -y libvlc-dev
           bash scripts/vendor-deps.sh
           bash scripts/vendor-deps.sh --check
           bash scripts/license-audit.sh
