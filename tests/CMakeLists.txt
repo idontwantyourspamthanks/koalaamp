@@ -154,6 +154,12 @@ target_compile_definitions(koalaamp_se2_interaction_tests PRIVATE
     "KOALAAMP_SE2_SKIN=\"${CMAKE_SOURCE_DIR}/third_party/skins/base-2.91.wsz\""
     "KOALAAMP_CORPUS_DIR=\"${CMAKE_SOURCE_DIR}/third_party/skins-corpus\"")
 # Widget tests need a platform plugin; the offscreen one exists everywhere.
+# NOTE: the ENVIRONMENT below covers *ctest* runs only — Catch2's build-time
+# discovery runs the exe directly and needs the env at BUILD time, hence the
+# $ENV manipulation (set in the parent scope so the discovery custom command
+# inherits it; without it, headless CI picks xcb, fails to find a display and
+# the discovery step dies as SIGSEGV/discovery-failure).
+set(ENV{QT_QPA_PLATFORM} "offscreen")
 add_test(NAME se2_interaction_smoke
     COMMAND $<TARGET_FILE:koalaamp_se2_interaction_tests> "[se2][interaction]")
 set_tests_properties(se2_interaction_smoke PROPERTIES
@@ -162,6 +168,7 @@ set_tests_properties(se2_interaction_smoke PROPERTIES
 catch_discover_tests(koalaamp_se2_interaction_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     TIMEOUT 120)
+unset(ENV{QT_QPA_PLATFORM})
 
 add_executable(koalaamp_se2_corpus_tests se2_corpus_render_test.cpp)
 koalaamp_enable_warnings(koalaamp_se2_corpus_tests)
