@@ -125,7 +125,8 @@ add_executable(koalaamp_dsp_tests dsp_test.cpp)
 koalaamp_enable_warnings(koalaamp_dsp_tests)
 target_link_libraries(koalaamp_dsp_tests PRIVATE Catch2::Catch2WithMain koalaamp_dsp)
 target_compile_definitions(koalaamp_dsp_tests PRIVATE
-    "KOALAAMP_AUDIO_SRC=\"${CMAKE_SOURCE_DIR}/src/audio\"")
+    "KOALAAMP_AUDIO_SRC=\"${CMAKE_SOURCE_DIR}/src/audio\""
+    "KOALAAMP_EQ_FIXTURE_DIR=\"${CMAKE_SOURCE_DIR}/tests/fixtures/eq\"")
 if(TARGET koalaamp_playback_core)
     target_link_libraries(koalaamp_dsp_tests PRIVATE koalaamp_playback_core)
     target_compile_definitions(koalaamp_dsp_tests PRIVATE KOALAAMP_HAS_PLAYBACK_CORE)
