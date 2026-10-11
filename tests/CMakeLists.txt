@@ -133,3 +133,40 @@ if(TARGET koalaamp_playback_core)
 endif()
 catch_discover_tests(koalaamp_dsp_tests PROPERTIES TIMEOUT 600)
 message(STATUS "KoalaAmp: AU-1 DSP tests enabled")
+
+# SE-2: the classic main window. The renderer/formula/golden suite and the
+# 30-skin render smoke need only Qt Gui; the interaction-parity suite drives the
+# real widget and therefore Qt Widgets + QtTest (mouse/key/wheel synthesis).
+find_package(Qt6 REQUIRED COMPONENTS Test)
+
+add_executable(koalaamp_se2_render_tests se2_render_test.cpp)
+koalaamp_enable_warnings(koalaamp_se2_render_tests)
+target_link_libraries(koalaamp_se2_render_tests PRIVATE Catch2::Catch2WithMain koalaamp_ui)
+target_compile_definitions(koalaamp_se2_render_tests PRIVATE
+    "KOALAAMP_SE2_SKIN=\"${CMAKE_SOURCE_DIR}/third_party/skins/base-2.91.wsz\""
+    "KOALAAMP_SE2_GOLDEN_MANIFEST=\"${CMAKE_SOURCE_DIR}/tests/fixtures/se2/goldens.sha256\"")
+catch_discover_tests(koalaamp_se2_render_tests)
+
+add_executable(koalaamp_se2_interaction_tests se2_interaction_test.cpp)
+koalaamp_enable_warnings(koalaamp_se2_interaction_tests)
+target_link_libraries(koalaamp_se2_interaction_tests PRIVATE Catch2::Catch2 koalaamp_ui Qt6::Test)
+target_compile_definitions(koalaamp_se2_interaction_tests PRIVATE
+    "KOALAAMP_SE2_SKIN=\"${CMAKE_SOURCE_DIR}/third_party/skins/base-2.91.wsz\""
+    "KOALAAMP_CORPUS_DIR=\"${CMAKE_SOURCE_DIR}/third_party/skins-corpus\"")
+# Widget tests need a platform plugin; the offscreen one exists everywhere.
+add_test(NAME se2_interaction_smoke
+    COMMAND $<TARGET_FILE:koalaamp_se2_interaction_tests> "[se2][interaction]")
+set_tests_properties(se2_interaction_smoke PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 120)
+catch_discover_tests(koalaamp_se2_interaction_tests PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 120)
+
+add_executable(koalaamp_se2_corpus_tests se2_corpus_render_test.cpp)
+koalaamp_enable_warnings(koalaamp_se2_corpus_tests)
+target_link_libraries(koalaamp_se2_corpus_tests PRIVATE Catch2::Catch2WithMain koalaamp_ui)
+target_compile_definitions(koalaamp_se2_corpus_tests PRIVATE
+    "KOALAAMP_CORPUS_DIR=\"${CMAKE_SOURCE_DIR}/third_party/skins-corpus\"")
+catch_discover_tests(koalaamp_se2_corpus_tests PROPERTIES TIMEOUT 300)
+message(STATUS "KoalaAmp: SE-2 main-window tests enabled (render/goldens, interaction, corpus)")

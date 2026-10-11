@@ -16,7 +16,12 @@ add_subdirectory(servers)   # IServerSource (Jellyfin/Plex)
 add_subdirectory(skins)     # ISkinLoader (WSZ)
 add_subdirectory(ui)        # Qt Widgets — windows
 
-# The application binary: minimal frameless window until FE-1/FE-2 land.
+# The application binary: the classic main window (SE-2), with the libvlc
+# playback core attached when that target exists.
 add_executable(koalaamp main.cpp)
 koalaamp_enable_warnings(koalaamp)
 target_link_libraries(koalaamp PRIVATE koalaamp_ui)
+if(TARGET koalaamp_ui_playback)
+    target_link_libraries(koalaamp PRIVATE koalaamp_ui_playback)
+    target_compile_definitions(koalaamp PRIVATE KOALAAMP_HAS_PLAYBACK_CORE=1)
+endif()

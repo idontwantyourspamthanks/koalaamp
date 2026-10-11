@@ -1,9 +1,33 @@
 # SPDX-License-Identifier: MIT
 # ui — the only Qt-Widgets-dependent layer (docs/spec.md §2.2).
+#
+# SE-2 (docs/tickets/SE-2-main-window.md) turns the M0 stub into the classic
+# main window: the sprite renderer, the integer-scale canvas, the region.txt
+# framed toplevel and the control wiring over the playback transport seam.
 
 add_library(koalaamp_ui STATIC
+    GoldenStates.cpp
+    GoldenStates.hpp
     MainWindow.cpp
-    MainWindow.hpp)
+    MainWindow.hpp
+    MediaName.cpp
+    MediaName.hpp
+    PlayerRenderer.cpp
+    PlayerRenderer.hpp
+    PlayerState.hpp
+    SkinCanvas.cpp
+    SkinCanvas.hpp
+    SkinHitRegion.cpp
+    SkinHitRegion.hpp
+    SkinnedWindow.cpp
+    SkinnedWindow.hpp
+    TitleText.cpp
+    TitleText.hpp
+    Transport.hpp
+    VisData.cpp
+    VisData.hpp
+    VisFeed.cpp
+    VisFeed.hpp)
 
 koalaamp_enable_warnings(koalaamp_ui)
 
@@ -12,7 +36,25 @@ target_include_directories(koalaamp_ui
     PUBLIC "${CMAKE_SOURCE_DIR}/src")
 
 # Widgets/Gui are PUBLIC: MainWindow.hpp exposes QWidget, so consumers (the app
-# and widget tests) need the Qt include paths transitively.
+# and widget tests) need the Qt include paths transitively. koalaamp_playback
+# is the header-only playback seam (IAudioEngine/IPlaybackObserver) — it never
+# pulls libvlc into a consumer's link line.
 target_link_libraries(koalaamp_ui
-    PUBLIC koalaamp_library Qt6::Widgets Qt6::Gui
+    PUBLIC koalaamp_library koalaamp_skins koalaamp_playback Qt6::Widgets Qt6::Gui
     PRIVATE Qt6::OpenGL)
+
+# The PlaybackCore bridge is a separate target because it (and only it) needs
+# the libvlc-backed core; koalaamp_ui itself stays engine-free so the widget
+# and renderer tests run anywhere Qt does.
+if(TARGET koalaamp_playback_core)
+    add_library(koalaamp_ui_playback STATIC
+        PlaybackCoreTransport.cpp
+        PlaybackCoreTransport.hpp)
+    koalaamp_enable_warnings(koalaamp_ui_playback)
+    target_include_directories(koalaamp_ui_playback
+        PUBLIC "${CMAKE_SOURCE_DIR}/src")
+    target_link_libraries(koalaamp_ui_playback
+        PUBLIC koalaamp_ui
+        PRIVATE koalaamp_playback_core)
+    message(STATUS "KoalaAmp: SE-2 PlaybackCore transport enabled")
+endif()

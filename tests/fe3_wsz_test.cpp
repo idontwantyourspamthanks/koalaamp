@@ -12,7 +12,9 @@
 #include <catch2/catch_test_macros.hpp>
 
 #include "skins/BmpDecoder.hpp"
-#include "MainWindowRenderer.hpp"
+#include "skins/SkinSprites.hpp"
+#include "ui/PlayerRenderer.hpp"
+#include "ui/PlayerState.hpp"
 #include "skins/Skin.hpp"
 #include "skins/SkinSprites.hpp"
 
@@ -186,7 +188,13 @@ TEST_CASE("base-2.91 fixture decodes and renders", "[fe3][fixture]") {
     CHECK(skin->sheet("VOLUME")->size() == QSize(68, 433));
     CHECK(skin->sheet("POSBAR")->size() == QSize(307, 10));
 
-    const QImage rendered = fe3::renderMainWindow(*skin, fe3::MainWindowState{});
+    // SE-2 superseded the spike's renderer: the harness (and this test) now
+    // exercise the app renderer `src/ui` that the product paints with.
+    koalaamp::ui::PlayerState state;
+    state.title = "winamp 2.91";
+    state.volume = 78;
+    const QImage rendered = koalaamp::ui::renderMainWindow(*skin, koalaamp::skins::defaultVisColor(),
+                                                           state);
     REQUIRE(rendered.size() == QSize(275, 116));
     // The title bar overlay is drawn over the background, so the two must differ
     // somewhere in the top band but agree at the bottom-left corner of main.bmp.
