@@ -7,10 +7,12 @@
 # their headers, never through concrete types.
 
 add_subdirectory(library)   # ITrackSource, Track
-add_subdirectory(playback)  # IAudioEngine
+add_subdirectory(interop)   # third-party façades (libvlc, projectM, TagLib, ...)
+                            # — before playback: it decides KOALAAMP_HAS_LIBVLC,
+                            # which gates the FE-4 PlaybackCore target.
+add_subdirectory(playback)  # IAudioEngine, PlaybackCore (FE-4)
 add_subdirectory(servers)   # IServerSource (Jellyfin/Plex)
 add_subdirectory(skins)     # ISkinLoader (WSZ)
-add_subdirectory(interop)   # third-party façades (libvlc, projectM, TagLib, ...)
 add_subdirectory(ui)        # Qt Widgets — windows
 
 # The application binary: minimal frameless window until FE-1/FE-2 land.
