@@ -52,6 +52,13 @@ and adapted with attribution in the file header, not linked.
   - Webamp is also used, unmodified, as a *test-only* headless renderer
     (`spikes/fe3_wsz/reference/`) to produce the pixel-diff reference; the
     bundle is fetched to the gitignored `third_party/webamp/`, never committed.
+  - **Webamp** (MIT) — the `.eqf`/`winamp.q1` container layout used by AU-1's
+    `src/audio/EqPreset.cpp` (`packages/winamp-eqf`: the 31-byte header, the
+    257-byte name field, the 10 band bytes + preamp byte) is transcribed from
+    the *behaviour*/format of that package and its cited public format
+    description, with attribution in the file header. The filter math,
+    ReplayGain arithmetic and limiter are original. No WCL/Winamp source was
+    consulted.
 - The Nullsoft `base-2.91.wsz` skin artwork is **not shipped or committed**; the
   FE-3/SE-1 fixtures fetch it locally (MD5-pinned) into gitignored
   `third_party/skins/` via `spikes/fe3_wsz/fetch-skin.sh`. SE-1's 30-skin
