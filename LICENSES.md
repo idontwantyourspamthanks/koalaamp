@@ -34,6 +34,19 @@ and adapted with attribution in the file header, not linked.
 
 ## Notes
 
+- **Clean-room MIT references (read/adapted, *not* linked):**
+  - **Webamp** (MIT, https://github.com/captbaritone/webamp) — the classic-skin
+    sprite coordinate table (`packages/webamp/js/skinSprites.ts`), main-window
+    layout (`css/main-window.css`) and selector mapping (`js/skinSelectors.ts`)
+    were transcribed into `spikes/fe3_wsz/SkinSprites.hpp` and
+    `spikes/fe3_wsz/MainWindowRenderer.cpp` at commit
+    `e6283c0eabe9b1313cd41df16d2875e897719696`, with attribution in the file
+    headers. Webamp is also used, unmodified, as a *test-only* headless renderer
+    (`spikes/fe3_wsz/reference/`) to produce the pixel-diff reference; the
+    bundle is fetched to the gitignored `third_party/webamp/`, never committed.
+- The Nullsoft `base-2.91.wsz` skin artwork is **not shipped or committed**; the
+  FE-3/SE-1 fixtures fetch it locally (MD5-pinned) into gitignored
+  `third_party/skins/` via `spikes/fe3_wsz/fetch-skin.sh`.
 - Qt modules used: QtCore, QtGui, QtWidgets, QtOpenGL, QtOpenGLWidgets, QtTest. QML and the
   copyleft-only Qt modules (Quick3D, Wayland Compositor, …) are excluded.
 - Qt is provided by the platform (distro packages on Linux, prebuilt on

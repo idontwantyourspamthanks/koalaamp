@@ -9,6 +9,7 @@
 | FE-0 bootstrap (repo+CI) | `tickets/FE-0-bootstrap.md` |
 | FE-1 mask+GL spike | `tickets/FE-1-masked-gl-window.md` |
 | FE-2 libvlc callbacks+EQ | `tickets/FE-2-libvlc-callbacks-eq.md` |
+| FE-3 WSZ loader render spike | `tickets/FE-3-wsz-loader-render.md` |
 | FE-5 koalapaw port skeleton | `tickets/FE-5-koalapaw-port-skeleton.md` |
 | FE-14 projectM-in-Qt spike | `tickets/FE-14-projectm-qt.md` |
 | SE-1 WSZ loader | `tickets/SE-1-wsz-loader.md` |
@@ -46,6 +47,7 @@
 ### FE-3 · Spike: WSZ loader renders base-2.91 — *2d*
 - **Tasks:** ZIP open; port Webamp `skinSprites` coordinate table; QPainter blits of main/titlebar/cbuttons/posbar/volume/numbers/text; nearest-neighbour transform.
 - **Acceptance:** main window pixel-diffs ≤ 0.1% vs Webamp's render of `base-2.91.wsz` at 1×; button states toggle.
+- **Status:** in-review — report: [`spikes/fe3-wsz-render.md`](spikes/fe3-wsz-render.md) (0/31900 px, 0.0000%); expanded brief: [`tickets/FE-3-wsz-loader-render.md`](tickets/FE-3-wsz-loader-render.md)
 - **Depends:** FE-0
 
 ### FE-14 · Spike: projectM in QOpenGLWidget — *2d*
