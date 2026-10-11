@@ -1,3 +1,7 @@
 # Node deps for the FE-3 Webamp reference harness — installed on demand, never committed.
 node_modules/
 package-lock.json
+
+# Also matches a *symlinked* node_modules (git sees a symlink as a file, which
+# the directory pattern above does not cover).
+node_modules
