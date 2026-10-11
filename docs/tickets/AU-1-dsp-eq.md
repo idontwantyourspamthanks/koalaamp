@@ -18,7 +18,7 @@ The audio identity of the player: a C++ float pipeline that applies ReplayGain, 
 ## Acceptance
 - Transfer functions match reference curves within tolerance (golden fixtures, both curve modes, all 10 bands + preamp).
 - `.eqf` round-trip is byte-identical on the fixture set; `winamp.q1` imports the classic preset set.
-- Latency ≤ FE-2's measured budget (pipeline adds ≤ 10ms over raw passthrough).
+- Latency: pipeline adds ≤ 10ms over FE-2's measured passthrough (the absolute ≤50ms target was **not met by the engine itself** — libvlc's decoded block floors it at 50–96ms; see spec §3.1 measured constraints; AU-1's budget is the *delta*, not the total).
 - Steady-state allocation-free (heap snapshot across 10k blocks identical).
 - The no-native-EQ assertion holds across the full test suite (fails the build if violated).
 
