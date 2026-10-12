@@ -36,7 +36,13 @@ bool DspPipeline::prepare(int sampleRate, int channels) {
         return false;
     }
     prepareBuffersLocked(sampleRate, channels);
-    m_applied = m_generation.load(std::memory_order_acquire);
+    // NOTE (AU-2): deliberately does not advance `m_applied`. Settings and
+    // ReplayGain tags are pushed *before* a track's first block (the core's
+    // prepare hook runs before play), and the first process() call is also what
+    // lazily calls prepare() for a new format — marking the generation applied
+    // here would swallow exactly those pending changes, leaving the track
+    // untagged (measured: gain stuck at 0 dB). Leaving `m_applied` stale makes
+    // the next block latch whatever the control thread last pushed.
     return true;
 }
 
