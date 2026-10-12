@@ -6,8 +6,12 @@
 # framed toplevel and the control wiring over the playback transport seam.
 
 add_library(koalaamp_ui STATIC
+    Atf.cpp
+    Atf.hpp
     GoldenStates.cpp
     GoldenStates.hpp
+    JumpToFileDialog.cpp
+    JumpToFileDialog.hpp
     MainWindow.cpp
     MainWindow.hpp
     MediaName.cpp
@@ -15,6 +19,18 @@ add_library(koalaamp_ui STATIC
     PlayerRenderer.cpp
     PlayerRenderer.hpp
     PlayerState.hpp
+    PleditCanvas.cpp
+    PleditCanvas.hpp
+    PleditGoldens.cpp
+    PleditGoldens.hpp
+    PleditHitRegion.cpp
+    PleditHitRegion.hpp
+    PleditRenderer.cpp
+    PleditRenderer.hpp
+    PleditState.cpp
+    PleditState.hpp
+    PlaylistWindow.cpp
+    PlaylistWindow.hpp
     SkinCanvas.cpp
     SkinCanvas.hpp
     SkinHitRegion.cpp

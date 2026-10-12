@@ -103,6 +103,20 @@ public:
         calls.push_back("repeat:" + std::to_string(static_cast<int>(mode)));
         repeat = mode;
     }
+    // Queue (SE-3): recorded like the rest so the playlist suite can assert it.
+    std::vector<MediaRef> queue;
+    void enqueue(const MediaRef& media) override {
+        calls.push_back("enqueue:" + media.value);
+        queue.push_back(media);
+    }
+    void clearQueue() override {
+        calls.push_back("clearQueue");
+        queue.clear();
+    }
+    std::size_t queueSize() const override { return queue.size(); }
+    std::optional<MediaRef> peekNext() const override {
+        return queue.empty() ? std::nullopt : std::optional<MediaRef>(queue.front());
+    }
 
     bool hasMedia() const override { return media; }
     PlaybackState state() const override { return stateValue; }
@@ -112,6 +126,11 @@ public:
     bool shuffle() const override { return shuffleValue; }
     RepeatMode repeatMode() const override { return repeat; }
     std::string title() const override { return titleValue; }
+    MediaRef currentMediaValue{MediaRef::Kind::Path, "fake track.mp3"};
+    bool hasCurrentMedia = false;
+    std::optional<MediaRef> currentMedia() const override {
+        return hasCurrentMedia ? std::optional<MediaRef>(currentMediaValue) : std::nullopt;
+    }
     int bitrateKbps() const override { return kbps; }
 
     bool called(std::string_view prefix) const {

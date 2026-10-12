@@ -8,6 +8,7 @@
 //
 // Usage: koalaamp [--skin <file.wsz|dir>] [--null-audio] [--self-test]
 #include "ui/MainWindow.hpp"
+#include "ui/PlaylistWindow.hpp"
 
 #include <cstdio>
 #include <filesystem>
@@ -74,6 +75,7 @@ int main(int argc, char** argv) {
     parser.process(app);
 
     koalaamp::ui::MainWindow window;
+    koalaamp::ui::PlaylistWindow playlist;
 
     const std::filesystem::path skinPath = resolveSkin(parser.value(skinOption));
     std::optional<koalaamp::skins::SkinSet> skinSet;
@@ -85,6 +87,7 @@ int main(int argc, char** argv) {
     }
     if (skinSet.has_value()) {
         window.setSkin(&*skinSet);
+        playlist.setSkin(&*skinSet);
         for (const auto& warning : skinSet->warnings) {
             std::fprintf(stderr, "koalaamp: skin: %s\n", warning.c_str());
         }
@@ -103,11 +106,21 @@ int main(int argc, char** argv) {
     auto transport =
         std::make_unique<koalaamp::ui::PlaybackCoreTransport>(*core, window.visFeed());
     window.setTransport(transport.get());
+    playlist.setTransport(transport.get());
 #else
     (void)nullAudioOption;
 #endif
 
+    // The playlist editor is the second classic window: the main window's PL
+    // button toggles it, its own close button hides it. Winamp opens it by
+    // default. (Window snapping / the window set is SE-4.)
+    QObject::connect(&window, &koalaamp::ui::MainWindow::playlistToggled, &playlist,
+                     [&playlist](bool on) { on ? playlist.show() : playlist.hide(); });
+    QObject::connect(&playlist, &koalaamp::ui::PlaylistWindow::closeRequested, &playlist,
+                     &QWidget::hide);
+
     window.show();
+    playlist.show();
 
     if (parser.isSet(selfTestOption)) {
         // Headless smoke hook used by ctest (QT_QPA_PLATFORM=offscreen): prove
@@ -118,6 +131,7 @@ int main(int argc, char** argv) {
     const int status = app.exec();
 #ifdef KOALAAMP_HAS_PLAYBACK_CORE
     window.setTransport(nullptr);
+    playlist.setTransport(nullptr);
 #endif
     return status;
 }

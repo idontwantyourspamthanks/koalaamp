@@ -40,6 +40,16 @@ void PlaybackCoreTransport::setShuffle(bool enabled) { m_core.setShuffle(enabled
 
 void PlaybackCoreTransport::setRepeatMode(playback::RepeatMode mode) { m_core.setRepeat(mode); }
 
+void PlaybackCoreTransport::enqueue(const playback::MediaRef& media) { m_core.enqueue(media); }
+
+void PlaybackCoreTransport::clearQueue() { m_core.clearQueue(); }
+
+std::size_t PlaybackCoreTransport::queueSize() const { return m_core.queueSize(); }
+
+std::optional<playback::MediaRef> PlaybackCoreTransport::peekNext() const {
+    return m_core.peekNext();
+}
+
 bool PlaybackCoreTransport::hasMedia() const { return m_core.currentMedia().has_value(); }
 
 playback::PlaybackState PlaybackCoreTransport::state() const { return m_core.state(); }
@@ -60,6 +70,10 @@ std::string PlaybackCoreTransport::title() const {
         return {};
     }
     return mediaDisplayName(*media);
+}
+
+std::optional<playback::MediaRef> PlaybackCoreTransport::currentMedia() const {
+    return m_core.currentMedia();
 }
 
 void PlaybackCoreTransport::onStateChanged(playback::PlaybackState state) {

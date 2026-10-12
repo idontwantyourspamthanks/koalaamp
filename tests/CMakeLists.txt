@@ -177,3 +177,51 @@ target_compile_definitions(koalaamp_se2_corpus_tests PRIVATE
     "KOALAAMP_CORPUS_DIR=\"${CMAKE_SOURCE_DIR}/third_party/skins-corpus\"")
 catch_discover_tests(koalaamp_se2_corpus_tests PROPERTIES TIMEOUT 300)
 message(STATUS "KoalaAmp: SE-2 main-window tests enabled (render/goldens, interaction, corpus)")
+
+# SE-3: the classic playlist editor. The ATF/model suite and the render/golden
+# suite need only Qt Gui; the interaction-parity suite drives the real widget
+# (Qt Widgets + QtTest, offscreen, PRE_TEST discovery like SE-2); the corpus
+# smoke renders all 30 corpus skins. `koalaamp_se3_goldens_gen` regenerates the
+# committed golden manifest (hashes only) — see tests/se3_goldens_gen.cpp.
+add_executable(koalaamp_se3_atf_tests se3_atf_test.cpp)
+koalaamp_enable_warnings(koalaamp_se3_atf_tests)
+target_link_libraries(koalaamp_se3_atf_tests PRIVATE Catch2::Catch2WithMain koalaamp_ui)
+target_compile_definitions(koalaamp_se3_atf_tests PRIVATE
+    "KOALAAMP_UI_SRC=\"${CMAKE_SOURCE_DIR}/src/ui\""
+    "KOALAAMP_PLAYBACK_SRC=\"${CMAKE_SOURCE_DIR}/src/playback\""
+    "KOALAAMP_INTEROP_SRC=\"${CMAKE_SOURCE_DIR}/src/interop\""
+    "KOALAAMP_AUDIO_SRC=\"${CMAKE_SOURCE_DIR}/src/audio\"")
+catch_discover_tests(koalaamp_se3_atf_tests)
+
+add_executable(koalaamp_se3_render_tests se3_render_test.cpp)
+koalaamp_enable_warnings(koalaamp_se3_render_tests)
+target_link_libraries(koalaamp_se3_render_tests PRIVATE Catch2::Catch2 koalaamp_ui)
+target_compile_definitions(koalaamp_se3_render_tests PRIVATE
+    "KOALAAMP_SE3_SKIN=\"${CMAKE_SOURCE_DIR}/third_party/skins/base-2.91.wsz\""
+    "KOALAAMP_SE3_GOLDEN_MANIFEST=\"${CMAKE_SOURCE_DIR}/tests/fixtures/se3/goldens.sha256\"")
+catch_discover_tests(koalaamp_se3_render_tests PROPERTIES TIMEOUT 300)
+
+add_executable(koalaamp_se3_interaction_tests se3_interaction_test.cpp)
+koalaamp_enable_warnings(koalaamp_se3_interaction_tests)
+target_link_libraries(koalaamp_se3_interaction_tests PRIVATE Catch2::Catch2 koalaamp_ui Qt6::Test)
+target_compile_definitions(koalaamp_se3_interaction_tests PRIVATE
+    "KOALAAMP_SE3_SKIN=\"${CMAKE_SOURCE_DIR}/third_party/skins/base-2.91.wsz\"")
+catch_discover_tests(koalaamp_se3_interaction_tests PROPERTIES
+    DISCOVERY_MODE PRE_TEST
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 180)
+
+add_executable(koalaamp_se3_corpus_tests se3_corpus_render_test.cpp)
+koalaamp_enable_warnings(koalaamp_se3_corpus_tests)
+target_link_libraries(koalaamp_se3_corpus_tests PRIVATE Catch2::Catch2WithMain koalaamp_ui)
+target_compile_definitions(koalaamp_se3_corpus_tests PRIVATE
+    "KOALAAMP_CORPUS_DIR=\"${CMAKE_SOURCE_DIR}/third_party/skins-corpus\"")
+catch_discover_tests(koalaamp_se3_corpus_tests PROPERTIES TIMEOUT 300)
+message(STATUS "KoalaAmp: SE-3 playlist-window tests enabled (atf/model, render/goldens, interaction, corpus)")
+
+# Developer tool: prints the SE-3 golden manifest. Excluded from the default
+# build (regeneration is deliberate):
+#   cmake --build build/linux-gcc --target koalaamp_se3_goldens_gen
+add_executable(koalaamp_se3_goldens_gen EXCLUDE_FROM_ALL se3_goldens_gen.cpp)
+koalaamp_enable_warnings(koalaamp_se3_goldens_gen)
+target_link_libraries(koalaamp_se3_goldens_gen PRIVATE koalaamp_ui)

@@ -42,6 +42,11 @@ public:
     void setShuffle(bool enabled) override;
     void setRepeatMode(playback::RepeatMode mode) override;
 
+    void enqueue(const playback::MediaRef& media) override;
+    void clearQueue() override;
+    std::size_t queueSize() const override;
+    std::optional<playback::MediaRef> peekNext() const override;
+
     bool hasMedia() const override;
     playback::PlaybackState state() const override;
     std::int64_t positionMs() const override;
@@ -50,6 +55,7 @@ public:
     bool shuffle() const override;
     playback::RepeatMode repeatMode() const override;
     std::string title() const override;
+    std::optional<playback::MediaRef> currentMedia() const override;
     /// libvlc knows the media's bitrate, but `IAudioEngine` has no media-info
     /// query (AU-1 owns that seam), so the field renders Winamp's "  0"
     /// placeholder — exactly what a track without tags shows.
