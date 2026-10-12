@@ -16,6 +16,7 @@
 | SE-1 WSZ loader | `tickets/SE-1-wsz-loader.md` |
 | SE-2 main window | `tickets/SE-2-main-window.md` |
 | SE-3 playlist editor | `tickets/SE-3-playlist-window.md` |
+| SE-4 window manager + app window set | `tickets/SE-4-window-manager.md` |
 | SE-5 EQ window | `tickets/SE-5-eq-window.md` |
 | AU-1 DSP + EQ | `tickets/AU-1-dsp-eq.md` |
 | LI-3 library UI + smart views | `tickets/LI-3-library-ui.md` |
