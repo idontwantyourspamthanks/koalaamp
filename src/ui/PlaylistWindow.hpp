@@ -28,6 +28,9 @@
 #include "ui/Transport.hpp"
 
 class QMenu;
+class QDragEnterEvent;
+class QDragMoveEvent;
+class QDropEvent;
 
 namespace koalaamp::ui {
 
@@ -112,6 +115,30 @@ public:
     /// Animation/idle tick: reconciles queue + current row. Exposed for tests.
     void tick();
 
+    // --- playlist files (PL-1: playlists on disk) ---------------------------
+    /// Replaces the list with a playlist file. Format from the extension and
+    /// content (M3U/M3U8/PLS/B4S/XSPF/ASX/WPL). False when unreadable/unknown.
+    bool openPlaylist(const std::string& path);
+    /// Appends a playlist file's entries (the drag-drop / "add playlist" verb).
+    bool addPlaylist(const std::string& path);
+    /// Writes the current list; the format comes from the path's extension.
+    bool savePlaylist(const std::string& path) const;
+    /// The extensions the open/save verbs and (CO-1) file associations accept.
+    static const std::vector<std::string>& playlistExtensions();
+
+    // --- autosave (PL-1: a crash must not eat the queue) --------------------
+    /// Where the autosave pair lives (playlist.m3u8 + playlist.state).
+    void setAutosaveDir(const std::string& dir);
+    const std::string& autosaveDir() const { return m_autosaveDir; }
+    void setAutosaveEnabled(bool on);
+    bool autosaveEnabled() const { return m_autosaveEnabled; }
+    /// Debounce interval before a dirty model is written (default 5 s).
+    void setAutosaveDebounceMs(int ms);
+    /// Writes the autosave pair immediately (the debounce flush / quit path).
+    bool saveAutosaveNow();
+    /// Restores the last autosaved playlist + queue order. False when none.
+    bool restoreAutosave();
+
     /// The interaction-parity checklist this window implements; each id has a
     /// scripted-input test in tests/se3_interaction_test.cpp.
     static const std::vector<std::string>& interactionChecklist();
@@ -121,6 +148,8 @@ signals:
     void shadeChanged(bool shaded);
     void alwaysOnTopChanged(bool on);
     void mediaOpenRequested();  ///< eject: add files (the file dialog host)
+    void playlistOpenRequested();   ///< "Open playlist" verb (the dialog host)
+    void playlistSaveRequested();   ///< "Save playlist" verb (the dialog host)
     void trackActivated(int index);
     void entriesAdded(int count);
 
@@ -132,6 +161,9 @@ protected:
     void wheelEvent(QWheelEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     void leaveEvent(QEvent* event) override;
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dragMoveEvent(QDragMoveEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
     bool isTitleBarAt(const QPoint& point) const override;
 
 private:
@@ -142,6 +174,8 @@ private:
     void updateShape();
     void requestRepaint();
     void retitleEntries();
+    /// Marks the model dirty and (re)arms the autosave debounce.
+    void touchAutosave();
 
     PleditHitId controlAt(const QPoint& point) const;
     void pressControl(PleditHitId id, const QPoint& point);
@@ -184,6 +218,12 @@ private:
     bool m_jumpEnabled = true;
 
     QTimer m_timer;
+
+    // --- PL-1 autosave ---
+    std::string m_autosaveDir;
+    bool m_autosaveEnabled = false;
+    bool m_autosaveDirty = false;
+    QTimer m_autosaveTimer;
 };
 
 /// The complete interaction-parity list (see interactionChecklist()).

@@ -1,0 +1,10 @@
+<ASX version="3.0">
+ <Entry>
+  <Title>Stream One</Title>
+  <Ref href="http://example.com/a.asf"/>
+  <Duration value="0:03:45.500"/>
+ </Entry>
+ <Entry>
+  <Ref href="file:///music/local.wma"/>
+ </Entry>
+</ASX>

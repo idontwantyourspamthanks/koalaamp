@@ -3,13 +3,21 @@
 
 #include <algorithm>
 #include <cmath>
+#include <string>
+#include <vector>
 
 #include <QApplication>
+#include <QDragEnterEvent>
+#include <QDragMoveEvent>
+#include <QDropEvent>
 #include <QKeyEvent>
 #include <QMenu>
+#include <QMimeData>
 #include <QMouseEvent>
+#include <QUrl>
 #include <QWheelEvent>
 
+#include "playlist/Playlist.hpp"
 #include "ui/Atf.hpp"
 #include "ui/JumpToFileDialog.hpp"
 #include "ui/PleditRenderer.hpp"
@@ -65,6 +73,24 @@ playback::MediaRef mediaFor(const PleditEntry& entry) {
     return playback::MediaRef{playback::MediaRef::Kind::Path, entry.filename};
 }
 
+/// PL-1 default autosave debounce: long enough not to thrash the disk on a
+/// drag-reorder, short enough that a crash loses at most a few seconds.
+constexpr int kAutosaveDebounceMs = 5000;
+
+playlist::Track toTrack(const PleditEntry& entry) {
+    return playlist::Track{entry.title, entry.filename, entry.lengthMs};
+}
+
+PleditEntry toEntry(const playlist::Track& track) {
+    return PleditEntry{track.title, track.filename, track.lengthMs};
+}
+
+/// True when `path` names a playlist format the open/drop verbs accept.
+bool isPlaylistFile(const std::string& path) {
+    return playlist::formatForExtension(std::filesystem::path(path).extension().string()) !=
+           playlist::Format::Unknown;
+}
+
 }  // namespace
 
 const std::vector<std::string>& playlistInteractionChecklist() { return checklistStorage(); }
@@ -76,6 +102,7 @@ PlaylistWindow::PlaylistWindow(QWidget* parent) : SkinnedWindow(parent) {
     m_titleFormat = std::string(kDefaultAtf);
     buildUi();
     setWindowTitle(QStringLiteral("Playlist Editor"));
+    setAcceptDrops(true);
     updateShape();
     applySkinToCanvas();
 
@@ -83,12 +110,20 @@ PlaylistWindow::PlaylistWindow(QWidget* parent) : SkinnedWindow(parent) {
     connect(&m_timer, &QTimer::timeout, this, &PlaylistWindow::tick);
     m_timer.start();
 
+    m_autosaveTimer.setSingleShot(true);
+    m_autosaveTimer.setInterval(kAutosaveDebounceMs);
+    connect(&m_autosaveTimer, &QTimer::timeout, this, [this] { saveAutosaveNow(); });
+
     connect(this, &SkinnedWindow::shadeToggleRequested, this,
             [this] { setShade(!m_state.shade); });
 }
 
 PlaylistWindow::~PlaylistWindow() {
     closeMenu();
+    // On quit the debounce may still be armed: flush it (PL-1 "on quit").
+    if (m_autosaveEnabled && !m_autosaveDir.empty()) {
+        saveAutosaveNow();
+    }
 }
 
 void PlaylistWindow::buildUi() {
@@ -132,6 +167,7 @@ void PlaylistWindow::setEntries(std::vector<PleditEntry> entries) {
     m_state.currentIndex = -1;
     m_state.scrollOffset = 0;
     requestRepaint();
+    touchAutosave();
 }
 
 void PlaylistWindow::addEntries(std::vector<PleditEntry> entries) {
@@ -139,6 +175,7 @@ void PlaylistWindow::addEntries(std::vector<PleditEntry> entries) {
     appendEntries(m_state, std::move(entries));
     requestRepaint();
     emit entriesAdded(count);
+    touchAutosave();
 }
 
 void PlaylistWindow::addMediaFiles(const std::vector<std::string>& paths) {
@@ -149,6 +186,122 @@ void PlaylistWindow::addMediaFiles(const std::vector<std::string>& paths) {
         entries.push_back(PleditEntry{formatAtf(m_titleFormat, atfFieldsFor(media)), path, 0});
     }
     addEntries(std::move(entries));
+}
+
+// ---------------------------------------------------------------------------
+// PL-1: playlist files + autosave
+// ---------------------------------------------------------------------------
+
+const std::vector<std::string>& PlaylistWindow::playlistExtensions() {
+    return playlist::supportedExtensions();
+}
+
+bool PlaylistWindow::openPlaylist(const std::string& path) {
+    const playlist::Playlist parsed = playlist::readFile(path);
+    if (parsed.format == playlist::Format::Unknown) {
+        return false;
+    }
+    std::vector<PleditEntry> entries;
+    entries.reserve(parsed.tracks.size());
+    for (const playlist::Track& track : parsed.tracks) {
+        entries.push_back(toEntry(track));
+    }
+    setEntries(std::move(entries));
+    return true;
+}
+
+bool PlaylistWindow::addPlaylist(const std::string& path) {
+    const playlist::Playlist parsed = playlist::readFile(path);
+    if (parsed.format == playlist::Format::Unknown) {
+        return false;
+    }
+    std::vector<PleditEntry> entries;
+    entries.reserve(parsed.tracks.size());
+    for (const playlist::Track& track : parsed.tracks) {
+        entries.push_back(toEntry(track));
+    }
+    addEntries(std::move(entries));
+    return true;
+}
+
+bool PlaylistWindow::savePlaylist(const std::string& path) const {
+    const playlist::Format format =
+        playlist::formatForExtension(std::filesystem::path(path).extension().string());
+    if (format == playlist::Format::Unknown) {
+        return false;
+    }
+    std::vector<playlist::Track> tracks;
+    tracks.reserve(m_state.entries.size());
+    for (const PleditEntry& entry : m_state.entries) {
+        tracks.push_back(toTrack(entry));
+    }
+    return playlist::writeFile(path, tracks, format);
+}
+
+void PlaylistWindow::setAutosaveDir(const std::string& dir) {
+    m_autosaveDir = dir;
+}
+
+void PlaylistWindow::setAutosaveEnabled(bool on) {
+    m_autosaveEnabled = on;
+    if (!on) {
+        m_autosaveTimer.stop();
+        m_autosaveDirty = false;
+    } else if (m_autosaveDirty) {
+        m_autosaveTimer.start();
+    }
+}
+
+void PlaylistWindow::setAutosaveDebounceMs(int ms) {
+    m_autosaveTimer.setInterval(std::max(0, ms));
+}
+
+void PlaylistWindow::touchAutosave() {
+    if (!m_autosaveEnabled || m_autosaveDir.empty()) {
+        return;
+    }
+    m_autosaveDirty = true;
+    m_autosaveTimer.start();
+}
+
+bool PlaylistWindow::saveAutosaveNow() {
+    if (!m_autosaveEnabled || m_autosaveDir.empty()) {
+        return false;
+    }
+    playlist::AutosaveState state;
+    state.tracks.reserve(m_state.entries.size());
+    for (const PleditEntry& entry : m_state.entries) {
+        state.tracks.push_back(toTrack(entry));
+    }
+    state.queue = m_state.queue;
+    state.currentIndex = m_state.currentIndex;
+    const bool ok = playlist::saveAutosave(m_autosaveDir, state);
+    m_autosaveDirty = false;
+    return ok;
+}
+
+bool PlaylistWindow::restoreAutosave() {
+    if (m_autosaveDir.empty()) {
+        return false;
+    }
+    const auto state = playlist::loadAutosave(m_autosaveDir);
+    if (!state.has_value()) {
+        return false;
+    }
+    std::vector<PleditEntry> entries;
+    entries.reserve(state->tracks.size());
+    for (const playlist::Track& track : state->tracks) {
+        entries.push_back(toEntry(track));
+    }
+    setEntries(std::move(entries));
+    m_state.queue = state->queue;
+    if (state->currentIndex >= 0 &&
+        static_cast<std::size_t>(state->currentIndex) < m_state.entries.size()) {
+        m_state.currentIndex = state->currentIndex;
+    }
+    clampScroll(m_state);
+    requestRepaint();
+    return true;
 }
 
 void PlaylistWindow::setTitleFormat(std::string format) {
@@ -231,6 +384,7 @@ void PlaylistWindow::requestRepaint() {
 // ---------------------------------------------------------------------------
 
 void PlaylistWindow::syncFromTransport() {
+    const std::size_t queueBefore = m_state.queue.size();
     if (m_transport != nullptr) {
         const auto media = m_transport->currentMedia();
         if (media.has_value()) {
@@ -258,6 +412,9 @@ void PlaylistWindow::syncFromTransport() {
     }
     clampScroll(m_state);
     requestRepaint();
+    if (m_state.queue.size() != queueBefore) {
+        touchAutosave();
+    }
 }
 
 void PlaylistWindow::tick() { syncFromTransport(); }
@@ -295,6 +452,7 @@ void PlaylistWindow::enqueueRow(std::size_t index) {
     }
     enqueueIndex(m_state, index);
     requestRepaint();
+    touchAutosave();
 }
 
 void PlaylistWindow::enqueueSelected() {
@@ -317,12 +475,14 @@ void PlaylistWindow::clearQueue() {
     }
     koalaamp::ui::clearQueue(m_state);
     requestRepaint();
+    touchAutosave();
 }
 
 void PlaylistWindow::removeSelected() {
     const std::size_t removed = koalaamp::ui::removeSelected(m_state);
     if (removed > 0) {
         requestRepaint();
+        touchAutosave();
     }
 }
 
@@ -407,6 +567,11 @@ void PlaylistWindow::openMenuFor(PleditHitId id, const QPoint& localPoint) {
             });
             break;
         case PleditHitId::MenuMisc:
+            menu->addAction(QStringLiteral("Open playlist..."), this,
+                            [this] { emit playlistOpenRequested(); });
+            menu->addAction(QStringLiteral("Save playlist..."), this,
+                            [this] { emit playlistSaveRequested(); });
+            menu->addSeparator();
             menu->addAction(QStringLiteral("Jump to file..."), this,
                             [this] { openJumpDialog(); });
             menu->addAction(QStringLiteral("Load playlist into queue"), this,
@@ -614,6 +779,60 @@ void PlaylistWindow::leaveEvent(QEvent* event) {
         requestRepaint();
     }
     QWidget::leaveEvent(event);
+}
+
+// --- drag & drop (PL-1) -----------------------------------------------------
+// Winamp accepts playlists and media files dropped on the playlist editor;
+// a dropped .m3u/.pls/… is *added* (the "add" semantics), media files are
+// appended as new rows.
+
+void PlaylistWindow::dragEnterEvent(QDragEnterEvent* event) {
+    if (event->mimeData()->hasUrls()) {
+        for (const QUrl& url : event->mimeData()->urls()) {
+            if (url.isLocalFile()) {
+                event->acceptProposedAction();
+                return;
+            }
+        }
+    }
+    QWidget::dragEnterEvent(event);
+}
+
+void PlaylistWindow::dragMoveEvent(QDragMoveEvent* event) {
+    if (event->mimeData()->hasUrls()) {
+        event->acceptProposedAction();
+        return;
+    }
+    QWidget::dragMoveEvent(event);
+}
+
+void PlaylistWindow::dropEvent(QDropEvent* event) {
+    if (!event->mimeData()->hasUrls()) {
+        QWidget::dropEvent(event);
+        return;
+    }
+    std::vector<std::string> playlistPaths;
+    std::vector<std::string> mediaPaths;
+    for (const QUrl& url : event->mimeData()->urls()) {
+        if (!url.isLocalFile()) {
+            continue;
+        }
+        const std::string path = url.toLocalFile().toStdString();
+        if (isPlaylistFile(path)) {
+            playlistPaths.push_back(path);
+        } else {
+            mediaPaths.push_back(path);
+        }
+    }
+    for (const std::string& path : playlistPaths) {
+        addPlaylist(path);
+    }
+    if (!mediaPaths.empty()) {
+        addMediaFiles(mediaPaths);
+    }
+    if (!playlistPaths.empty() || !mediaPaths.empty()) {
+        event->acceptProposedAction();
+    }
 }
 
 void PlaylistWindow::pressRow(int row, Qt::KeyboardModifiers modifiers) {

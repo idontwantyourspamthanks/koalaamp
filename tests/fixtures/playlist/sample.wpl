@@ -1,0 +1,9 @@
+<?wpl version="1.0"?>
+<smil>
+ <body>
+  <seq>
+   <media src="D:\Music\song one.wma"/>
+   <media src="D:\Music\song two.mp3"/>
+  </seq>
+ </body>
+</smil>
