@@ -62,16 +62,20 @@ Format sniffFormat(std::string_view bytes) {
 // --- path handling ----------------------------------------------------------
 
 std::string canonicalKey(const std::filesystem::path& path) {
+    // generic_string(): forward slashes on every platform, so the key is a
+    // stable identity and a joined path never inherits native separators
+    // (path::string() renders '\\' on Windows — that rewrote playlist entries
+    // and failed the Windows round-trip).
     std::error_code ec;
     const auto canonical = std::filesystem::weakly_canonical(path, ec);
     if (!ec && !canonical.empty()) {
-        return canonical.string();
+        return canonical.generic_string();
     }
     const auto absolute = std::filesystem::absolute(path, ec);
     if (!ec && !absolute.empty()) {
-        return absolute.string();
+        return absolute.generic_string();
     }
-    return path.string();
+    return path.generic_string();
 }
 
 std::string resolveMediaRef(std::string_view ref, const std::filesystem::path& baseDir) {
@@ -79,14 +83,29 @@ std::string resolveMediaRef(std::string_view ref, const std::filesystem::path& b
     if (ref.empty()) {
         return {};
     }
+    // A playlist entry is opaque TEXT we must preserve verbatim: an M3U written
+    // on Linux carries POSIX separators and has to survive a Windows read
+    // unchanged (and vice versa). Going through std::filesystem::path here
+    // rewrites separators to the native style (path::string() renders '\\' on
+    // Windows) and can bolt on a drive prefix — that broke the Windows
+    // round-trip (a Windows CI failure: "/music/x.mp3" came back as
+    // "\music\x.mp3"). So: absolute/URL/UNC/drive refs pass through untouched;
+    // relative refs are joined at the STRING level against the playlist's
+    // directory, also preserving the entry's own separators.
     if (hasUrlScheme(ref) || isUncPath(ref) || isWindowsDrivePath(ref)) {
         return std::string(ref);
     }
-    const std::filesystem::path p(ref);
-    if (p.is_absolute() || baseDir.empty()) {
-        return canonicalKey(p);
+    // Absolute entries are the author's text: pass them through untouched so a
+    // POSIX-style entry survives a Windows read unchanged.
+    if (std::filesystem::path(ref).is_absolute()) {
+        return std::string(ref);
     }
-    return canonicalKey(baseDir / p);
+    if (baseDir.empty()) {
+        return std::string(ref);
+    }
+    // Relative entries are resolved against the playlist's folder (so playback
+    // gets a usable path) and rendered portably by canonicalKey.
+    return canonicalKey(baseDir / std::filesystem::path(ref));
 }
 
 std::string titleFromFilename(std::string_view filename) {

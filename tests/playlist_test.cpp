@@ -163,7 +163,8 @@ TEST_CASE("M3U leniency corpus", "[pl1][m3u][leniency]") {
     CHECK(tracks[2].title == "stream");
     CHECK(tracks[2].lengthMs == 0);
 
-    // Relative path resolved against the playlist's own folder.
+    // Relative path resolved against the playlist's own folder. canonicalKey
+    // renders portably, so this holds on Windows too (no backslashes).
     CHECK(tracks[3].filename == canonicalKey(base / "relative/rel track.mp3"));
 
     // Trailing whitespace trimmed.
