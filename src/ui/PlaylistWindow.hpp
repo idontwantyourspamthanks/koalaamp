@@ -70,6 +70,10 @@ public:
     void setScale(int scale);
     void setShade(bool shaded);
     bool isShaded() const { return m_state.shade; }
+    /// Keep-on-top for the window set (`config_aot`, SE-4); a flag change
+    /// recreates the native window, so the position is restored.
+    void setAlwaysOnTop(bool on);
+    bool isAlwaysOnTop() const;
     void setSegments(int widthSegments, int heightSegments);
     int widthSegments() const { return m_state.widthSegments; }
     int heightSegments() const { return m_state.heightSegments; }
@@ -115,6 +119,7 @@ public:
 signals:
     void closeRequested();
     void shadeChanged(bool shaded);
+    void alwaysOnTopChanged(bool on);
     void mediaOpenRequested();  ///< eject: add files (the file dialog host)
     void trackActivated(int index);
     void entriesAdded(int count);

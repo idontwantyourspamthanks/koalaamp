@@ -184,6 +184,20 @@ void PlaylistWindow::setShade(bool shaded) {
     emit shadeChanged(shaded);
 }
 
+void PlaylistWindow::setAlwaysOnTop(bool on) {
+    const QPoint position = pos();
+    setWindowFlag(Qt::WindowStaysOnTopHint, on);
+    // Qt recreates the native window when a flag changes; restore the place.
+    show();
+    move(position);
+    requestRepaint();
+    emit alwaysOnTopChanged(on);
+}
+
+bool PlaylistWindow::isAlwaysOnTop() const {
+    return (windowFlags() & Qt::WindowStaysOnTopHint) != 0;
+}
+
 void PlaylistWindow::setSegments(int widthSegments, int heightSegments) {
     m_state.widthSegments = std::max(0, widthSegments);
     m_state.heightSegments = std::max(0, heightSegments);

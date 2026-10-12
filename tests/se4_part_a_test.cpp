@@ -13,10 +13,15 @@
 //
 // Widget cases need a platform plugin; run under QT_QPA_PLATFORM=offscreen
 // (like SE-2/SE-3/SE-5).
+#include <atomic>
+#include <chrono>
 #include <cmath>
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <numbers>
+#include <thread>
 #include <vector>
 
 #include <QApplication>
@@ -28,6 +33,10 @@
 
 #include "audio/DspPipeline.hpp"
 #include "skins/SkinSet.hpp"
+
+#ifdef KOALAAMP_SE4_HAS_CORE
+#include "playback/PlaybackCore.hpp"
+#endif
 #include "ui/DspEqSink.hpp"
 #include "ui/EqSink.hpp"
 #include "ui/EqState.hpp"
@@ -67,6 +76,38 @@ double rms(const std::vector<float>& values) {
     }
     return std::sqrt(sum / static_cast<double>(values.size()));
 }
+
+#ifdef KOALAAMP_SE4_HAS_CORE
+/// Minimal 16-bit stereo PCM WAV the core can decode (engineering-loud sine).
+void writeSineWav(const std::filesystem::path& path, double hz, unsigned rate,
+                  double seconds) {
+    std::vector<std::int16_t> pcm;
+    const auto frames = static_cast<unsigned>(rate * seconds);
+    for (unsigned i = 0; i < frames; ++i) {
+        const double t = static_cast<double>(i) / rate;
+        pcm.push_back(static_cast<std::int16_t>(
+            std::lround(0.5 * 32767.0 * std::sin(2.0 * std::numbers::pi * hz * t))));
+    }
+    const auto dataBytes = static_cast<std::uint32_t>(pcm.size() * 2);
+    std::ofstream f(path, std::ios::binary);
+    auto u32 = [&](std::uint32_t v) { f.write(reinterpret_cast<const char*>(&v), 4); };
+    auto u16 = [&](std::uint16_t v) { f.write(reinterpret_cast<const char*>(&v), 2); };
+    f.write("RIFF", 4);
+    u32(36 + dataBytes);
+    f.write("WAVE", 4);
+    f.write("fmt ", 4);
+    u32(16);
+    u16(1);
+    u16(2);
+    u32(rate);
+    u32(rate * 4);
+    u16(4);
+    u16(16);
+    f.write("data", 4);
+    u32(dataBytes);
+    f.write(reinterpret_cast<const char*>(pcm.data()), dataBytes);
+}
+#endif
 
 }  // namespace
 
@@ -183,6 +224,50 @@ TEST_CASE("SE-4 the DSP is installed ahead of the vis feed", "[se4][dsp][chain]"
     CHECK(feed.sampleRate() == 44100);
     CHECK(feed.channels() == 2);
 }
+
+#ifdef KOALAAMP_SE4_HAS_CORE
+TEST_CASE("SE-4 the app chain reaches the core seam without native EQ", "[se4][dsp][seam]") {
+    namespace fs = std::filesystem;
+    const fs::path wav = fs::temp_directory_path() /
+                         ("koalaamp_se4_" +
+                          std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) +
+                          ".wav");
+    writeSineWav(wav, 1000.0, 48000, 4.0);
+
+    playback::PlaybackConfig config;
+    config.output = playback::PlaybackConfig::Output::Null;
+    playback::PlaybackCore core(config);
+
+    // Exactly the app's assembly: EQ window -> DspEqSink -> DspPipeline ->
+    // VisFeed, installed at the one sanctioned seam.
+    audio::DspPipeline dsp;
+    ui::DspEqSink sink(dsp);
+    ui::EqWindow eq;
+    eq.setPresetDialogsEnabled(false);
+    eq.setEqSink(&sink);
+    ui::VisFeed feed;
+    core.setPcmCallback(dsp.makeCallback(feed.callback()));
+
+    ui::EqWindowState on = eq.state();
+    on.enabled = true;
+    eq.setState(on);
+    eq.setSliderValue(static_cast<int>(ui::EqSlider::Hz1000), ui::kEqValueBoost);
+
+    core.play(playback::MediaRef{playback::MediaRef::Kind::Path, wav.string()});
+    const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(8);
+    while (std::chrono::steady_clock::now() < deadline && dsp.stats().processedBlocks == 0) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+
+    CHECK(dsp.stats().processedBlocks > 0);
+    CHECK(dsp.stats().frames > 0);
+    CHECK(feed.sampleRate() == 48000);  // PCM reached the feed through the chain
+    CHECK_FALSE(core.metrics().nativeEqEnabled);  // spec §3.1 EQ rule
+    core.stop();
+    std::error_code ec;
+    fs::remove(wav, ec);
+}
+#endif
 
 TEST_CASE("SE-4 all three windows render with a skin offscreen", "[se4][assembly][render]") {
     const std::filesystem::path skinPath = KOALAAMP_SE4_SKIN;

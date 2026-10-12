@@ -121,7 +121,8 @@ void SkinDb::save(std::ostream& out) const {
             continue;
         }
         const int flags = (state.mainShade ? 1 : 0) | (state.eqShade ? 2 : 0) |
-                          (state.playlistShade ? 4 : 0);
+                          (state.playlistShade ? 4 : 0) | (state.mainVisible ? 0 : 8) |
+                          (state.eqVisible ? 0 : 16) | (state.playlistVisible ? 0 : 32);
         out << "layout\t" << state.main.x << '\t' << state.main.y << '\t' << state.equalizer.x
             << '\t' << state.equalizer.y << '\t' << state.playlist.x << '\t' << state.playlist.y
             << '\t' << state.playlistWidth << '\t' << state.playlistHeight << '\t' << flags
@@ -171,6 +172,11 @@ void SkinDb::load(std::istream& in) {
             state.mainShade = (parsedFlags & 1) != 0;
             state.eqShade = (parsedFlags & 2) != 0;
             state.playlistShade = (parsedFlags & 4) != 0;
+            // Older records (flags <= 7) predate the visibility bits: the
+            // defaults stay visible (the pre-SE-4 behaviour).
+            state.mainVisible = (parsedFlags & 8) == 0;
+            state.eqVisible = (parsedFlags & 16) == 0;
+            state.playlistVisible = (parsedFlags & 32) == 0;
             std::string key;
             for (std::size_t i = 10; i < parts.size(); ++i) {
                 if (i > 10) {

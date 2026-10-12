@@ -283,4 +283,21 @@ catch_discover_tests(koalaamp_se4_window_set_tests PROPERTIES
     DISCOVERY_MODE PRE_TEST
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     TIMEOUT 180)
+if(TARGET koalaamp_ui_playback)
+    # Adds the real-core seam case (app chain -> setPcmCallback, spec §3.1 rule)
+    # where the libvlc-backed core is built.
+    target_link_libraries(koalaamp_se4_window_set_tests PRIVATE koalaamp_ui_playback)
+    target_compile_definitions(koalaamp_se4_window_set_tests PRIVATE KOALAAMP_SE4_HAS_CORE)
+endif()
 message(STATUS "KoalaAmp: SE-4 Part A window-set tests enabled")
+
+# SE-4 Part B: the snap/dock manager, keep-on-top and layout persistence.
+# Scripted offscreen drags against the real widgets.
+add_executable(koalaamp_se4_snap_tests se4_snap_test.cpp)
+koalaamp_enable_warnings(koalaamp_se4_snap_tests)
+target_link_libraries(koalaamp_se4_snap_tests PRIVATE Catch2::Catch2 koalaamp_ui Qt6::Test)
+catch_discover_tests(koalaamp_se4_snap_tests PROPERTIES
+    DISCOVERY_MODE PRE_TEST
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 180)
+message(STATUS "KoalaAmp: SE-4 Part B snap/dock tests enabled")

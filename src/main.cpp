@@ -6,7 +6,12 @@
 // playback engine (when the libvlc-backed core is built) through
 // `ui::PlaybackCoreTransport` and its PCM tap.
 //
-// Usage: koalaamp [--skin <file.wsz|dir>] [--null-audio] [--self-test]
+// The window set (player + EQ + playlist) is assembled and persisted by SE-4:
+// the main window's toggles drive the other two, the DSP sits between the
+// engine tap and the vis feed, and per-skin layouts restore here.
+//
+// Usage: koalaamp [--skin <file.wsz|dir>] [--null-audio] [--always-on-top]
+//                 [--self-test]
 #include "ui/MainWindow.hpp"
 #include "ui/PlaylistWindow.hpp"
 
@@ -40,21 +45,14 @@
 
 namespace {
 
-/// Skin search order: an explicit path, then whatever the skin DB last used,
-/// then the classic default in the (gitignored) fixture tree.
-std::filesystem::path resolveSkin(const QString& explicitPath) {
-    if (!explicitPath.isEmpty()) {
-        return explicitPath.toStdString();
+/// The skin DB path under the app config dir (empty when there is none).
+std::string skinDbPath() {
+    const QString configDir =
+        QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    if (configDir.isEmpty()) {
+        return {};
     }
-    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
-    if (!configDir.isEmpty()) {
-        koalaamp::skins::SkinDb db;
-        if (db.loadFrom((configDir + QStringLiteral("/skindb.txt")).toStdString()) &&
-            !db.current().empty()) {
-            return db.current();
-        }
-    }
-    return {};
+    return (configDir + QStringLiteral("/skindb.txt")).toStdString();
 }
 
 }  // namespace
@@ -81,9 +79,13 @@ int main(int argc, char** argv) {
                                              QStringLiteral("Use the null audio backend"));
     const QCommandLineOption selfTestOption(QStringLiteral("self-test"),
                                             QStringLiteral("Construct, map and exit 0"));
+    const QCommandLineOption alwaysOnTopOption(
+        QStringLiteral("always-on-top"),
+        QStringLiteral("Keep the whole window set on top (config_aot)"));
     parser.addOption(skinOption);
     parser.addOption(nullAudioOption);
     parser.addOption(selfTestOption);
+    parser.addOption(alwaysOnTopOption);
     parser.process(app);
 
     koalaamp::ui::MainWindow window;
@@ -91,7 +93,19 @@ int main(int argc, char** argv) {
     koalaamp::ui::EqWindow equalizer;
     koalaamp::ui::WindowSet windowSet(window, equalizer, playlist);
 
-    const std::filesystem::path skinPath = resolveSkin(parser.value(skinOption));
+    // The skin DB carries both the last-used skin and the per-skin window
+    // layout (positions, shades, visibility) SE-4 persists.
+    const std::string dbPath = skinDbPath();
+    koalaamp::skins::SkinDb skinDb;
+    const bool hasDbPath = !dbPath.empty();
+    if (hasDbPath) {
+        skinDb.loadFrom(dbPath);  // missing file is not an error
+    }
+
+    std::filesystem::path skinPath = parser.value(skinOption).toStdString();
+    if (skinPath.empty() && hasDbPath && !skinDb.current().empty()) {
+        skinPath = skinDb.current();
+    }
     std::optional<koalaamp::skins::SkinSet> skinSet;
     if (!skinPath.empty()) {
         skinSet = koalaamp::skins::loadSkinSet(skinPath);
@@ -138,9 +152,29 @@ int main(int argc, char** argv) {
 
     // The window set owns the inter-window toggles: the main window's EQ/PL
     // buttons show/hide their windows; each secondary close button hides it.
-    // Winamp opens all three by default.
+    // Then restore this skin's remembered layout, or open the default set.
     windowSet.attach();
-    windowSet.showAll();
+    if (parser.isSet(alwaysOnTopOption)) {
+        windowSet.setKeepOnTop(true);
+    }
+    const bool restored = !skinPath.empty() && windowSet.restoreLayout(skinDb, skinPath);
+    if (!restored) {
+        windowSet.showAll();
+    }
+
+    // Remember where this skin's windows were left (exact restore next launch).
+    // Save while the event loop is still alive: after exec() returns, Qt has
+    // already hidden the toplevels, so their visibility would read false.
+    const bool persist = hasDbPath && !skinPath.empty();
+    if (persist) {
+        QObject::connect(&app, &QCoreApplication::aboutToQuit, &app, [&] {
+            windowSet.persistLayout(skinDb, skinPath);
+            skinDb.noteLoaded(skinPath);
+            if (!skinDb.saveTo(dbPath)) {
+                std::fprintf(stderr, "koalaamp: could not save skin DB to '%s'\n", dbPath.c_str());
+            }
+        });
+    }
 
     if (parser.isSet(selfTestOption)) {
         // Headless smoke hook used by ctest (QT_QPA_PLATFORM=offscreen): prove

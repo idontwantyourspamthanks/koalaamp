@@ -27,7 +27,9 @@ struct WindowPlacement {
     bool operator==(const WindowPlacement&) const = default;
 };
 
-/// Per-skin window positions and windowshade states (docs/spec.md §5.3).
+/// Per-skin window positions, windowshade states and visibility
+/// (docs/spec.md §5.3). Visibility defaults true so records written before the
+/// flags existed restore all windows (SE-4).
 struct SkinLayoutState {
     WindowPlacement main;
     WindowPlacement equalizer;
@@ -37,6 +39,9 @@ struct SkinLayoutState {
     bool mainShade = false;
     bool eqShade = false;
     bool playlistShade = false;
+    bool mainVisible = true;
+    bool eqVisible = true;
+    bool playlistVisible = true;
     bool operator==(const SkinLayoutState&) const = default;
 };
 
