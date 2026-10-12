@@ -61,9 +61,22 @@ public:
         return k;
     }
 
-    /// Drop everything currently buffered (libvlc flush callback).
+    /// Drop everything currently buffered — an explicit discontinuity (seek,
+    /// stop, track switch). Counted in `discarded()`: in DSP mode the ring is
+    /// the only buffer between decode and the device, so the count is exactly
+    /// the audio a discontinuity threw away (AU-2's boundary measurement).
     void discardAll() noexcept {
-        m_tail.store(m_head.load(std::memory_order_acquire), std::memory_order_release);
+        const std::size_t head = m_head.load(std::memory_order_acquire);
+        const std::size_t tail = m_tail.load(std::memory_order_relaxed);
+        if (head != tail) {
+            m_discarded.fetch_add(head - tail, std::memory_order_relaxed);
+        }
+        m_tail.store(head, std::memory_order_release);
+    }
+
+    /// Floats dropped by discardAll() over this ring's lifetime.
+    std::uint64_t discarded() const noexcept {
+        return m_discarded.load(std::memory_order_relaxed);
     }
 
     /// Buffered float count (frames * channels).
@@ -121,6 +134,7 @@ private:
     std::array<Stamp, kStampCapacity> m_stamps{};
     std::atomic<std::size_t> m_stampHead{0};
     std::atomic<std::size_t> m_stampTail{0};
+    std::atomic<std::uint64_t> m_discarded{0};
 };
 
 } // namespace koalaamp::interop::vlc

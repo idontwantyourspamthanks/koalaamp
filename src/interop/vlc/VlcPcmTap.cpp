@@ -320,7 +320,15 @@ void VlcPcmTap::cbResume(void* data, std::int64_t) {
 void VlcPcmTap::cbFlush(void* data, std::int64_t) {
     auto* self = static_cast<VlcPcmTap*>(data);
     self->m_stats.flushes.fetch_add(1, std::memory_order_relaxed);
-    self->m_ring.discardAll();
+    // AU-2: the aout flush is NOT a reason to drop the ring. libvlc flushes
+    // both on a seek — where the buffered frames belong to a position the
+    // listener has left — *and* at end-of-input, where the buffered frames are
+    // the last ~1 s of the track, perfectly valid and still to be rendered.
+    // Discarding here (FE-2/FE-4 behaviour) made every natural track end lose
+    // that tail (measured: ~1.0 s per boundary), which no amount of prefetching
+    // can hide. The ring is cleared only where a discontinuity is *decided*:
+    // the core discards on seek/stop/explicit track switch (PlaybackCore), so
+    // the natural end can hand the next media over with the tail preserved.
 }
 
 void VlcPcmTap::cbDrain(void* data) {
