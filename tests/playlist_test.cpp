@@ -499,7 +499,14 @@ TEST_CASE("resolveMediaRef keeps URLs and resolves relative paths", "[pl1][path]
     CHECK(resolveMediaRef("http://example.com/x", base) == "http://example.com/x");
     CHECK(resolveMediaRef("//server/share/x.mp3", base) == "//server/share/x.mp3");
     CHECK(resolveMediaRef("C:\\Music\\x.mp3", base) == "C:\\Music\\x.mp3");
+    // A rooted entry with a non-empty baseDir must not be rewritten: on
+    // Windows that join used to replace all but the drive ("D:/music/x.mp3").
     CHECK(resolveMediaRef("/music/x.mp3", base) == "/music/x.mp3");
+#ifdef _WIN32
+    // Rooted but driveless is NOT is_absolute() on Windows — the entry is the
+    // author's text and passes through untouched (regression: the rooted gate).
+    CHECK(resolveMediaRef("\\music\\x.mp3", base) == "\\music\\x.mp3");
+#endif
     CHECK(resolveMediaRef("rel/x.mp3", base) == canonicalKey(base / "rel/x.mp3"));
     CHECK(resolveMediaRef("", base).empty());
 }

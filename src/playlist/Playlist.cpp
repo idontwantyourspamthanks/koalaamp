@@ -83,29 +83,28 @@ std::string resolveMediaRef(std::string_view ref, const std::filesystem::path& b
     if (ref.empty()) {
         return {};
     }
-    // A playlist entry is opaque TEXT we must preserve verbatim: an M3U written
-    // on Linux carries POSIX separators and has to survive a Windows read
-    // unchanged (and vice versa). Going through std::filesystem::path here
-    // rewrites separators to the native style (path::string() renders '\\' on
-    // Windows) and can bolt on a drive prefix — that broke the Windows
-    // round-trip (a Windows CI failure: "/music/x.mp3" came back as
-    // "\music\x.mp3"). So: absolute/URL/UNC/drive refs pass through untouched;
-    // relative refs are joined at the STRING level against the playlist's
-    // directory, also preserving the entry's own separators.
+    // A playlist entry is opaque TEXT: an M3U written on Linux carries POSIX
+    // separators and must survive a Windows read unchanged (and vice versa), so
+    // an entry that names a location of its own is passed through verbatim —
+    // never routed through the platform's path rendering, which rewrites
+    // separators (path::string() gives '\\' on Windows) and bolts on a drive.
     if (hasUrlScheme(ref) || isUncPath(ref) || isWindowsDrivePath(ref)) {
         return std::string(ref);
     }
-    // Absolute entries are the author's text: pass them through untouched so a
-    // POSIX-style entry survives a Windows read unchanged.
-    if (std::filesystem::path(ref).is_absolute()) {
+    // "Rooted", not is_absolute(): on Windows a path with a root-directory but
+    // no root-name ("/music/x.mp3", "\music\x.mp3") is NOT absolute, and
+    // `baseDir / "/music/x.mp3"` then REPLACES all but the drive, turning the
+    // entry into "D:/music/x.mp3" (exactly what Windows CI caught). Rooted
+    // entries are the author's text; only genuinely relative entries need
+    // resolving, and those are the only ones canonicalKey touches.
+    const std::filesystem::path p(ref);
+    if (p.has_root_name() || p.has_root_directory()) {
         return std::string(ref);
     }
     if (baseDir.empty()) {
         return std::string(ref);
     }
-    // Relative entries are resolved against the playlist's folder (so playback
-    // gets a usable path) and rendered portably by canonicalKey.
-    return canonicalKey(baseDir / std::filesystem::path(ref));
+    return canonicalKey(baseDir / p);
 }
 
 std::string titleFromFilename(std::string_view filename) {
