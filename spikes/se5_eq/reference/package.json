@@ -1,0 +1,9 @@
+{
+  "name": "se5-eq-webamp-reference",
+  "private": true,
+  "type": "module",
+  "description": "SE-5 spike: headless Webamp render of the equalizer window, the independent reference for the EQ pixel diff.",
+  "dependencies": {
+    "puppeteer-core": "^23.0.0"
+  }
+}

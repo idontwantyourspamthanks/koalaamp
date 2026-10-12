@@ -69,9 +69,19 @@ and adapted with attribution in the file header, not linked.
     (`src/ui/Atf.cpp`) is a clean-room implementation of the documented
     `gen_atf` format; the queue verbs follow FE-4's deque semantics. No
     WCL/Winamp source was consulted.
+  - **Webamp** (MIT) — SE-5's equalizer window ports the same pinned commit's
+    `css/equalizer-window.css`, the generated `css/base-skin.css` sprite table
+    and `js/components/EqualizerWindow/*` (the 28-frame groove grid and its
+    `round(value/100*27)` / `(sprite%14)*15, (sprite/14)*65` mapping, the 11x11
+    thumb travel, the ON/AUTO/PRESETS four-state buttons, the windowshade mini
+    sliders) into `src/ui/EqRenderer.{hpp,cpp}`; the EQ-graph spline
+    (`js/components/EqualizerWindow/spline.js`, adapted there from
+    morganherlocker/cubic-spline) into the same file; and `js/utils.ts`'s
+    `percentToRange`. Attribution in the file headers.
   - Webamp is also used, unmodified, as a *test-only* headless renderer
-    (`spikes/fe3_wsz/reference/`) to produce the pixel-diff reference; the
-    bundle is fetched to the gitignored `third_party/webamp/`, never committed.
+    (`spikes/fe3_wsz/reference/`, `spikes/se5_eq/reference/`) to produce the
+    pixel-diff references; the bundle is fetched to the gitignored
+    `third_party/webamp/`, never committed.
   - **Webamp** (MIT) — the `.eqf`/`winamp.q1` container layout used by AU-1's
     `src/audio/EqPreset.cpp` (`packages/winamp-eqf`: the 31-byte header, the
     257-byte name field, the 10 band bytes + preamp byte) is transcribed from
