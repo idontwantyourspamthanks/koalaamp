@@ -71,7 +71,8 @@ target_include_directories(koalaamp_ui
 # is the header-only playback seam (IAudioEngine/IPlaybackObserver) — it never
 # pulls libvlc into a consumer's link line.
 target_link_libraries(koalaamp_ui
-    PUBLIC koalaamp_library koalaamp_skins koalaamp_playback koalaamp_dsp Qt6::Widgets Qt6::Gui
+    PUBLIC koalaamp_library koalaamp_skins koalaamp_playback koalaamp_dsp koalaamp_playlist
+           Qt6::Widgets Qt6::Gui
     PRIVATE Qt6::OpenGL)
 
 # The PlaybackCore bridge is a separate target because it (and only it) needs

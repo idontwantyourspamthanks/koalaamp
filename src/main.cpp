@@ -31,6 +31,7 @@
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QFileDialog>
 #include <QStandardPaths>
 #include <QString>
 #include <QTimer>
@@ -159,6 +160,45 @@ int main(int argc, char** argv) {
 #else
     (void)nullAudioOption;
 #endif
+
+    // PL-1: a crash must not eat the playlist. The autosave pair (a BOM'd
+    // M3U8 + the queue/index sidecar) lives under the app data dir; restore it
+    // on launch and flush it on quit. The self-test smoke must stay
+    // side-effect free, so it opts out.
+    const QString playlistDataDir =
+        QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    if (!parser.isSet(selfTestOption) && !playlistDataDir.isEmpty()) {
+        playlist.setAutosaveDir((playlistDataDir + QStringLiteral("/playlist")).toStdString());
+        playlist.setAutosaveEnabled(true);
+        playlist.restoreAutosave();
+        QObject::connect(&app, &QCoreApplication::aboutToQuit, &app,
+                         [&playlist] { playlist.saveAutosaveNow(); });
+    }
+
+    // PL-1: the playlist window's open/save verbs. The parsing lives in
+    // src/playlist; the app only hosts the file dialog. The filter's extension
+    // list is the same one CO-1 uses for file associations.
+    QStringList patterns;
+    for (const std::string& ext : koalaamp::ui::PlaylistWindow::playlistExtensions()) {
+        patterns << QStringLiteral("*") + QString::fromStdString(ext);
+    }
+    const QString filter = QStringLiteral("Playlists (%1);;All files (*)").arg(patterns.join(' '));
+    QObject::connect(&playlist, &koalaamp::ui::PlaylistWindow::playlistOpenRequested, &playlist,
+                     [&playlist, filter] {
+                         const QString file = QFileDialog::getOpenFileName(
+                             &playlist, QStringLiteral("Open playlist"), QString(), filter);
+                         if (!file.isEmpty()) {
+                             playlist.openPlaylist(file.toStdString());
+                         }
+                     });
+    QObject::connect(&playlist, &koalaamp::ui::PlaylistWindow::playlistSaveRequested, &playlist,
+                     [&playlist, filter] {
+                         const QString file = QFileDialog::getSaveFileName(
+                             &playlist, QStringLiteral("Save playlist"), QString(), filter);
+                         if (!file.isEmpty()) {
+                             playlist.savePlaylist(file.toStdString());
+                         }
+                     });
 
     // The window set owns the inter-window toggles: the main window's EQ/PL
     // buttons show/hide their windows; each secondary close button hides it.
