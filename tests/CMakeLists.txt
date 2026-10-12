@@ -177,3 +177,36 @@ target_compile_definitions(koalaamp_se2_corpus_tests PRIVATE
     "KOALAAMP_CORPUS_DIR=\"${CMAKE_SOURCE_DIR}/third_party/skins-corpus\"")
 catch_discover_tests(koalaamp_se2_corpus_tests PROPERTIES TIMEOUT 300)
 message(STATUS "KoalaAmp: SE-2 main-window tests enabled (render/goldens, interaction, corpus)")
+
+# SE-5: the classic equalizer window. The renderer/formula/golden suite and the
+# 30-skin render smoke need only Qt Gui (koalaamp_ui carries the AU-1 seam); the
+# interaction-parity suite drives the real widget (Qt Widgets + QtTest) and
+# asserts the DSP wiring through AU-1's real Equalizer.
+add_executable(koalaamp_se5_render_tests se5_render_test.cpp)
+koalaamp_enable_warnings(koalaamp_se5_render_tests)
+target_link_libraries(koalaamp_se5_render_tests PRIVATE Catch2::Catch2WithMain koalaamp_ui)
+target_compile_definitions(koalaamp_se5_render_tests PRIVATE
+    "KOALAAMP_SE5_SKIN=\"${CMAKE_SOURCE_DIR}/third_party/skins/base-2.91.wsz\""
+    "KOALAAMP_SE5_GOLDEN_MANIFEST=\"${CMAKE_SOURCE_DIR}/tests/fixtures/se5/goldens.sha256\"")
+catch_discover_tests(koalaamp_se5_render_tests)
+
+add_executable(koalaamp_se5_interaction_tests se5_interaction_test.cpp)
+koalaamp_enable_warnings(koalaamp_se5_interaction_tests)
+target_link_libraries(koalaamp_se5_interaction_tests PRIVATE Catch2::Catch2 koalaamp_ui Qt6::Test)
+target_compile_definitions(koalaamp_se5_interaction_tests PRIVATE
+    "KOALAAMP_SE5_SKIN=\"${CMAKE_SOURCE_DIR}/third_party/skins/base-2.91.wsz\""
+    "KOALAAMP_CORPUS_DIR=\"${CMAKE_SOURCE_DIR}/third_party/skins-corpus\""
+    "KOALAAMP_EQ_FIXTURE_DIR=\"${CMAKE_SOURCE_DIR}/tests/fixtures/eq\"")
+# Widget test: same PRE_TEST discovery + offscreen rationale as SE-2.
+catch_discover_tests(koalaamp_se5_interaction_tests PROPERTIES
+    DISCOVERY_MODE PRE_TEST
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 180)
+
+add_executable(koalaamp_se5_corpus_tests se5_corpus_render_test.cpp)
+koalaamp_enable_warnings(koalaamp_se5_corpus_tests)
+target_link_libraries(koalaamp_se5_corpus_tests PRIVATE Catch2::Catch2WithMain koalaamp_ui)
+target_compile_definitions(koalaamp_se5_corpus_tests PRIVATE
+    "KOALAAMP_CORPUS_DIR=\"${CMAKE_SOURCE_DIR}/third_party/skins-corpus\"")
+catch_discover_tests(koalaamp_se5_corpus_tests PROPERTIES TIMEOUT 300)
+message(STATUS "KoalaAmp: SE-5 equalizer-window tests enabled (render/goldens, interaction, corpus)")
