@@ -168,6 +168,11 @@ TEST_CASE("SE-4 window set routes the EQ and playlist toggles", "[se4][assembly]
 
 TEST_CASE("SE-4 an EQ slider reaches the DSP output within one block", "[se4][dsp]") {
     audio::DspPipeline dsp;
+    // App-style startup enable (main.cpp): the sink toggles only the EQ
+    // section, so the stage gate is set here — never by the sink.
+    audio::DspSettings startup;
+    startup.enabled = true;
+    dsp.setSettings(startup);
     ui::DspEqSink sink(dsp);
     ui::EqWindow eq;
     eq.setPresetDialogsEnabled(false);
@@ -209,6 +214,55 @@ TEST_CASE("SE-4 an EQ slider reaches the DSP output within one block", "[se4][ds
     (void)first;
 }
 
+TEST_CASE("SE-4 EQ OFF leaves the stage (RG/limiter) running", "[se4][dsp][regression]") {
+    // DspSettings::enabled — the whole-stage gate — so Winamp's EQ OFF would
+    // have silently disabled ReplayGain and the limiter. The sink must toggle
+    // only the EQ section; the stage flag belongs to startup (main.cpp).
+    audio::DspPipeline dsp;
+    // App startup enable (mirrors main.cpp's startupDsp).
+    audio::DspSettings startup;
+    startup.enabled = true;
+    startup.limiterEnabled = true;
+    audio::RgConfig rg;
+    rg.mode = audio::RgMode::Track;
+    rg.preampDb = 0.0;
+    rg.preventClip = false;
+    startup.rg = rg;
+    dsp.setSettings(startup);
+    // A −6 dB track tag (the pipeline consumes RgInfo, not the config).
+    dsp.setReplayGain([] {
+        audio::RgInfo info;
+        info.trackGainDb = -6.0;
+        info.trackPeak = 0.5;
+        return info;
+    }());
+
+    ui::DspEqSink sink(dsp);
+    ui::EqWindow eq;
+    eq.setPresetDialogsEnabled(false);
+    eq.setEqSink(&sink);
+
+    // EQ ON (unity bands): RG applies — output is ~half amplitude (−6 dB).
+    ui::EqWindowState on = eq.state();
+    on.enabled = true;
+    eq.setState(on);
+    dsp.prepare(kSampleRate, 1);
+    std::vector<float> block = sine(kBlock, 1000.0, 0);
+    dsp.process(block.data(), block.size(), kSampleRate, 1);
+    const float withEqOn = rms(block);
+    CHECK(withEqOn == Catch::Approx(0.5f * rms(sine(kBlock, 1000.0, 0))).epsilon(0.05));
+
+    // EQ OFF: the EQ section flattens; the stage stays enabled, so RG STILL
+    // applies (this is the assertion the old sink code would fail).
+    ui::EqWindowState off = eq.state();
+    off.enabled = false;
+    eq.setState(off);
+    block = sine(kBlock, 1000.0, 0);
+    dsp.process(block.data(), block.size(), kSampleRate, 1);
+    const float withEqOff = rms(block);
+    CHECK(dsp.settings().enabled);          // the stage survived the toggle
+    CHECK(withEqOff == Catch::Approx(withEqOn).epsilon(0.02));  // RG held
+}
 TEST_CASE("SE-4 the DSP is installed ahead of the vis feed", "[se4][dsp][chain]") {
     // Mirrors main.cpp's construction: the tap installs
     // dsp.makeCallback(feed.callback()), so the feed's callback runs *after*
@@ -241,6 +295,10 @@ TEST_CASE("SE-4 the app chain reaches the core seam without native EQ", "[se4][d
     // Exactly the app's assembly: EQ window -> DspEqSink -> DspPipeline ->
     // VisFeed, installed at the one sanctioned seam.
     audio::DspPipeline dsp;
+    // App-style startup enable — this test mirrors main.cpp's assembly.
+    audio::DspSettings startup;
+    startup.enabled = true;
+    dsp.setSettings(startup);
     ui::DspEqSink sink(dsp);
     ui::EqWindow eq;
     eq.setPresetDialogsEnabled(false);

@@ -138,6 +138,16 @@ int main(int argc, char** argv) {
     // the equalizer window's sliders reach real DSP output (docs/spec.md §3.1).
     // Declaration order matters: dsp outlives the transport that captures it.
     auto dsp = std::make_unique<koalaamp::audio::DspPipeline>();
+    // Startup enable: the whole-stage flag gates ReplayGain + limiter + EQ
+    // (bit-perfect-ish passthrough when false). The app wants the stage ON —
+    // DspEqSink toggles only the EQ section, so it must never be the sole
+    // writer of this flag (a default-false stage would leave the app's DSP
+    // inert while the EQ window appears wired). RG mode/limiter config will
+    // be driven from settings by AU-2's activation work.
+    koalaamp::audio::DspSettings startupDsp;
+    startupDsp.enabled = true;
+    startupDsp.limiterEnabled = true;
+    dsp->setSettings(startupDsp);
     auto eqSink = std::make_unique<koalaamp::ui::DspEqSink>(*dsp);
     auto albumEqStore = std::make_unique<koalaamp::audio::AlbumEqStore>();
     auto transport = std::make_unique<koalaamp::ui::PlaybackCoreTransport>(

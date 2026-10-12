@@ -23,8 +23,12 @@ public:
     explicit DspEqSink(audio::DspPipeline& dsp) noexcept : m_dsp(dsp) {}
 
     void setEqSettings(const audio::EqSettings& settings) override {
+        // EQ ON/OFF toggles the EQ section only (settings.eq.enabled) — it
+        // must NOT touch DspSettings::enabled, which gates the whole DSP
+        // stage (ReplayGain + limiter included). The whole-stage flag belongs
+        // to app startup (true while RG/limiter are wanted) and stays true
+        // here; EQ-off then flattens the bands while RG still applies.
         audio::DspSettings next = m_dsp.settings();
-        next.enabled = settings.enabled;  // EQ ON/OFF is the stage's on/off
         next.eq = settings;
         m_dsp.setSettings(next);
     }

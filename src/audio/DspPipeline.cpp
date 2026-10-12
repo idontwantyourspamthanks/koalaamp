@@ -35,8 +35,13 @@ bool DspPipeline::prepare(int sampleRate, int channels) {
     if (sampleRate <= 0 || channels <= 0) {
         return false;
     }
+    // Do NOT reset m_applied to the current generation here: settings pushed
+    // before the format is established (app startup's DspSettings, track RG
+    // info before the first block) must survive into the first process()
+    // call, whose latch() then applies them. Marking them applied without
+    // latching silently dropped the whole startup configuration (EQ and RG
+    // stayed unity until a later slider move bumped the generation).
     prepareBuffersLocked(sampleRate, channels);
-    m_applied = m_generation.load(std::memory_order_acquire);
     return true;
 }
 
