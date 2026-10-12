@@ -7,9 +7,13 @@ namespace koalaamp::ui {
 
 PlaybackCoreTransport::PlaybackCoreTransport(playback::PlaybackCore& core, VisFeed& feed,
                                              QObject* parent)
+    : PlaybackCoreTransport(core, feed, feed.callback(), parent) {}
+
+PlaybackCoreTransport::PlaybackCoreTransport(playback::PlaybackCore& core, VisFeed& feed,
+                                             playback::IAudioEngine::PcmCb chain, QObject* parent)
     : QObject(parent), m_core(core), m_feed(feed) {
     // IAudioEngine::setPcmCallback is the DSP insertion seam (audio thread).
-    m_core.setPcmCallback(m_feed.callback());
+    m_core.setPcmCallback(chain ? std::move(chain) : m_feed.callback());
     m_core.addObserver(this);
 }
 

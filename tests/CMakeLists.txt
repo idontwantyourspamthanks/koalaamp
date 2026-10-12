@@ -268,3 +268,19 @@ target_compile_definitions(koalaamp_se5_corpus_tests PRIVATE
     "KOALAAMP_CORPUS_DIR=\"${CMAKE_SOURCE_DIR}/third_party/skins-corpus\"")
 catch_discover_tests(koalaamp_se5_corpus_tests PROPERTIES TIMEOUT 300)
 message(STATUS "KoalaAmp: SE-5 equalizer-window tests enabled (render/goldens, interaction, corpus)")
+
+# SE-4: the application window set. Part A (this file) proves the assembled app:
+# the XWayland launch decision, the WindowSet toggle routing (the EQ window is
+# live), an EQ slider reaching AU-1's real DSP within one block through the
+# production DspEqSink, and all three windows rendering with a skin offscreen.
+# Widget cases use Qt Widgets + QtTest with the same PRE_TEST/offscreen setup.
+add_executable(koalaamp_se4_window_set_tests se4_part_a_test.cpp)
+koalaamp_enable_warnings(koalaamp_se4_window_set_tests)
+target_link_libraries(koalaamp_se4_window_set_tests PRIVATE Catch2::Catch2 koalaamp_ui Qt6::Test)
+target_compile_definitions(koalaamp_se4_window_set_tests PRIVATE
+    "KOALAAMP_SE4_SKIN=\"${CMAKE_SOURCE_DIR}/third_party/skins/base-2.91.wsz\"")
+catch_discover_tests(koalaamp_se4_window_set_tests PROPERTIES
+    DISCOVERY_MODE PRE_TEST
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 180)
+message(STATUS "KoalaAmp: SE-4 Part A window-set tests enabled")

@@ -8,6 +8,7 @@
 add_library(koalaamp_ui STATIC
     Atf.cpp
     Atf.hpp
+    DspEqSink.hpp
     EqGoldenStates.cpp
     EqGoldenStates.hpp
     EqHitRegion.cpp
@@ -53,7 +54,11 @@ add_library(koalaamp_ui STATIC
     VisData.cpp
     VisData.hpp
     VisFeed.cpp
-    VisFeed.hpp)
+    VisFeed.hpp
+    WindowPlatform.cpp
+    WindowPlatform.hpp
+    WindowSet.cpp
+    WindowSet.hpp)
 
 koalaamp_enable_warnings(koalaamp_ui)
 

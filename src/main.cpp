@@ -10,6 +10,13 @@
 #include "ui/MainWindow.hpp"
 #include "ui/PlaylistWindow.hpp"
 
+#include "audio/AlbumEqStore.hpp"
+#include "audio/DspPipeline.hpp"
+#include "ui/DspEqSink.hpp"
+#include "ui/EqWindow.hpp"
+#include "ui/WindowPlatform.hpp"
+#include "ui/WindowSet.hpp"
+
 #include <cstdio>
 #include <filesystem>
 #include <memory>
@@ -53,6 +60,11 @@ std::filesystem::path resolveSkin(const QString& explicitPath) {
 }  // namespace
 
 int main(int argc, char** argv) {
+    // Native Wayland cannot position or mask the window set, so request
+    // XWayland (QT_QPA_PLATFORM=xcb) before Qt picks its platform plugin —
+    // docs/spec.md §5.3, FE-1 findings. Offscreen/X11/macOS pass through.
+    koalaamp::ui::requestXWaylandAtLaunch();
+
     QApplication app(argc, argv);
     QApplication::setApplicationName(QStringLiteral("KoalaAmp"));
     QApplication::setApplicationVersion(QStringLiteral("0.0.1"));
@@ -76,6 +88,8 @@ int main(int argc, char** argv) {
 
     koalaamp::ui::MainWindow window;
     koalaamp::ui::PlaylistWindow playlist;
+    koalaamp::ui::EqWindow equalizer;
+    koalaamp::ui::WindowSet windowSet(window, equalizer, playlist);
 
     const std::filesystem::path skinPath = resolveSkin(parser.value(skinOption));
     std::optional<koalaamp::skins::SkinSet> skinSet;
@@ -88,6 +102,7 @@ int main(int argc, char** argv) {
     if (skinSet.has_value()) {
         window.setSkin(&*skinSet);
         playlist.setSkin(&*skinSet);
+        equalizer.setSkin(&*skinSet);
         for (const auto& warning : skinSet->warnings) {
             std::fprintf(stderr, "koalaamp: skin: %s\n", warning.c_str());
         }
@@ -103,33 +118,40 @@ int main(int argc, char** argv) {
     config.output = parser.isSet(nullAudioOption) ? koalaamp::playback::PlaybackConfig::Output::Null
                                                   : koalaamp::playback::PlaybackConfig::Output::Device;
     auto core = std::make_unique<koalaamp::playback::PlaybackCore>(config);
-    auto transport =
-        std::make_unique<koalaamp::ui::PlaybackCoreTransport>(*core, window.visFeed());
+
+    // AU-1's DSP sits between the engine's PCM tap and the vis feed: the tap
+    // installs `dsp.makeCallback(feed.callback())` at the sanctioned seam, so
+    // the equalizer window's sliders reach real DSP output (docs/spec.md §3.1).
+    // Declaration order matters: dsp outlives the transport that captures it.
+    auto dsp = std::make_unique<koalaamp::audio::DspPipeline>();
+    auto eqSink = std::make_unique<koalaamp::ui::DspEqSink>(*dsp);
+    auto albumEqStore = std::make_unique<koalaamp::audio::AlbumEqStore>();
+    auto transport = std::make_unique<koalaamp::ui::PlaybackCoreTransport>(
+        *core, window.visFeed(), dsp->makeCallback(window.visFeed().callback()));
     window.setTransport(transport.get());
     playlist.setTransport(transport.get());
+    equalizer.setEqSink(eqSink.get());
+    equalizer.setAlbumEqStore(albumEqStore.get());
 #else
     (void)nullAudioOption;
 #endif
 
-    // The playlist editor is the second classic window: the main window's PL
-    // button toggles it, its own close button hides it. Winamp opens it by
-    // default. (Window snapping / the window set is SE-4.)
-    QObject::connect(&window, &koalaamp::ui::MainWindow::playlistToggled, &playlist,
-                     [&playlist](bool on) { on ? playlist.show() : playlist.hide(); });
-    QObject::connect(&playlist, &koalaamp::ui::PlaylistWindow::closeRequested, &playlist,
-                     &QWidget::hide);
-
-    window.show();
-    playlist.show();
+    // The window set owns the inter-window toggles: the main window's EQ/PL
+    // buttons show/hide their windows; each secondary close button hides it.
+    // Winamp opens all three by default.
+    windowSet.attach();
+    windowSet.showAll();
 
     if (parser.isSet(selfTestOption)) {
         // Headless smoke hook used by ctest (QT_QPA_PLATFORM=offscreen): prove
-        // the window constructs and maps, then exit 0.
+        // the window set constructs and maps, then exit 0.
         QTimer::singleShot(250, &app, &QCoreApplication::quit);
     }
 
     const int status = app.exec();
 #ifdef KOALAAMP_HAS_PLAYBACK_CORE
+    equalizer.setAlbumEqStore(nullptr);
+    equalizer.setEqSink(nullptr);
     window.setTransport(nullptr);
     playlist.setTransport(nullptr);
 #endif

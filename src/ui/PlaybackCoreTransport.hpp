@@ -27,6 +27,13 @@ class PlaybackCoreTransport final : public QObject,
 public:
     explicit PlaybackCoreTransport(playback::PlaybackCore& core, VisFeed& feed,
                                    QObject* parent = nullptr);
+    /// Variant that installs a pre-built PCM chain at the sanctioned seam
+    /// (`setPcmCallback`) instead of the raw vis-feed tap — the app uses it so
+    /// AU-1's DSP sits between the tap and the vis feed. The chain must already
+    /// forward to `feed.callback()`; the pipeline object it captures must
+    /// outlive this transport.
+    PlaybackCoreTransport(playback::PlaybackCore& core, VisFeed& feed,
+                          playback::IAudioEngine::PcmCb chain, QObject* parent = nullptr);
     ~PlaybackCoreTransport() override;
 
     // --- ITransport ---------------------------------------------------------
