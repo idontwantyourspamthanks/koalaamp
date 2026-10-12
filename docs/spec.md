@@ -257,7 +257,7 @@ Smart views: Winamp grammar (`artist has "x" && rating > 3`, `[1 week ago]`) →
 
 ## 9. Migration (from Winamp)
 
-- **Playlists:** M3U/M3U8 (BOM-aware, exact `#EXTINF`), PLS, B4S, XSPF read; write M3U8; ML `playlists.xml` index import.
+- **Playlists:** M3U/M3U8 (BOM-aware, exact `#EXTINF` emission both ways), PLS, B4S, XSPF read **and** written; ASX/WPL (`.wax`/`.wvx`) read-only; ML `playlists.xml` index import **and** export. Autosave: the live playlist (a BOM'd M3U8) and the queue/index sidecar survive a crash and restore on launch.
 - **NDE library import:** read-only `main.dat`/`main.idx` (field IDs 0-41; NDETABLE/NDEINDEX) — ratings, playcount, lastplay, dateadded, RG, bpm joined by normalized path.
 - **Config:** `paths.ini`, `winamp.ini` (volume/EQ/skin/titlefmt/shuffle/repeat/windowshade), `winamp.q1` presets, `winamp.bm` bookmarks.
 - **Skins:** `%APPDATA%/Winamp/Skins` detected + offered for import.
