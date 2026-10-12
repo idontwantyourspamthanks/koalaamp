@@ -184,7 +184,14 @@ void SkinDb::load(std::istream& in) {
                 }
                 key += parts[i];
             }
-            m_layouts[key] = state;
+            // Canonicalise the stored key: the writer stores keyFor(skin)
+            // (weakly-canonical), and layout() looks up by keyFor(skin) too —
+            // but a record line can carry a relative or rooted path that
+            // canonicalises differently per platform (e.g. "/skin.wsz" is
+            // itself on POSIX but resolves against the current drive on
+            // Windows). Canonicalising here keeps load() self-consistent with
+            // the writer/reader regardless of where the file was written.
+            m_layouts[keyFor(key)] = state;
         }
     }
 }

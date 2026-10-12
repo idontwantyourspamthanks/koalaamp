@@ -301,11 +301,13 @@ TEST_CASE("SE-4 the app chain reaches the core seam without native EQ", "[se4][d
     startup.enabled = true;
     dsp.setSettings(startup);
     ui::DspEqSink sink(dsp);
-    playback::PlaybackCore core(config);
     ui::EqWindow eq;
     eq.setPresetDialogsEnabled(false);
     eq.setEqSink(&sink);
     ui::VisFeed feed;
+    // Core LAST: the amem thread invokes dsp.makeCallback(feed.callback()),
+    // so everything in that chain (dsp, sink, eq, feed) must outlive it.
+    playback::PlaybackCore core(config);
     core.setPcmCallback(dsp.makeCallback(feed.callback()));
 
     ui::EqWindowState on = eq.state();
