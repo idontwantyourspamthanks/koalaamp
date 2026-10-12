@@ -290,16 +290,18 @@ TEST_CASE("SE-4 the app chain reaches the core seam without native EQ", "[se4][d
 
     playback::PlaybackConfig config;
     config.output = playback::PlaybackConfig::Output::Null;
-    playback::PlaybackCore core(config);
 
     // Exactly the app's assembly: EQ window -> DspEqSink -> DspPipeline ->
     // VisFeed, installed at the one sanctioned seam.
+    // Declaration order is load-bearing (main.cpp's contract): dsp and the
+    // widgets/sink/feed OUTLIVE the core — its amem thread invokes the
+    // callback chain — so core is declared last and destroyed first.
     audio::DspPipeline dsp;
-    // App-style startup enable — this test mirrors main.cpp's assembly.
     audio::DspSettings startup;
     startup.enabled = true;
     dsp.setSettings(startup);
     ui::DspEqSink sink(dsp);
+    playback::PlaybackCore core(config);
     ui::EqWindow eq;
     eq.setPresetDialogsEnabled(false);
     eq.setEqSink(&sink);

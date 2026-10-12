@@ -8,9 +8,13 @@
 // installed at `PlaybackCore::setPcmCallback`. It adds no engine surface: it
 // only forwards settings through AU-1's public `setSettings`.
 //
-// ON/OFF semantics: the window's ON maps to the whole DSP-stage enable (off is
-// a bit-exact bypass, docs/spec.md §3.1) and to `EqSettings::enabled`; AU-1's
-// `Equalizer` additionally bypasses itself when every band/in the flat state.
+// ON/OFF semantics: the window's ON maps ONLY to `EqSettings::enabled` — the
+// EQ section's own gate (AU-1's `Equalizer` bypasses itself when off; a
+// bit-exact section bypass). It must NOT touch `DspSettings::enabled`, the
+// whole-stage gate that also covers ReplayGain and the limiter — that flag
+// belongs to app startup (main.cpp) and stays true while RG/limiter are
+// wanted. (This header previously documented the coupling; it caused the
+// EQ-off-kills-ReplayGain bug.)
 #pragma once
 
 #include "audio/DspPipeline.hpp"

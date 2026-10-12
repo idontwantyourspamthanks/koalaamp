@@ -787,15 +787,17 @@ TEST_CASE("DSP transform installs at the PlaybackCore seam without native EQ", "
 
     playback::PlaybackConfig config;
     config.output = playback::PlaybackConfig::Output::Null;
-    playback::PlaybackCore core(config);
-
+    // Declaration order is load-bearing (same contract as main.cpp): the DSP
+    // must outlive the core — the core's amem thread invokes the pipeline's
+    // callback, so destroying dsp first is a use-after-free (a ~1-in-5 SIGSEGV
+    // observed here before this fix). dsp first, core last.
     DspPipeline dsp;
     DspSettings s;
     s.enabled = true;
     s.eq.enabled = true;
     s.eq.bands[4] = 0; // +12 dB @ 1 kHz, so the stage does real work
     dsp.setSettings(s);
-
+    playback::PlaybackCore core(config);
     std::atomic<std::size_t> downstreamFrames{0};
     std::atomic<bool> sawPcm{false};
     auto downstream = [&](const float*, std::size_t frames, const playback::PcmFormat&) {
