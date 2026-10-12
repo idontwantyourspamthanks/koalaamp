@@ -309,8 +309,10 @@ TEST_CASE("PlaybackCore: WAV transport through the full chain", "[fe4][core][tra
     FixtureDir fixtures;
     const fs::path wav = writeSineWav(fixtures.file("tone440.wav"), 440.0, 48000, 2, 8.0);
 
-    PlaybackCore core(nullOutputConfig());
     RecordingObserver observer;
+    // The observer must outlive the core: the dispatch thread may call
+    // into it until PlaybackCore's destructor joins that thread (AU-2).
+    PlaybackCore core(nullOutputConfig());
     core.addObserver(&observer);
 
     core.play(MediaRef{MediaRef::Kind::Path, wav.string()});
@@ -374,8 +376,10 @@ TEST_CASE("PlaybackCore: seek lands and PCM keeps flowing", "[fe4][core][seek]")
     FixtureDir fixtures;
     const fs::path wav = writeSineWav(fixtures.file("tone440.wav"), 440.0, 48000, 2, 8.0);
 
-    PlaybackCore core(nullOutputConfig());
     RecordingObserver observer;
+    // The observer must outlive the core: the dispatch thread may call
+    // into it until PlaybackCore's destructor joins that thread (AU-2).
+    PlaybackCore core(nullOutputConfig());
     core.addObserver(&observer);
     core.play(MediaRef{MediaRef::Kind::Path, wav.string()});
     REQUIRE(waitFor([&] { return core.positionMs() > 200; }));
@@ -400,8 +404,10 @@ TEST_CASE("PlaybackCore: volume applies to the tap PCM (0-100 perceptual)", "[fe
     FixtureDir fixtures;
     const fs::path wav = writeSineWav(fixtures.file("tone440.wav"), 440.0, 48000, 2, 8.0);
 
-    PlaybackCore core(nullOutputConfig());
     RecordingObserver observer;
+    // The observer must outlive the core: the dispatch thread may call
+    // into it until PlaybackCore's destructor joins that thread (AU-2).
+    PlaybackCore core(nullOutputConfig());
     core.addObserver(&observer);
     core.play(MediaRef{MediaRef::Kind::Path, wav.string()});
     REQUIRE(waitFor([&] { return core.metrics().pcmRms > 0.2; }));
@@ -445,8 +451,10 @@ TEST_CASE("PlaybackCore: EndReached with an empty queue stops", "[fe4][core][end
     FixtureDir fixtures;
     const fs::path wav = writeSineWav(fixtures.file("short.wav"), 440.0, 48000, 2, 0.6);
 
-    PlaybackCore core(nullOutputConfig());
     RecordingObserver observer;
+    // The observer must outlive the core: the dispatch thread may call
+    // into it until PlaybackCore's destructor joins that thread (AU-2).
+    PlaybackCore core(nullOutputConfig());
     core.addObserver(&observer);
     core.play(MediaRef{MediaRef::Kind::Path, wav.string()});
     REQUIRE(waitFor([&] { return core.metrics().framesDecoded > 0; }));
@@ -465,8 +473,10 @@ TEST_CASE("PlaybackCore: EndReached advances exactly one queue step", "[fe4][cor
     const fs::path b = writeSineWav(fixtures.file("b.wav"), 550.0, 48000, 2, 8.0);
     const fs::path c = writeSineWav(fixtures.file("c.wav"), 660.0, 48000, 2, 8.0);
 
-    PlaybackCore core(nullOutputConfig());
     RecordingObserver observer;
+    // The observer must outlive the core: the dispatch thread may call
+    // into it until PlaybackCore's destructor joins that thread (AU-2).
+    PlaybackCore core(nullOutputConfig());
     core.addObserver(&observer);
 
     core.play(MediaRef{MediaRef::Kind::Path, a.string()});
@@ -504,8 +514,10 @@ TEST_CASE("PlaybackCore: queue/next/prev/repeat state machine", "[fe4][core][que
     const fs::path b = writeSineWav(fixtures.file("b.wav"), 550.0, 48000, 2, 6.0);
     const fs::path c = writeSineWav(fixtures.file("c.wav"), 660.0, 48000, 2, 6.0);
 
-    PlaybackCore core(nullOutputConfig());
     RecordingObserver observer;
+    // The observer must outlive the core: the dispatch thread may call
+    // into it until PlaybackCore's destructor joins that thread (AU-2).
+    PlaybackCore core(nullOutputConfig());
     core.addObserver(&observer);
 
     core.play(MediaRef{MediaRef::Kind::Path, a.string()});
@@ -558,8 +570,10 @@ TEST_CASE("PlaybackCore: gapless prefetch seam resolves the next media early",
     // A lead far longer than the track makes the seam fire as soon as the track
     // length is known: the mechanism under test is "the next media is resolved
     // and handed to the hook once per track", not the 10 s default threshold.
-    PlaybackCore core(nullOutputConfig(/*prefetchLeadMs=*/60000));
     RecordingObserver observer;
+    // The observer must outlive the core: the dispatch thread may call
+    // into it until PlaybackCore's destructor joins that thread (AU-2).
+    PlaybackCore core(nullOutputConfig(/*prefetchLeadMs=*/60000));
     core.addObserver(&observer);
 
     std::atomic<int> hookCalls{0};
@@ -632,8 +646,10 @@ TEST_CASE("PlaybackCore: compressed formats play through the chain", "[fe4][core
             const fs::path encoded = fixtures.file(testCase.container);
             REQUIRE(encode(wav, encoded, testCase.args));
 
-            PlaybackCore core(nullOutputConfig());
             RecordingObserver observer;
+            // The observer must outlive the core: the dispatch thread may call
+            // into it until PlaybackCore's destructor joins that thread (AU-2).
+            PlaybackCore core(nullOutputConfig());
             core.addObserver(&observer);
             core.play(MediaRef{MediaRef::Kind::Path, encoded.string()});
 
@@ -741,8 +757,10 @@ TEST_CASE("PlaybackCore never enables libvlc native EQ (spec 3.1 EQ rule)",
     FixtureDir fixtures;
     const fs::path wav = writeSineWav(fixtures.file("tone.wav"), 1000.0, 48000, 2, 4.0);
 
-    PlaybackCore core(nullOutputConfig());
     RecordingObserver observer;
+    // The observer must outlive the core: the dispatch thread may call
+    // into it until PlaybackCore's destructor joins that thread (AU-2).
+    PlaybackCore core(nullOutputConfig());
     core.addObserver(&observer);
     core.play(MediaRef{MediaRef::Kind::Path, wav.string()});
     REQUIRE(waitFor([&] { return core.metrics().framesDecoded > 0; }));
@@ -776,8 +794,10 @@ TEST_CASE("PlaybackCore: 200 track changes are leak-free (ASAN soak)", "[fe4][co
         writeSineWav(fixtures.file("t3.wav"), 900.0, 48000, 2, 0.6),
     };
 
-    PlaybackCore core(nullOutputConfig());
     RecordingObserver observer;
+    // The observer must outlive the core: the dispatch thread may call
+    // into it until PlaybackCore's destructor joins that thread (AU-2).
+    PlaybackCore core(nullOutputConfig());
     core.addObserver(&observer);
 
     // One "track change": activate a media, then wait until the tap has really
