@@ -29,6 +29,14 @@ struct MediaRef {
 /// ever happen on the audio thread.
 class IAudioEngine {
 public:
+    /// `interleaved` points at `frames * format.channels` float samples —
+    /// `frames` counts FRAMES, not samples (so a 1024-frame stereo block is
+    /// 2048 floats). Callers that construct their own buffer must size it
+    /// `frames * channels`: getting this wrong is an out-of-bounds read
+    /// (it caused an intermittent Windows SIGSEGV in a test that fed 1024
+    /// floats while claiming 2 channels — ASAN-proven, see the SE-4 chain
+    /// test). Engine-mediated callbacks are safe by construction: the engine
+    /// builds the buffer from the format it decoded.
     using PcmCb =
         std::function<void(const float* interleaved, std::size_t frames, const PcmFormat&)>;
 
