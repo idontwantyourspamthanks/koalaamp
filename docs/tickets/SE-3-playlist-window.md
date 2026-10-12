@@ -62,6 +62,9 @@ Machine-checked by the SE-3 suites (`ctest`; full run 116/116 green):
   queue, `loadIntoQueue` (JTFE), enqueue-highlight positions, and
   queue-consumed-before-refill shifts (the engine pops; the window's view
   follows) are asserted; FE-4's own suite covers the core deque semantics.
+  `koalaamp_se3_queue_tests` additionally drives the *real* `PlaybackCore`
+  through `PlaybackCoreTransport` (enqueue FIFO, `peekNext` = front, shuffle
+  leaves the queue order alone, clear).
 - **Corpus** — `koalaamp_se3_corpus_tests`: all 30 corpus skins render every
   state at the right size with exact 2x (30/30).
 - **No protected edits** — no changes under `src/playback`, `src/interop` or

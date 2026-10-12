@@ -219,6 +219,16 @@ target_compile_definitions(koalaamp_se3_corpus_tests PRIVATE
 catch_discover_tests(koalaamp_se3_corpus_tests PROPERTIES TIMEOUT 300)
 message(STATUS "KoalaAmp: SE-3 playlist-window tests enabled (atf/model, render/goldens, interaction, corpus)")
 
+# SE-3 queue semantics against the real core (gated on the libvlc-backed
+# PlaybackCore bridge, exactly like SE-2's engine-dependent checks).
+if(TARGET koalaamp_ui_playback)
+    add_executable(koalaamp_se3_queue_tests se3_queue_test.cpp)
+    koalaamp_enable_warnings(koalaamp_se3_queue_tests)
+    target_link_libraries(koalaamp_se3_queue_tests PRIVATE Catch2::Catch2 koalaamp_ui_playback)
+    catch_discover_tests(koalaamp_se3_queue_tests PROPERTIES TIMEOUT 120)
+    message(STATUS "KoalaAmp: SE-3 real-queue transport test enabled")
+endif()
+
 # Developer tool: prints the SE-3 golden manifest. Excluded from the default
 # build (regeneration is deliberate):
 #   cmake --build build/linux-gcc --target koalaamp_se3_goldens_gen
