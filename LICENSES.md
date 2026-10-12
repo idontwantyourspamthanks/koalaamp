@@ -58,6 +58,17 @@ and adapted with attribution in the file header, not linked.
     file; and `js/visualizer/FFT.ts` + `js/visualizer/Visualizer.ts` (the
     1024-point Winamp spectrum transform, 75-band projection, falloff/peak
     decay and the 75-point oscilloscope) into `src/ui/VisData.{hpp,cpp}`.
+  - **Webamp** (MIT) — SE-3's playlist editor ports the *structure* of the same
+    pinned commit, with attribution in the file headers:
+    `css/playlist-window.css` and `js/skinSelectors.ts`'s `PLAYLIST_*` mapping
+    (the 20 px title band, 12/20 px middle side tiles, 38 px bottom band, the
+    100 px title block, close/shade buttons, resize grip and shade bar) into
+    `src/ui/PleditRenderer.{hpp,cpp}`, and the `25`/`29`/`13` tile constants
+    (`js/constants.ts`) plus the `floor((58 + 29·n)/13)` visible-row rule
+    (`selectors.ts`) into `src/ui/PleditState.hpp`. The ATF subset
+    (`src/ui/Atf.cpp`) is a clean-room implementation of the documented
+    `gen_atf` format; the queue verbs follow FE-4's deque semantics. No
+    WCL/Winamp source was consulted.
   - Webamp is also used, unmodified, as a *test-only* headless renderer
     (`spikes/fe3_wsz/reference/`) to produce the pixel-diff reference; the
     bundle is fetched to the gitignored `third_party/webamp/`, never committed.
