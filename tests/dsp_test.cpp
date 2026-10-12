@@ -821,3 +821,494 @@ TEST_CASE("DSP transform installs at the PlaybackCore seam without native EQ", "
     fs::remove(wav, ec);
 }
 #endif
+
+// ===========================================================================
+//  AU-2 — clean-room ReplayGain/R128 tag reader (RgTags)
+// ===========================================================================
+#include "audio/RgTags.hpp"
+
+namespace {
+
+using ByteVec = std::vector<std::uint8_t>;
+
+void pushBytes(ByteVec& b, std::string_view s) {
+    b.insert(b.end(), s.begin(), s.end());
+}
+
+void pushU32LE(ByteVec& b, std::uint32_t v) {
+    for (int i = 0; i < 4; ++i) {
+        b.push_back(static_cast<std::uint8_t>((v >> (8 * i)) & 0xFF));
+    }
+}
+
+void pushU32BE(ByteVec& b, std::uint32_t v) {
+    for (int i = 3; i >= 0; --i) {
+        b.push_back(static_cast<std::uint8_t>((v >> (8 * i)) & 0xFF));
+    }
+}
+
+void pushU24BE(ByteVec& b, std::uint32_t v) {
+    for (int i = 2; i >= 0; --i) {
+        b.push_back(static_cast<std::uint8_t>((v >> (8 * i)) & 0xFF));
+    }
+}
+
+void pushU16BE(ByteVec& b, std::uint16_t v) {
+    b.push_back(static_cast<std::uint8_t>((v >> 8) & 0xFF));
+    b.push_back(static_cast<std::uint8_t>(v & 0xFF));
+}
+
+void pushSyncSafe(ByteVec& b, std::uint32_t v) {
+    b.push_back(static_cast<std::uint8_t>((v >> 21) & 0x7F));
+    b.push_back(static_cast<std::uint8_t>((v >> 14) & 0x7F));
+    b.push_back(static_cast<std::uint8_t>((v >> 7) & 0x7F));
+    b.push_back(static_cast<std::uint8_t>(v & 0x7F));
+}
+
+/// vendor_length=0, count, then len+entry for each "KEY=VALUE".
+ByteVec vorbisComment(const std::vector<std::string>& entries) {
+    ByteVec b;
+    pushU32LE(b, 0);
+    pushU32LE(b, static_cast<std::uint32_t>(entries.size()));
+    for (const std::string& e : entries) {
+        pushU32LE(b, static_cast<std::uint32_t>(e.size()));
+        pushBytes(b, e);
+    }
+    return b;
+}
+
+ByteVec flacWithVorbisComment(const std::vector<std::string>& entries) {
+    ByteVec b;
+    pushBytes(b, "fLaC");
+    const ByteVec vc = vorbisComment(entries);
+    b.push_back(0x80 | 4); // last metadata block, type 4 = VORBIS_COMMENT
+    pushU24BE(b, static_cast<std::uint32_t>(vc.size()));
+    b.insert(b.end(), vc.begin(), vc.end());
+    return b;
+}
+
+/// One Ogg page holding `packets` (each < 255 bytes -> a single lacing value);
+/// the CRC field is written as 0 (the reader never validates it).
+ByteVec oggPage(std::uint8_t headerType, const std::vector<ByteVec>& packets) {
+    ByteVec b;
+    pushBytes(b, "OggS");
+    b.push_back(0);          // version
+    b.push_back(headerType); // header type flags
+    for (int i = 0; i < 8; ++i) {
+        b.push_back(0); // granule position
+    }
+    pushU32LE(b, 0); // bitstream serial
+    pushU32LE(b, 0); // page sequence
+    pushU32LE(b, 0); // CRC
+    b.push_back(static_cast<std::uint8_t>(packets.size()));
+    for (const ByteVec& p : packets) {
+        b.push_back(static_cast<std::uint8_t>(p.size()));
+    }
+    for (const ByteVec& p : packets) {
+        b.insert(b.end(), p.begin(), p.end());
+    }
+    return b;
+}
+
+ByteVec vorbisIdPacket() {
+    ByteVec p{0x01, 'v', 'o', 'r', 'b', 'i', 's'};
+    p.resize(30, 0);
+    return p;
+}
+
+ByteVec vorbisCommentPacket(const std::vector<std::string>& entries) {
+    ByteVec p{0x03, 'v', 'o', 'r', 'b', 'i', 's'};
+    const ByteVec vc = vorbisComment(entries);
+    p.insert(p.end(), vc.begin(), vc.end());
+    return p;
+}
+
+ByteVec opusIdPacket() {
+    ByteVec p;
+    pushBytes(p, "OpusHead");
+    p.resize(19, 0);
+    return p;
+}
+
+ByteVec opusCommentPacket(const std::vector<std::string>& entries) {
+    ByteVec p;
+    pushBytes(p, "OpusTags");
+    const ByteVec vc = vorbisComment(entries);
+    p.insert(p.end(), vc.begin(), vc.end());
+    return p;
+}
+
+/// UTF-8/latin1 TXXX payload: encoding, description, 0x00, value.
+ByteVec txxxPayload(std::uint8_t enc, std::string_view desc, std::string_view value) {
+    ByteVec b;
+    b.push_back(enc);
+    pushBytes(b, desc);
+    b.push_back(0x00);
+    pushBytes(b, value);
+    return b;
+}
+
+/// UTF-16LE TXXX payload (encoding 1, little-endian BOM).
+ByteVec txxxPayloadUtf16Le(std::string_view desc, std::string_view value) {
+    ByteVec b;
+    b.push_back(0x01);
+    b.push_back(0xFF);
+    b.push_back(0xFE);
+    for (char c : desc) {
+        b.push_back(static_cast<std::uint8_t>(c));
+        b.push_back(0x00);
+    }
+    b.push_back(0x00);
+    b.push_back(0x00);
+    for (char c : value) {
+        b.push_back(static_cast<std::uint8_t>(c));
+        b.push_back(0x00);
+    }
+    b.push_back(0x00);
+    b.push_back(0x00);
+    return b;
+}
+
+ByteVec id3Frame24(std::string_view id, const ByteVec& payload, std::uint8_t flagsLow = 0) {
+    ByteVec b;
+    pushBytes(b, id);
+    pushSyncSafe(b, static_cast<std::uint32_t>(payload.size()));
+    b.push_back(0x00);
+    b.push_back(flagsLow);
+    b.insert(b.end(), payload.begin(), payload.end());
+    return b;
+}
+
+ByteVec id3Frame23(std::string_view id, const ByteVec& payload) {
+    ByteVec b;
+    pushBytes(b, id);
+    pushU32BE(b, static_cast<std::uint32_t>(payload.size()));
+    pushU16BE(b, 0);
+    b.insert(b.end(), payload.begin(), payload.end());
+    return b;
+}
+
+ByteVec id3File(std::uint8_t major, std::uint8_t flags, const ByteVec& frames) {
+    ByteVec b;
+    pushBytes(b, "ID3");
+    b.push_back(major);
+    b.push_back(0x00);
+    b.push_back(flags);
+    pushSyncSafe(b, static_cast<std::uint32_t>(frames.size()));
+    b.insert(b.end(), frames.begin(), frames.end());
+    return b;
+}
+
+/// ID3 unsynchronisation as a tagger applies it on disk: insert 0x00 after an
+/// 0xFF whose successor is 0x00 or >= 0xE0.
+ByteVec synchronise(const ByteVec& in) {
+    ByteVec out;
+    for (std::size_t i = 0; i < in.size(); ++i) {
+        out.push_back(in[i]);
+        if (in[i] == 0xFF && i + 1 < in.size() && (in[i + 1] == 0x00 || in[i + 1] >= 0xE0)) {
+            out.push_back(0x00);
+        }
+    }
+    return out;
+}
+
+void writeBytes(const fs::path& path, const ByteVec& bytes) {
+    std::ofstream f(path, std::ios::binary);
+    f.write(reinterpret_cast<const char*>(bytes.data()), static_cast<std::streamsize>(bytes.size()));
+}
+
+fs::path au2TempPath(const char* suffix) {
+    return fs::temp_directory_path() /
+           ("koalaamp_au2_" +
+            std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + "_" +
+            suffix);
+}
+
+// Independent s16 WAV writer (mirrors the seam test's helper but stays local to
+// the AU-2 cases so the two blocks are not coupled).
+void writeSineWavAu2(const fs::path& path, double hz, unsigned rate, double seconds) {
+    std::vector<std::int16_t> pcm;
+    const auto frames = static_cast<unsigned>(rate * seconds);
+    for (unsigned i = 0; i < frames; ++i) {
+        const double t = static_cast<double>(i) / rate;
+        pcm.push_back(static_cast<std::int16_t>(
+            std::lround(0.5 * 32767.0 * std::sin(2.0 * std::numbers::pi * hz * t))));
+    }
+    const auto dataBytes = static_cast<std::uint32_t>(pcm.size() * 2);
+    std::ofstream f(path, std::ios::binary);
+    auto u32 = [&](std::uint32_t v) { f.write(reinterpret_cast<const char*>(&v), 4); };
+    auto u16 = [&](std::uint16_t v) { f.write(reinterpret_cast<const char*>(&v), 2); };
+    f.write("RIFF", 4);
+    u32(36 + dataBytes);
+    f.write("WAVE", 4);
+    f.write("fmt ", 4);
+    u32(16);
+    u16(1);
+    u16(2);
+    u32(rate);
+    u32(rate * 4);
+    u16(4);
+    u16(16);
+    f.write("data", 4);
+    u32(dataBytes);
+    f.write(reinterpret_cast<const char*>(pcm.data()), dataBytes);
+}
+
+} // namespace
+
+TEST_CASE("RgTags: synthetic FLAC Vorbis comments", "[au2][dsp][rgtags]") {
+    const ByteVec flac = flacWithVorbisComment({"REPLAYGAIN_TRACK_GAIN=-7.50 dB",
+                                                "REPLAYGAIN_TRACK_PEAK=0.987",
+                                                "REPLAYGAIN_ALBUM_GAIN=+2.00 dB"});
+    const RgTagRead r = parseReplayGainTags(flac.data(), flac.size());
+    CHECK(r.any());
+    CHECK(r.container == RgTagContainer::VorbisComment);
+    REQUIRE(r.info.trackGainDb.has_value());
+    REQUIRE(r.info.trackPeak.has_value());
+    REQUIRE(r.info.albumGainDb.has_value());
+    CHECK(r.info.trackGainDb.value() == Catch::Approx(-7.5));
+    CHECK(r.info.trackPeak.value() == Catch::Approx(0.987));
+    CHECK(r.info.albumGainDb.value() == Catch::Approx(2.0));
+    CHECK_FALSE(r.info.albumPeak.has_value());
+    CHECK_FALSE(r.info.trackLufs.has_value());
+}
+
+TEST_CASE("RgTags: synthetic Ogg-Vorbis and Ogg-Opus pages", "[au2][dsp][rgtags]") {
+    SECTION("Vorbis comment packet (keys may be any case)") {
+        const ByteVec ogg =
+            oggPage(0x02, {vorbisIdPacket(),
+                           vorbisCommentPacket({"replaygain_track_gain=-7.50 dB",
+                                                "REPLAYGAIN_TRACK_PEAK=0.987",
+                                                "ReplayGain_Album_Gain=+2.00 dB"})});
+        const RgTagRead r = parseReplayGainTags(ogg.data(), ogg.size());
+        CHECK(r.any());
+        CHECK(r.container == RgTagContainer::VorbisComment);
+        CHECK(r.info.trackGainDb.value() == Catch::Approx(-7.5));
+        CHECK(r.info.trackPeak.value() == Catch::Approx(0.987));
+        CHECK(r.info.albumGainDb.value() == Catch::Approx(2.0));
+    }
+    SECTION("OpusTags with the R128 Q7.8 form") {
+        const ByteVec ogg = oggPage(0x02, {opusIdPacket(),
+                                           opusCommentPacket({"R128_TRACK_GAIN=-512",
+                                                              "R128_ALBUM_GAIN=256"})});
+        const RgTagRead r = parseReplayGainTags(ogg.data(), ogg.size());
+        CHECK(r.any());
+        CHECK(r.container == RgTagContainer::VorbisComment);
+        CHECK(r.info.trackGainDb.value() == Catch::Approx(-2.0)); // -512 / 256
+        CHECK(r.info.albumGainDb.value() == Catch::Approx(1.0)); // 256 / 256
+    }
+    SECTION("R128 falls back to a dB string when not a plain integer") {
+        const ByteVec ogg =
+            oggPage(0x02, {opusIdPacket(), opusCommentPacket({"R128_TRACK_GAIN=-3.5 dB"})});
+        const RgTagRead r = parseReplayGainTags(ogg.data(), ogg.size());
+        CHECK(r.any());
+        CHECK(r.info.trackGainDb.value() == Catch::Approx(-3.5));
+    }
+}
+
+TEST_CASE("RgTags: synthetic ID3v2 frames", "[au2][dsp][rgtags]") {
+    SECTION("v2.4 UTF-8 TXXX") {
+        const ByteVec id3 = id3File(
+            4, 0x00,
+            id3Frame24("TXXX", txxxPayload(0x03, "REPLAYGAIN_TRACK_GAIN", "-7.50 dB")));
+        const RgTagRead r = parseReplayGainTags(id3.data(), id3.size());
+        CHECK(r.any());
+        CHECK(r.container == RgTagContainer::Id3v2);
+        CHECK(r.info.trackGainDb.value() == Catch::Approx(-7.5));
+    }
+    SECTION("v2.3 UTF-16 description and value (encoding 1)") {
+        const ByteVec id3 = id3File(
+            3, 0x00, id3Frame23("TXXX", txxxPayloadUtf16Le("REPLAYGAIN_ALBUM_GAIN", "+2.00 dB")));
+        const RgTagRead r = parseReplayGainTags(id3.data(), id3.size());
+        CHECK(r.any());
+        CHECK(r.container == RgTagContainer::Id3v2);
+        CHECK(r.info.albumGainDb.value() == Catch::Approx(2.0));
+    }
+    SECTION("v2.4 header unsynchronisation is undone before the frames are read") {
+        // A leading TIT2 frame carries 0xFF 0xE0, written on disk as 0xFF 0x00
+        // 0xE0; if the region were not de-unsynchronised the TXXX frame after it
+        // would be misaligned and lost.
+        ByteVec frames = id3Frame24("TIT2", ByteVec{0x00, 'x', 0xFF, 0xE0});
+        const ByteVec txxx =
+            id3Frame24("TXXX", txxxPayload(0x03, "REPLAYGAIN_TRACK_GAIN", "-7.50 dB"));
+        frames.insert(frames.end(), txxx.begin(), txxx.end());
+        const ByteVec disk = synchronise(frames);
+        const ByteVec id3 = id3File(4, 0x80, disk);
+        const RgTagRead r = parseReplayGainTags(id3.data(), id3.size());
+        CHECK(r.any());
+        CHECK(r.container == RgTagContainer::Id3v2);
+        CHECK(r.info.trackGainDb.value() == Catch::Approx(-7.5));
+    }
+    SECTION("R128 Q7.8 gain in a vorbis comment (the Opus tag form)") {
+        // Already covered synthetically; this is the *other* accepted form of the
+        // same key: a plain dB string in R128_TRACK_GAIN (some taggers write it).
+        const ByteVec flac = flacWithVorbisComment({"R128_TRACK_GAIN=+1.50 dB"});
+        const RgTagRead r = parseReplayGainTags(flac.data(), flac.size());
+        CHECK(r.any());
+        CHECK(r.info.trackGainDb.value() == Catch::Approx(1.5));
+    }
+
+    SECTION("an unrelated frame is ignored (TXXX is enough for ReplayGain)") {
+        const ByteVec id3 = id3File(4, 0x00,
+                                    id3Frame24("TIT2", ByteVec{0x00, 'h', 'i'}));
+        const RgTagRead r = parseReplayGainTags(id3.data(), id3.size());
+        CHECK_FALSE(r.any());
+        CHECK(r.container == RgTagContainer::None);
+    }
+}
+
+TEST_CASE("RgTags: malformed input is rejected without reading out of bounds",
+          "[au2][dsp][rgtags]") {
+    SECTION("null and empty") {
+        CHECK_FALSE(parseReplayGainTags(nullptr, 0).any());
+        const ByteVec empty;
+        CHECK_FALSE(parseReplayGainTags(empty.data(), empty.size()).any());
+    }
+    SECTION("three-byte garbage") {
+        const ByteVec g{'a', 'b', 'c'};
+        const RgTagRead r = parseReplayGainTags(g.data(), g.size());
+        CHECK_FALSE(r.any());
+        CHECK(r.container == RgTagContainer::None);
+    }
+    SECTION("four-byte garbage") {
+        const ByteVec g{'g', 'a', 'r', 'b'};
+        CHECK_FALSE(parseReplayGainTags(g.data(), g.size()).any());
+    }
+    SECTION("FLAC block declaring a huge (0xFFFFFF) length") {
+        ByteVec b;
+        pushBytes(b, "fLaC");
+        b.push_back(0x80 | 4);
+        pushU24BE(b, 0xFFFFFF); // 16 MiB >> buffer
+        pushBytes(b, "VENDOR"); // far less than declared
+        CHECK_FALSE(parseReplayGainTags(b.data(), b.size()).any());
+    }
+    SECTION("ID3 header declaring a size larger than the buffer") {
+        ByteVec b;
+        pushBytes(b, "ID3");
+        b.push_back(4);
+        b.push_back(0);
+        b.push_back(0);
+        pushSyncSafe(b, 100000);
+        pushBytes(b, "TXXX");
+        CHECK_FALSE(parseReplayGainTags(b.data(), b.size()).any());
+    }
+    SECTION("Ogg page whose lacing sum exceeds the page") {
+        ByteVec b;
+        pushBytes(b, "OggS");
+        b.push_back(0);
+        b.push_back(0x02);
+        for (int i = 0; i < 8; ++i) {
+            b.push_back(0);
+        }
+        pushU32LE(b, 0);
+        pushU32LE(b, 0);
+        pushU32LE(b, 0);
+        b.push_back(1);      // one segment
+        b.push_back(200);    // claims 200 payload bytes
+        pushBytes(b, "OggS"); // only 4 present
+        CHECK_FALSE(parseReplayGainTags(b.data(), b.size()).any());
+    }
+    SECTION("truncated Vorbis comment entry") {
+        ByteVec b;
+        pushBytes(b, "fLaC");
+        ByteVec vc;
+        pushU32LE(vc, 0);    // vendor length 0
+        pushU32LE(vc, 1);    // count 1
+        pushU32LE(vc, 4096); // entry length beyond the declared block
+        b.push_back(0x80 | 4);
+        pushU24BE(b, static_cast<std::uint32_t>(vc.size()));
+        b.insert(b.end(), vc.begin(), vc.end());
+        CHECK_FALSE(parseReplayGainTags(b.data(), b.size()).any());
+    }
+}
+
+TEST_CASE("RgTags: file overload and RgTagSource cache", "[au2][dsp][rgtags]") {
+    const fs::path flac = au2TempPath("tags.flac");
+    writeBytes(flac, flacWithVorbisComment({"REPLAYGAIN_TRACK_GAIN=-7.50 dB",
+                                            "REPLAYGAIN_TRACK_PEAK=0.987"}));
+
+    const RgTagRead read = readReplayGainTags(flac.string());
+    CHECK(read.any());
+    CHECK(read.info.trackGainDb.value() == Catch::Approx(-7.5));
+    CHECK(read.info.trackPeak.value() == Catch::Approx(0.987));
+
+    RgTagSource source;
+    CHECK(source.size() == 0);
+    const RgInfo info = source.forPath(flac.string());
+    CHECK(info.trackGainDb.value() == Catch::Approx(-7.5));
+    CHECK(source.size() == 1);
+    const RgInfo cached = source.forPath(flac.string()); // second read is cached
+    CHECK(cached.trackGainDb.value() == Catch::Approx(-7.5));
+    CHECK(source.size() == 1);
+
+    // A missing file yields an empty RgInfo (and is cached as such).
+    const RgInfo missing = source.forPath((flac.string() + ".nope"));
+    CHECK_FALSE(missing.trackGainDb.has_value());
+    CHECK(source.size() == 2);
+
+    source.clear();
+    CHECK(source.size() == 0);
+
+    CHECK_FALSE(readReplayGainTags((flac.string() + ".nope")).any());
+
+    std::error_code ec;
+    fs::remove(flac, ec);
+}
+
+TEST_CASE("RgTags: real files written by ffmpeg", "[au2][dsp][rgtags][ffmpeg]") {
+    if (std::system("command -v ffmpeg >/dev/null 2>&1") != 0) {
+        SKIP("ffmpeg not on PATH — real-file ReplayGain cases skipped");
+    }
+
+    const fs::path dir = au2TempPath("ffmpeg");
+    fs::create_directories(dir);
+    const fs::path wav = dir / "in.wav";
+    writeSineWavAu2(wav, 1000.0, 48000, 1.0);
+
+    // ffmpeg writes unknown keys verbatim: Vorbis comments for FLAC/Ogg and
+    // (verified by dumping the bytes) ID3v2.4 TXXX frames for MP3.
+    auto encode = [&](const std::string& out) {
+        const std::string cmd = "ffmpeg -y -loglevel error -i \"" + wav.string() +
+                                "\" -metadata REPLAYGAIN_TRACK_GAIN=\"-7.50 dB\""
+                                " -metadata REPLAYGAIN_TRACK_PEAK=0.987"
+                                " -metadata REPLAYGAIN_ALBUM_GAIN=\"+2.00 dB\" \"" +
+                                (dir / out).string() + "\" >/dev/null 2>&1";
+        return std::system(cmd.c_str()) == 0;
+    };
+
+    SECTION("FLAC (Vorbis comments)") {
+        REQUIRE(encode("out.flac"));
+        const RgTagRead r = readReplayGainTags((dir / "out.flac").string());
+        CHECK(r.container == RgTagContainer::VorbisComment);
+        CHECK(r.info.trackGainDb.value() == Catch::Approx(-7.5));
+        CHECK(r.info.trackPeak.value() == Catch::Approx(0.987));
+        CHECK(r.info.albumGainDb.value() == Catch::Approx(2.0));
+    }
+    SECTION("Ogg-Vorbis (Vorbis comments)") {
+        REQUIRE(encode("out.ogg"));
+        const RgTagRead r = readReplayGainTags((dir / "out.ogg").string());
+        CHECK(r.container == RgTagContainer::VorbisComment);
+        CHECK(r.info.trackGainDb.value() == Catch::Approx(-7.5));
+        CHECK(r.info.trackPeak.value() == Catch::Approx(0.987));
+        CHECK(r.info.albumGainDb.value() == Catch::Approx(2.0));
+    }
+    SECTION("MP3 (ID3v2.4 TXXX frames)") {
+        REQUIRE(encode("out.mp3"));
+        const RgTagRead r = readReplayGainTags((dir / "out.mp3").string());
+        CHECK(r.container == RgTagContainer::Id3v2);
+        CHECK(r.info.trackGainDb.value() == Catch::Approx(-7.5));
+        CHECK(r.info.trackPeak.value() == Catch::Approx(0.987));
+        CHECK(r.info.albumGainDb.value() == Catch::Approx(2.0));
+    }
+
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+}
+
+TEST_CASE("RgTags: a nonexistent path reads as empty", "[au2][dsp][rgtags]") {
+    const std::string path =
+        (fs::temp_directory_path() / "koalaamp_au2_does_not_exist.flac").string();
+    const RgTagRead r = readReplayGainTags(path);
+    CHECK_FALSE(r.any());
+    CHECK(r.container == RgTagContainer::None);
+}

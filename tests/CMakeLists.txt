@@ -134,6 +134,22 @@ endif()
 catch_discover_tests(koalaamp_dsp_tests PROPERTIES TIMEOUT 600)
 message(STATUS "KoalaAmp: AU-1 DSP tests enabled")
 
+# AU-2: the gapless boundary (DSP path) + ReplayGain activation from real track
+# tags. Both live on the libvlc-backed chain (the boundary is the core's, the RG
+# stage is AU-1's transform installed at the core's seam), so the target exists
+# where koalaamp_playback_core does.
+if(TARGET koalaamp_playback_core AND TARGET koalaamp_dsp)
+    add_executable(koalaamp_au2_tests gapless_rg_test.cpp)
+    koalaamp_enable_warnings(koalaamp_au2_tests)
+    target_link_libraries(koalaamp_au2_tests PRIVATE Catch2::Catch2WithMain koalaamp_dsp
+        koalaamp_playback_core)
+    if(EXISTS "${CMAKE_SOURCE_DIR}/src/audio/RgTags.hpp")
+        target_compile_definitions(koalaamp_au2_tests PRIVATE KOALAAMP_AU2_HAS_RGTAGS)
+    endif()
+    catch_discover_tests(koalaamp_au2_tests PROPERTIES TIMEOUT 900)
+    message(STATUS "KoalaAmp: AU-2 gapless/ReplayGain tests enabled")
+endif()
+
 # SE-2: the classic main window. The renderer/formula/golden suite and the
 # 30-skin render smoke need only Qt Gui; the interaction-parity suite drives the
 # real widget and therefore Qt Widgets + QtTest (mouse/key/wheel synthesis).

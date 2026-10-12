@@ -19,6 +19,7 @@
 | SE-4 window manager + app window set | `tickets/SE-4-window-manager.md` |
 | SE-5 EQ window | `tickets/SE-5-eq-window.md` |
 | AU-1 DSP + EQ | `tickets/AU-1-dsp-eq.md` |
+| AU-2 gapless + ReplayGain | `tickets/AU-2-gapless-replaygain.md` |
 | LI-3 library UI + smart views | `tickets/LI-3-library-ui.md` |
 | VZ-1 visualizer window | `tickets/VZ-1-visualizer.md` |
 | MI-1 migration wizard | `tickets/MI-1-migration.md` |
@@ -103,7 +104,7 @@
 - **Acceptance:** transfer functions match reference curves; `.eqf` byte-compat round-trip; latency budget held; allocation-free steady state; runtime assertion never fires.
 - **Depends:** FE-2, FE-4
 
-### AU-2 · Gapless + ReplayGain — *4d*
+### AU-2 · Gapless + ReplayGain — *4d* — **in-review** ([brief](tickets/AU-2-gapless-replaygain.md))
 - **Tasks:** scheduler prefetch 10s; sample-exact boundary (DSP) or measured seam (bit-perfect, FE-2 data); RG modes + preamp + clip prevention + −6dB fallback; R128 tags.
 - **Acceptance:** concert-rip seam < 20ms DSP / < 50ms bit-perfect; RG ±6dB tags measure ±0.5dB applied; no clipping with prevent on.
 - **Depends:** AU-1

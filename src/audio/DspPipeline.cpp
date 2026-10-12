@@ -42,6 +42,14 @@ bool DspPipeline::prepare(int sampleRate, int channels) {
     // latching silently dropped the whole startup configuration (EQ and RG
     // stayed unity until a later slider move bumped the generation).
     prepareBuffersLocked(sampleRate, channels);
+    // NOTE (AU-2, same fix found independently on both branches): deliberately
+    // does not advance `m_applied`. Settings and ReplayGain tags are pushed
+    // *before* a track's first block (the core's prepare hook runs before play),
+    // and the first process() call is also what lazily calls prepare() for a new
+    // format — marking the generation applied here would swallow exactly those
+    // pending changes, leaving the track untagged (measured: gain stuck at 0 dB
+    // / the app's startup DSP inert until a slider move). Leaving `m_applied`
+    // stale makes the next block latch whatever the control thread last pushed.
     return true;
 }
 

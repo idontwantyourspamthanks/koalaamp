@@ -16,7 +16,9 @@ add_library(koalaamp_dsp STATIC
     EqValue.hpp
     Limiter.hpp
     ReplayGain.cpp
-    ReplayGain.hpp)
+    ReplayGain.hpp
+    RgTags.cpp
+    RgTags.hpp)
 koalaamp_enable_warnings(koalaamp_dsp)
 target_include_directories(koalaamp_dsp PUBLIC "${CMAKE_SOURCE_DIR}/src")
 target_link_libraries(koalaamp_dsp PUBLIC koalaamp_playback)
