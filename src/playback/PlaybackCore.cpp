@@ -37,6 +37,12 @@ constexpr unsigned kChannels = 2;
 constexpr std::size_t kMaxSessionList = 512;
 /// `previous()` restarts the current track instead of stepping back beyond this.
 constexpr std::int64_t kPrevRestartMs = 3000;
+/// AU-2: never let the boundary tail fall below this. The tail is what covers
+/// the incoming media's activation; without it the boundary is a gap, so the
+/// floor is preferred over an exactly-fitting burst. Measured on the reference
+/// machine's relaxed ring: 50 ms keeps both the burst and the activation inside
+/// the ring for the codecs probed (WAV ~1.15 s, FLAC ~1.27 s decode-ahead).
+constexpr unsigned kHandoverFloorMs = 50;
 constexpr auto kTick = std::chrono::milliseconds(10);
 
 std::size_t ringFloats(PlaybackConfig::RingRegime regime) {
@@ -115,6 +121,7 @@ struct Command {
         Prev,
         SetVolume,
         SetPrefetchHook,
+        SetTrackPrepareHook,
     };
     explicit Command(Type commandType) : type(commandType) {}
     Type type;
@@ -122,6 +129,7 @@ struct Command {
     std::int64_t i64{0};
     int i{0};
     PlaybackCore::PrefetchHook hook;
+    PlaybackCore::TrackPrepareHook prepareHook;
 };
 
 } // namespace
@@ -149,6 +157,13 @@ struct PlaybackCore::Impl {
     bool enginePrimed{false};    // tap has had its first (open) media
     bool enginePlaying{false};   // dispatch thread only
     PcmCb pcmCb;                 // DSP seam; applied to the tap at creation
+    // PCM-seam quiesce handshake (AU-2). The tap's callback runs on libvlc's
+    // audio-output thread and is handed the tap's own scratch buffer, so a
+    // callback that is in flight while the tap is torn down would touch freed
+    // memory. Teardown closes the gate first and waits for the in-flight count
+    // to drain. Two atomics, no lock — the audio thread never blocks.
+    std::atomic<int> pcmInFlight{0};
+    std::atomic<bool> pcmBlocked{false};
     /// Published after the engine members are fully constructed (acquire/release
     /// pair for metrics() reads from the owner thread).
     std::atomic<bool> engineReady{false};
@@ -160,7 +175,14 @@ struct PlaybackCore::Impl {
     std::vector<MediaRef> session; // play order: repeat-all/previous fallback
     std::size_t sessionIndex{0};
     std::atomic<bool> trackPrefetched{false};
-    PrefetchHook prefetchHook; // dispatch thread only (set via command)
+    bool ended{false};           // dispatch thread: EndReached seen for this media
+    bool handoverPending{false}; // dispatch thread: the boundary is armed (AU-2)
+    std::optional<MediaRef> pendingNext; // dispatch thread: parked at arm, published at swap
+    PrefetchHook prefetchHook;   // dispatch thread only (set via command)
+    TrackPrepareHook prepareHook;
+    std::uint64_t handovers{0};  // gapless boundaries taken (dispatch thread)
+    std::uint64_t peakFillFrames{0}; // deepest ring fill = libvlc's decode-ahead (AU-2)
+    double lastBoundaryTailMs{0.0};  // published per boundary (tick thread only)
     mutable std::uint32_t rngState{0x2545f491u};
 
     // --- observers ----------------------------------------------------------
@@ -257,7 +279,14 @@ struct PlaybackCore::Impl {
             break;
         case Command::Type::Seek:
             if (tap && currentLocked().has_value()) {
+                // AU-2: the ring is cleared here, not in the tap's flush
+                // callback: a seek *is* the discontinuity (the pre-seek frames
+                // are invalid), whereas the flush that arrives at end-of-input
+                // must leave the last ~1 s of the track intact for gapless.
                 tap->seekMs(command.i64);
+                tap->ring().discardAll();
+                handoverPending = false;
+                ended = false;
                 publishPosition(std::max<std::int64_t>(0, command.i64), self.m_lengthMs.load());
             }
             break;
@@ -278,6 +307,9 @@ struct PlaybackCore::Impl {
             break;
         case Command::Type::SetPrefetchHook:
             prefetchHook = command.hook;
+            break;
+        case Command::Type::SetTrackPrepareHook:
+            prepareHook = command.prepareHook;
             break;
         }
     }
@@ -327,12 +359,19 @@ struct PlaybackCore::Impl {
     }
 
     void handleEndReached() {
-        if (!enginePlaying) {
-            return; // already advanced, or a stop raced the end
+        if (!enginePlaying || ended) {
+            // Already advanced, or a stop raced the end. Note the gapless path
+            // keeps `enginePlaying` true across the end (the decoder is still
+            // producing the outgoing track's tail), which is exactly why the
+            // de-duplication cannot key off it.
+            return;
         }
-        MediaRef ended = currentLocked().value_or(MediaRef{});
-        enginePlaying = false;
-        forEachObserver([&](IPlaybackObserver& obs) { obs.onEndReached(ended); });
+        // `enginePlaying` stays true: on the gapless path the decoder is still
+        // producing (the outgoing track's tail is in the ring) until the swap.
+        // `ended` is what de-duplicates a repeated EndReached for the same media.
+        ended = true;
+        const MediaRef finished = currentLocked().value_or(MediaRef{});
+        forEachObserver([&](IPlaybackObserver& obs) { obs.onEndReached(finished); });
         advance(true);
     }
 
@@ -345,6 +384,11 @@ struct PlaybackCore::Impl {
         if (self.m_state.load() == PlaybackState::Stopped) {
             return;
         }
+        // Learn the engine's decode-ahead depth (AU-2): the deepest fill it
+        // reaches is the burst the *next* activation will hand over, and the
+        // boundary rule needs that number to reserve room for it.
+        peakFillFrames = std::max<std::uint64_t>(peakFillFrames,
+                                                 tap->ring().fill() / kChannels);
         const std::int64_t posRaw = tap->timeMs();
         const std::int64_t lenRaw = tap->lengthMs();
         const std::int64_t pos = posRaw < 0 ? 0 : posRaw;
@@ -355,6 +399,43 @@ struct PlaybackCore::Impl {
             publishPosition(pos, len);
         }
         maybePrefetch(pos, len);
+        maybeHandover();
+    }
+
+    /// AU-2 boundary trigger. The prefetch lead (10 s) resolves the next media
+    /// long before this; the swap itself waits for the *ring*, and the rule is
+    /// derived from the engine's own numbers rather than a constant:
+    ///
+    ///   free the incoming media's activation needs = its decode-ahead burst
+    ///   (measured 1.15 s for WAV, 1.27 s for FLAC on this machine — libvlc
+    ///   hands its whole decode-ahead over in one go as soon as a media starts),
+    ///   learned as the deepest fill this engine has reached (`peakFillFrames`);
+    ///   the tail we keep must fit beside it, so
+    ///       tail = min(gaplessTailMs, capacity - peakFill - margin)
+    ///
+    /// The tail is then the audio still playing when the incoming media is
+    /// activated — long enough to cover that activation, never long enough that
+    /// its burst has to be dropped.
+    void maybeHandover() {
+        if (!handoverPending || !tap || config.gaplessTailMs <= 0.0) {
+            return;
+        }
+        const std::uint64_t capacity = tap->ring().capacity() / kChannels;
+        const std::uint64_t floorFrames = kSampleRate * kHandoverFloorMs / 1000;
+        // `peakFillFrames` is initialised to the capacity ("nothing learned: no
+        // spare room"), so before the first measurement the boundary keeps only
+        // the floor. After that it keeps the measured slack.
+        const std::uint64_t budget = capacity > peakFillFrames ? capacity - peakFillFrames : 0;
+        const std::uint64_t requested =
+            static_cast<std::uint64_t>(config.gaplessTailMs * static_cast<double>(kSampleRate) / 1000.0);
+        const std::uint64_t tail = std::min(requested, std::max(budget, floorFrames));
+        if (tap->ring().fill() / kChannels > tail) {
+            return;
+        }
+        lastBoundaryTailMs =
+            static_cast<double>(tap->ring().fill() / kChannels) * 1000.0 / kSampleRate;
+        handoverPending = false;
+        swapToNext();
     }
 
     void publishPosition(std::int64_t pos, std::int64_t len) {
@@ -363,10 +444,9 @@ struct PlaybackCore::Impl {
         forEachObserver([&](IPlaybackObserver& obs) { obs.onPositionChanged(pos, len); });
     }
 
-    // =======================  gapless scaffolding  =========================
-    // The mechanism is real (the next media is resolved a lead time before the
-    // end and handed to the hook/observers); the sample-exact concat at the
-    // boundary is AU-2, which attaches its double buffer to this seam.
+    // ====================  prefetch + the gapless boundary  ================
+    // The prefetch lead resolves the next media (spec §3.2's scheduler
+    // prefetch); the boundary itself is the core's — see maybeHandover().
 
     void maybePrefetch(std::int64_t pos, std::int64_t len) {
         if (config.prefetchLeadMs <= 0 || !prefetchHook || trackPrefetched.load() ||
@@ -478,7 +558,82 @@ struct PlaybackCore::Impl {
             stopInternal();
             return;
         }
+        if (autoEnded && config.gapless && tap) {
+            // Gapless boundary (AU-2): this is a *natural* end, so the current
+            // media is done and its ring tail is the only audio still to render.
+            // Do not stop/restart: arm the swap and let the tick do it when the
+            // tail has drained far enough (maybeHandover). The next media was
+            // resolved by the prefetch lead, so no engine-side preparation is
+            // needed at the end itself.
+            armHandover(plan);
+            return;
+        }
         activate(plan.media, plan.hist, plan.at);
+    }
+
+    /// Book the plan and arm the boundary swap. `current` is deliberately NOT
+    /// switched here: the outgoing track is still the audible one until the swap
+    /// (position observers keep tracking it), so the pending media is parked and
+    /// published at swapToNext().
+    void armHandover(const Plan& plan) {
+        {
+            std::lock_guard<std::mutex> lock(stateMutex);
+            if (plan.hist == HistAction::Append) {
+                session.push_back(plan.media);
+                while (session.size() > kMaxSessionList) {
+                    session.erase(session.begin());
+                }
+                sessionIndex = session.size() - 1;
+            } else if (plan.hist == HistAction::At) {
+                sessionIndex = plan.at;
+            }
+            pendingNext = plan.media;
+        }
+        trackPrefetched.store(false);
+        self.m_prefetchArmed.store(false);
+        handoverPending = true;
+    }
+
+    /// The swap itself: one decoder keeps producing, the ring is never cleared,
+    /// so the incoming track's first frame lands immediately after the outgoing
+    /// track's last one. It is only ever called from maybeHandover(), i.e. after
+    /// a natural EndReached and once the outgoing tail has drained — never to
+    /// cut a track short.
+    void swapToNext() {
+        if (!enginePlaying || !pendingNext || !tap) {
+            return;
+        }
+        const MediaRef target = *pendingNext;
+        {
+            std::lock_guard<std::mutex> lock(stateMutex);
+            pendingNext.reset();
+            current = target;
+        }
+        enginePlaying = false;
+        ended = false;
+        // Per-track transform activation (AU-2's ReplayGain seam): before
+        // play(), so the DSP stage latches the incoming track's gain on its
+        // first block.
+        if (prepareHook) {
+            prepareHook(target);
+        }
+        const bool location = target.kind == MediaRef::Kind::Url;
+        const bool ok = location ? tap->setMediaLocation(target.value) : tap->setMedia(target.value);
+        if (!ok) {
+            const std::string what = "libvlc could not open media: " + target.value;
+            forEachObserver([&](IPlaybackObserver& obs) { obs.onError(what); });
+            stopInternal();
+            return;
+        }
+        tap->play();
+        enginePlaying = true;
+        ++handovers;
+        forEachObserver([&](IPlaybackObserver& obs) { obs.onTrackChanged(target); });
+        self.m_positionMs.store(0);
+        self.m_lengthMs.store(0);
+        lastPos = -1;
+        lastLen = -1;
+        setState(PlaybackState::Playing);
     }
 
     void previous() {
@@ -488,6 +643,8 @@ struct PlaybackCore::Impl {
         // Winamp semantics: restart the track once it is a few seconds in.
         if (self.m_positionMs.load() > kPrevRestartMs) {
             tap->seekMs(0);
+            tap->ring().discardAll();
+            handoverPending = false;
             publishPosition(0, self.m_lengthMs.load());
             return;
         }
@@ -504,6 +661,8 @@ struct PlaybackCore::Impl {
             activate(*target, HistAction::At, idx);
         } else {
             tap->seekMs(0);
+            tap->ring().discardAll();
+            handoverPending = false;
             publishPosition(0, self.m_lengthMs.load());
         }
     }
@@ -524,6 +683,17 @@ struct PlaybackCore::Impl {
         }
         trackPrefetched.store(false);
         self.m_prefetchArmed.store(false);
+        handoverPending = false;
+        ended = false;
+        {
+            std::lock_guard<std::mutex> lock(stateMutex);
+            pendingNext.reset();
+        }
+        // ReplayGain activation seam (AU-2): before the engine starts the media,
+        // so the transform holds this track's gain for its first block.
+        if (prepareHook) {
+            prepareHook(media);
+        }
         if (!engineStart(media)) {
             setState(PlaybackState::Stopped);
             return false;
@@ -538,6 +708,11 @@ struct PlaybackCore::Impl {
     }
 
     void stopInternal() {
+        ended = false;
+        {
+            std::lock_guard<std::mutex> lock(stateMutex);
+            pendingNext.reset();
+        }
         if (tap) {
             tap->stop();
             tap->ring().discardAll();
@@ -545,6 +720,7 @@ struct PlaybackCore::Impl {
         enginePlaying = false;
         trackPrefetched.store(false);
         self.m_prefetchArmed.store(false);
+        handoverPending = false;
         const std::int64_t len = self.m_lengthMs.load();
         publishPosition(0, len);
         setState(PlaybackState::Stopped);
@@ -567,6 +743,9 @@ struct PlaybackCore::Impl {
         tap->setOutputGain(gainFor(self.m_volume100.load()));
         lastVolume = self.m_volume100.load();
 
+        // AU-2: the decode-ahead depth is measured, not assumed — start from
+        // "unknown" so the first boundary reserves only the floor.
+        peakFillFrames = tap->ring().capacity() / kChannels;
         sink = std::make_unique<MiniAudioSink>(tap->ring());
         SinkConfig sinkConfig;
         sinkConfig.sampleRate = kSampleRate;
@@ -594,9 +773,21 @@ struct PlaybackCore::Impl {
         }
         const PcmCb cb = pcmCb;
         tap->setPcmObserver(
-            [cb](const float* pcm, std::size_t frames, unsigned rate, unsigned channels) {
+            [this, cb](const float* pcm, std::size_t frames, unsigned rate, unsigned channels) {
+                if (pcmBlocked.load(std::memory_order_acquire)) {
+                    return; // teardown: the transform may already be gone
+                }
+                pcmInFlight.fetch_add(1, std::memory_order_acq_rel);
+                // Re-check: the gate may have closed between the load and the
+                // increment; teardown waits for this counter, so it either sees
+                // us or we see the gate.
+                if (pcmBlocked.load(std::memory_order_acquire)) {
+                    pcmInFlight.fetch_sub(1, std::memory_order_acq_rel);
+                    return;
+                }
                 const PcmFormat format{static_cast<int>(rate), static_cast<int>(channels)};
                 cb(pcm, frames, format);
+                pcmInFlight.fetch_sub(1, std::memory_order_acq_rel);
             });
     }
 
@@ -653,6 +844,24 @@ PlaybackCore::~PlaybackCore() {
     // here, while every Impl member they touch is still alive, rather than by
     // member destruction order.
     m_impl->sink.reset();
+    if (m_impl->tap) {
+        // Close the PCM gate and wait (bounded) for an in-flight callback to
+        // leave before the tap — and the scratch buffer the callback is handed —
+        // is released. Bounded because a wedged callback must not hang shutdown;
+        // the detach below then makes even a late call a no-op.
+        m_impl->pcmBlocked.store(true, std::memory_order_release);
+        for (int i = 0; i < 1000 && m_impl->pcmInFlight.load(std::memory_order_acquire) != 0; ++i) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+        }
+        // The PCM seam runs on libvlc's audio-output thread until the the tap is
+        // gone: stop the player and detach the observer *before* the tap is
+        // released, so a callback cannot reach the consumer's transform (or the
+        // scratch it owns) while it is being destroyed (AU-2). An in-flight
+        // callback is still possible; that is why the header requires the
+        // callback's captures to outlive the core.
+        m_impl->tap->stop();
+        m_impl->tap->setPcmObserver(nullptr);
+    }
     m_impl->tap.reset();
     {
         std::lock_guard<std::mutex> lock(m_impl->observerMutex);
@@ -755,6 +964,12 @@ void PlaybackCore::setPrefetchHook(PrefetchHook hook) {
     m_impl->request(std::move(command));
 }
 
+void PlaybackCore::setTrackPrepareHook(TrackPrepareHook hook) {
+    Command command{Command::Type::SetTrackPrepareHook};
+    command.prepareHook = std::move(hook);
+    m_impl->request(std::move(command));
+}
+
 void PlaybackCore::addObserver(IPlaybackObserver* observer) {
     if (observer == nullptr) {
         return;
@@ -786,6 +1001,11 @@ PlaybackMetrics PlaybackCore::metrics() const {
         out.ringFrames = m_impl->tap->ring().capacity() / kChannels;
         out.pcmRms = m_impl->tap->rmsLevel();
         out.framesDropped = m_impl->tap->stats().framesDropped.load(std::memory_order_relaxed);
+        out.framesDiscarded = m_impl->tap->ring().discarded() / kChannels;
+        out.silenceFrames = m_impl->sink ? m_impl->sink->stats().silenceFrames.load(std::memory_order_relaxed) : 0;
+        out.gaplessHandovers = m_impl->handovers;
+        out.lastBoundaryTailMs = m_impl->lastBoundaryTailMs;
+        out.decodeAheadFrames = m_impl->peakFillFrames;
         out.nativeEqEnabled = m_impl->tap->hasNativeEqualizer();
         if (m_impl->sink) {
             out.framesRendered =

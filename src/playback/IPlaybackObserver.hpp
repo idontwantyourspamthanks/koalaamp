@@ -5,6 +5,10 @@
 // Qt signals in SE-2. PlaybackCore invokes every method on its own dispatch
 // thread — NEVER on a libvlc thread (EndReached and friends arrive on VLC
 // threads; the core marshals them). An observer may call back into the core.
+// An observer MUST outlive the core (or be removed before destruction): the
+// dispatch thread keeps calling out until the core's destructor joins it, so an
+// observer declared after the core is destroyed first and can still be called
+// (AU-2 measured exactly that as an invalid-vptr use-after-free under UBSAN).
 // See PlaybackCore.hpp for the full threading contract.
 
 #pragma once
@@ -44,8 +48,9 @@ public:
     /// The current media reached its natural end, before auto-advance. `ended`
     /// is the media that finished; onTrackChanged for the next one follows.
     virtual void onEndReached(const MediaRef& /*ended*/) {}
-    /// Gapless scaffolding seam (AU-2 attaches the real double buffer here):
-    /// the next media was resolved `prefetchLeadMs` before the end.
+    /// The next media was resolved `prefetchLeadMs` before the end (spec §3.2's
+    /// scheduler prefetch). Resolution only: the boundary itself is the core's
+    /// (AU-2) and is reported as `onTrackChanged` when it is taken.
     virtual void onPrefetch(const MediaRef& /*next*/) {}
     /// Non-fatal engine error (bad media, libvlc error, sink start failure).
     virtual void onError(std::string_view /*what*/) {}
