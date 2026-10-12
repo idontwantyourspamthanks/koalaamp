@@ -263,6 +263,7 @@ TEST_CASE("SE-4 EQ OFF leaves the stage (RG/limiter) running", "[se4][dsp][regre
     CHECK(dsp.settings().enabled);          // the stage survived the toggle
     CHECK(withEqOff == Catch::Approx(withEqOn).epsilon(0.02));  // RG held
 }
+
 TEST_CASE("SE-4 the DSP is installed ahead of the vis feed", "[se4][dsp][chain]") {
     // Mirrors main.cpp's construction: the tap installs
     // dsp.makeCallback(feed.callback()), so the feed's callback runs *after*
@@ -272,8 +273,13 @@ TEST_CASE("SE-4 the DSP is installed ahead of the vis feed", "[se4][dsp][chain]"
     ui::VisFeed feed;
     auto chain = dsp.makeCallback(feed.callback());
 
-    std::vector<float> block = sine(kBlock, 440.0);
-    chain(block.data(), block.size(), playback::PcmFormat{44100, 2});
+    // The feed pushes frames x channels samples, so the buffer must hold that
+    // many: the old version passed a 1024-float buffer while claiming 2
+    // channels for 1024 frames — an out-of-bounds read (observed as an
+    // intermittent Windows SIGSEGV in this test).
+    constexpr std::size_t kChainFrames = kBlock / 2;
+    std::vector<float> block(kChainFrames * 2, 0.25f);  // interleaved stereo
+    chain(block.data(), kChainFrames, playback::PcmFormat{44100, 2});
 
     CHECK(feed.sampleRate() == 44100);
     CHECK(feed.channels() == 2);
