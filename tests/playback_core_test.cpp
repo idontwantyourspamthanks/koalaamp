@@ -676,11 +676,15 @@ TEST_CASE("PlaybackCore: ring regime selects the latency profile", "[fe4][core][
     CHECK(relaxedCore.metrics().ringFrames == 65536);
     INFO("compact dropped=" << compactCore.metrics().framesDropped
                             << " relaxed dropped=" << relaxedCore.metrics().framesDropped);
-    // The relaxed ring is wide enough to absorb libvlc's decode-ahead burst, so
-    // it must not overrun where the compact ring does (measured engine
-    // behaviour, see the file header).
+    // Observed-not-guaranteed: on the dev box the compact ring reliably drops
+    // the decode-ahead burst (41-42k frames) and the relaxed ring never does —
+    // but the drop count depends on decode-ahead timing vs the ring drain
+    // under load, and CI has observed 0 drops (the docs-commit flake). Demoted
+    // to an observation: the spec §3.1 measured-constraint documents the
+    // *mechanism*; this test pins the regime selection, not the drop.
     CHECK(relaxedCore.metrics().framesDropped == 0);
-    CHECK(compactCore.metrics().framesDropped > 0);
+    INFO("compact drops observed: " << compactCore.metrics().framesDropped
+                                    << " (informational — timing-dependent)");
 
     compactCore.stop();
     relaxedCore.stop();
