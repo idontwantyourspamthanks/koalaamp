@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<WasabiXML version="1.0">
+ <playlist>
+  <entry playstring="file:///music/a&amp;b.mp3">
+   <name>A &amp; B</name>
+   <length>45000</length>
+  </entry>
+  <entry playstring="file:///music/plain.mp3">
+   <name>Plain</name>
+   <length>0</length>
+  </entry>
+ </playlist>
+</WasabiXML>

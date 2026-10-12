@@ -317,3 +317,37 @@ catch_discover_tests(koalaamp_se4_snap_tests PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     TIMEOUT 180)
 message(STATUS "KoalaAmp: SE-4 Part B snap/dock tests enabled")
+
+# PL-1: playlist formats. The unit suite (round-trip, byte-exact M3U8 emission,
+# leniency corpus, index, autosave) and the fuzz pass are Qt-free and link only
+# the Qt-free `koalaamp_playlist` module — the fuzz binary is the ASAN/UBSAN
+# target (AGENTS.md requires it for parser code). The window suite drives the
+# real SE-3 widget (open/save verbs, drag-drop, autosave restore) offscreen.
+add_executable(koalaamp_playlist_tests playlist_test.cpp)
+koalaamp_enable_warnings(koalaamp_playlist_tests)
+target_include_directories(koalaamp_playlist_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(koalaamp_playlist_tests PRIVATE Catch2::Catch2WithMain koalaamp_playlist)
+target_compile_definitions(koalaamp_playlist_tests PRIVATE
+    "KOALAAMP_PLAYLIST_FIXTURE_DIR=\"${CMAKE_SOURCE_DIR}/tests/fixtures/playlist\""
+    "KOALAAMP_PLAYLIST_SRC=\"${CMAKE_SOURCE_DIR}/src/playlist\"")
+catch_discover_tests(koalaamp_playlist_tests PROPERTIES TIMEOUT 300)
+message(STATUS "KoalaAmp: PL-1 playlist-format unit tests enabled")
+
+add_executable(koalaamp_playlist_fuzz_tests playlist_fuzz_test.cpp)
+koalaamp_enable_warnings(koalaamp_playlist_fuzz_tests)
+target_include_directories(koalaamp_playlist_fuzz_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(koalaamp_playlist_fuzz_tests PRIVATE Catch2::Catch2WithMain koalaamp_playlist)
+target_compile_definitions(koalaamp_playlist_fuzz_tests PRIVATE
+    "KOALAAMP_PLAYLIST_FIXTURE_DIR=\"${CMAKE_SOURCE_DIR}/tests/fixtures/playlist\"")
+catch_discover_tests(koalaamp_playlist_fuzz_tests PROPERTIES TIMEOUT 600)
+message(STATUS "KoalaAmp: PL-1 playlist parser fuzz target enabled (ASAN/UBSAN)")
+
+add_executable(koalaamp_pl1_window_tests pl1_window_test.cpp)
+koalaamp_enable_warnings(koalaamp_pl1_window_tests)
+target_include_directories(koalaamp_pl1_window_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+target_link_libraries(koalaamp_pl1_window_tests PRIVATE Catch2::Catch2 koalaamp_ui Qt6::Test)
+catch_discover_tests(koalaamp_pl1_window_tests PROPERTIES
+    DISCOVERY_MODE PRE_TEST
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 180)
+message(STATUS "KoalaAmp: PL-1 playlist-window wiring tests enabled")

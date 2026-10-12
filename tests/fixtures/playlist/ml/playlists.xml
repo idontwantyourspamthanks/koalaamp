@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Winamp:Playlists>
+ <playlist filename="mix-one.m3u" title="Mix One" songs="2" seconds="120" id="{11111111-2222-4333-8444-555555555555}"/>
+ <playlist filename="mix-two.m3u" title="Mix Two" songs="1" seconds="45" id="{66666666-7777-4888-8999-000000000000}"/>
+</Winamp:Playlists>

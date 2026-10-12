@@ -1,0 +1,5 @@
+#EXTM3U
+#EXTINF:60,Alpha
+/music/alpha.mp3
+#EXTINF:60,Beta
+/music/beta.mp3

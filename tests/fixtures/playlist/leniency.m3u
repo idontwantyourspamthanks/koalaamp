@@ -1,0 +1,12 @@
+#EXTM3U
+#EXT-X-NS-CLOUD:ignored cloud directive
+#EXTINF:12,First Title
+/music/first.mp3
+#EXTINF:99
+/music/no-title-with-len.mp3
+#UNKNOWN:whatever
+   ASF http://example.com/stream
+relative/rel track.mp3
+
+#UTF8
+/music/trailing-space.mp3   

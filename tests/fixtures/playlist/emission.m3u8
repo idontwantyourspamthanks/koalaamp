@@ -1,0 +1,8 @@
+﻿#EXTM3U
+#EXTINF:214,Café — Trésor
+/music/Chanson/Café — Trésor.mp3
+#EXTINF:180,Track Two
+/music/Album/Track Two.ogg
+#EXTINF:0,Unknown Length
+/music/Album/Three.flac
+/music/Album/Bare Filename.wav
