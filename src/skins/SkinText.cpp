@@ -212,6 +212,17 @@ std::optional<Rgb> parseRgbValue(std::string_view value) {
                static_cast<int>((*num) & 0xFF)};
 }
 
+bool hasIniContent(std::string_view text) {
+    for (std::string_view raw : splitLines(text)) {
+        const std::string line = trim(raw);
+        if (line.empty() || isCommentLine(line)) {
+            continue;
+        }
+        return true;
+    }
+    return false;
+}
+
 IniSections parseIni(std::string_view text) {
     IniSections data;
     std::string section;

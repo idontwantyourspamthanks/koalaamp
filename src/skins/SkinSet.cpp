@@ -211,8 +211,13 @@ std::optional<SkinSet> assembleSkinSet(const SkinContainer& container,
     }
 
     if (const auto* data = container.findData("region.txt")) {
-        set.region = parseRegion(asLatin1(*data));
-        if (set.region.empty()) {
+        const std::string text = asLatin1(*data);
+        set.region = parseRegion(text);
+        // Warn only when the file carried data we could not use. The classic
+        // base skin ships a REGION.TXT whose every line is a comment (it is
+        // documentation for skin authors) — Winamp draws a rectangular window
+        // for it, and so do we, with nothing to report.
+        if (set.region.empty() && hasIniContent(text)) {
             set.warn("region.txt produced no usable polygons");
         }
     } else {

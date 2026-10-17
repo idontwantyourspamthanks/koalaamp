@@ -350,6 +350,16 @@ TEST_CASE("region returns empty for junk and keeps sections with <3 points out",
     CHECK(parseRegion("[Normal]\nNumPoints=4\nPointList=0,0 1,1\n").empty());
 }
 
+TEST_CASE("hasIniContent separates all-comment files from data files", "[se1][text]") {
+    // "Was there anything here a parser could have used?" — the difference
+    // between a placeholder/doc member and a member we failed to understand.
+    CHECK_FALSE(hasIniContent(""));
+    CHECK_FALSE(hasIniContent("; [Normal]\n; PointList=0,0 1,0 1,1\n"));
+    CHECK_FALSE(hasIniContent("   \n\n;\n"));
+    CHECK(hasIniContent("[Normal]\nNumPoints=4\n"));
+    CHECK(hasIniContent("NumPoints=4\n"));
+}
+
 // --- SkinSet assembly --------------------------------------------------------
 
 TEST_CASE("SkinSet assembles bitmaps and text with fallbacks logged",
@@ -396,6 +406,40 @@ TEST_CASE("SkinSet uses built-in colours when the text files are absent",
     CHECK(set->region.empty());
     CHECK_FALSE(set->hasSheet("TITLEBAR"));
     CHECK(set->isComplete());
+}
+
+TEST_CASE("SkinSet does not warn for a comment-only region.txt", "[se1][structured]") {
+    // The classic base skin ships exactly this: a REGION.TXT whose every line is
+    // a comment (documentation for skin authors). Winamp draws a rectangular
+    // window for it and reports nothing — so an empty region here is the correct
+    // parse, not a failure, and must not be reported as one.
+    const auto set = assembleSkinSet(
+        containerOf({member("main.bmp", solidSheet(275, 116, 1)),
+                     member("region.txt",
+                            bytesOf("; I stole this from the Complex skin\n"
+                                    "; [Normal]\n"
+                                    "; PointList=0,0 1,0 1,1\n"))}),
+        "commented-region.wsz");
+    REQUIRE(set.has_value());
+    CHECK(set->region.empty());
+    for (const auto& w : set->warnings) {
+        CHECK(w.find("region.txt") == std::string::npos);
+    }
+}
+
+TEST_CASE("SkinSet warns when region.txt carries data but no usable polygons",
+          "[se1][structured]") {
+    // Real content that yields no polygon is worth saying out loud.
+    const auto set = assembleSkinSet(
+        containerOf({member("main.bmp", solidSheet(275, 116, 1)),
+                     member("region.txt", bytesOf("[Normal]\nNumPoints=4\n"))}),
+        "bad-region.wsz");
+    REQUIRE(set.has_value());
+    bool warned = false;
+    for (const auto& w : set->warnings) {
+        warned = warned || (w.find("region.txt") != std::string::npos);
+    }
+    CHECK(warned);
 }
 
 TEST_CASE("SkinSet rejects containers without a usable main.bmp",

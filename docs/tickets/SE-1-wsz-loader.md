@@ -152,3 +152,4 @@ metadata ("—" = no author stated there).
 ## Notes / risks
 - RLE8 is the #1 real-world loader failure (skins.md §1.2 cites eversolo's measurement — Android's own decoder fails on these); dedicated hand-crafted RLE8 tests cover delta, absolute+pad, EOB and short streams before any library was trusted.
 - `region.txt` mismatched NumPoints/PointList *crashed real Winamp* — covered by `region survives a NumPoints/PointList mismatch` and the corpus harness, which asserts every retained polygon has ≥3 points.
+- A **comment-only** `region.txt` is not a parse failure: the classic base skin ships one (every line a `;` comment — it is documentation for skin authors), and Winamp draws a rectangular window for it. `hasIniContent` gates the "no usable polygons" warning on the file actually carrying a non-comment line, so the canonical skin launches silently (`SkinSet does not warn for a comment-only region.txt`, plus the matching warning case).

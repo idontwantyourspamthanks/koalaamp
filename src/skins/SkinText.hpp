@@ -48,6 +48,14 @@ struct Rgb {
 using IniSections = std::map<std::string, std::map<std::string, std::string>>;
 IniSections parseIni(std::string_view text);
 
+/// True when `text` holds at least one non-comment, non-blank line — a file that
+/// carries data some parser could have used, rather than only comments/blank
+/// lines. Distinguishes "the skin shipped a placeholder, all-comments file"
+/// (the classic base skin's REGION.TXT is exactly that: docs with every line
+/// commented, and Winamp draws a rectangular window) from "this file has data
+/// we failed to understand" — only the latter is worth a warning.
+bool hasIniContent(std::string_view text);
+
 /// `viscolor.txt`: exactly 24 colours (spectrum gradient, oscilloscope, peak).
 struct VisColor {
     static constexpr std::size_t kCount = 24;
