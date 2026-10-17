@@ -152,20 +152,18 @@ void drawTitleBand(const Skin& skin, QPainter& painter, const PleditState& state
     const QRect left = pleditTopLeftCorner(state);
     const QRect right = pleditTopRightCorner(state);
     const QRect title = pleditTitleBar(state);
-    const int width = pleditWidth(state);
-    const bool spacers = state.widthSegments % 2 == 0;
-    const int leftSpacer = spacers ? 12 : 0;
-    const int rightSpacer = spacers ? 13 : 0;
-    const int flex = std::max(0, width - 25 - 25 - 100 - leftSpacer - rightSpacer);
-    const int leftFill = flex / 2;
-    const QRect leftFillRect(25 + leftSpacer, 0, leftFill, kPleditTopHeight);
-    const QRect rightFillRect(title.right() + 1 + rightSpacer, 0,
-                              std::max(0, right.left() - title.right() - 1 - rightSpacer),
-                              kPleditTopHeight);
 
+    // Tile the whole band between the corners, then lay the corners and the
+    // opaque 100 px title strip over it. The strip hides the tiles beneath it,
+    // and the tile is a horizontal-stripe pattern with no horizontal structure
+    // at all, so its phase is irrelevant — tiling the entire span is exactly the
+    // art. Filling only the two regions *beside* the strip (offset by the 12/13
+    // px spacers) painted the spacer columns with nothing, and the canvas
+    // background showed through as two black bars in the title band: 12 px at
+    // x 25-36 and 13 px at x 187-199 at the minimum width.
     const char* tile = selected ? "PLAYLIST_TOP_TILE_SELECTED" : "PLAYLIST_TOP_TILE";
-    drawTilesH(skin, painter, tile, leftFillRect, true);
-    drawTilesH(skin, painter, tile, rightFillRect, true);
+    drawTilesH(skin, painter, tile, QRect(25, 0, std::max(0, right.left() - 25), kPleditTopHeight),
+               false);
     skin.blit(painter, kSheet,
               selected ? "PLAYLIST_TOP_LEFT_SELECTED" : "PLAYLIST_TOP_LEFT_CORNER", left.x(),
               left.y());

@@ -222,6 +222,35 @@ TEST_CASE("SE-3 renders the right size in every layout", "[se3][render][fixture]
     CHECK(frameHash(render(*base)) == frameHash(render(*base)));
 }
 
+TEST_CASE("SE-3 paints every column of the title band", "[se3][render][fixture]") {
+    if (fixtureSkin() == nullptr) {
+        SKIP("fixture missing — run spikes/fe3_wsz/fetch-skin.sh");
+    }
+    // Regression guard: the band between the corners is covered by the tiles, the
+    // opaque 100 px title strip and the corner buttons. Filling only the regions
+    // *beside* the strip left the 12/13 px spacer columns unpainted, so the canvas
+    // fill showed through as two black bars in the title band.
+    const PleditColors colors = pleditGoldenColors();
+    const QColor background(colors.normalBg.r, colors.normalBg.g, colors.normalBg.b);
+    for (const auto& [name, state] : pleditGoldenMatrix()) {
+        if (state.shade) {
+            continue;  // the shaded band is a different, fully tiled layout
+        }
+        INFO("state " << name);
+        const QImage frame = render(state);
+        const QRect left = pleditTopLeftCorner(state);
+        const QRect right = pleditTopRightCorner(state);
+        for (int x = left.right() + 1; x < right.left(); ++x) {
+            bool painted = false;
+            for (int y = 0; y < kPleditTopHeight; ++y) {
+                painted = painted || frame.pixelColor(x, y) != background;
+            }
+            INFO("unpainted column x=" << x);
+            CHECK(painted);
+        }
+    }
+}
+
 TEST_CASE("SE-3 integer 2x is the exact nearest-neighbour double of 1x",
           "[se3][render][fixture]") {
     if (fixtureSkin() == nullptr) {
