@@ -319,7 +319,16 @@ TEST_CASE("PlaybackCore: WAV transport through the full chain", "[fe4][core][tra
     REQUIRE(waitFor([&] { return core.metrics().framesDecoded > 0; }));
     REQUIRE(waitFor([&] { return core.state() == PlaybackState::Playing; }, 2s));
 
-    const auto first = core.metrics();
+    // The tap's RMS is only meaningful once the ring holds signal instead of the
+    // pre-roll silence it was constructed with, so wait for it to settle and keep
+    // the snapshot that satisfied the wait. Reading a fresh metric here is what
+    // made this flaky under load: the mean of a half-empty ring lands well below
+    // the sine's own 0.3536, and the bound below is 0.3.
+    auto first = core.metrics();
+    REQUIRE(waitFor([&] {
+        first = core.metrics();
+        return first.pcmRms > 0.3;
+    }));
     INFO("backend=" << first.outputBackend << " ringFrames=" << first.ringFrames
                     << " decoded=" << first.framesDecoded << " dropped=" << first.framesDropped);
     CHECK(first.framesDecoded > 0);       // the tap got PCM (PCM flowed)
