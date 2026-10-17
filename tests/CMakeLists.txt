@@ -327,6 +327,21 @@ target_link_libraries(koalaamp_vz1_tests PRIVATE Catch2::Catch2WithMain koalaamp
 catch_discover_tests(koalaamp_vz1_tests)
 message(STATUS "KoalaAmp: VZ-1 visualizer plumbing tests enabled")
 
+# VZ-1: the engine seam's headless contract — the factory, the no-GL-context failure
+# path, and out-of-order driving. The real render check is not here on purpose: these
+# tests run offscreen while GL needs a real server (FE-14 used xvfb-run + llvmpipe).
+add_executable(koalaamp_vz1_engine_tests vz1_engine_test.cpp)
+koalaamp_enable_warnings(koalaamp_vz1_engine_tests)
+target_link_libraries(koalaamp_vz1_engine_tests PRIVATE Catch2::Catch2WithMain
+    koalaamp_interop_projectm)
+if(KOALAAMP_HAS_PROJECTM)
+    # The vendored .so is not on the loader's search path.
+    set_target_properties(koalaamp_vz1_engine_tests PROPERTIES
+        BUILD_RPATH "${KOALAAMP_PROJECTM_LIBDIR}")
+endif()
+catch_discover_tests(koalaamp_vz1_engine_tests)
+message(STATUS "KoalaAmp: VZ-1 engine seam tests enabled")
+
 # PL-1: playlist formats. The unit suite (round-trip, byte-exact M3U8 emission,
 # leniency corpus, index, autosave) and the fuzz pass are Qt-free and link only
 # the Qt-free `koalaamp_playlist` module — the fuzz binary is the ASAN/UBSAN

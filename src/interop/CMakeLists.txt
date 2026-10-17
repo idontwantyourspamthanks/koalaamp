@@ -28,3 +28,9 @@ else()
     message(STATUS "KoalaAmp: libvlc not found — FE-2 spike targets disabled "
         "(install libvlc-dev / run scripts/vendor-deps.sh)")
 endif()
+
+# --- projectM (VZ-1) --------------------------------------------------------
+# The visualizer's engine façade (IVisualizerEngine + the projectM backend). A stub
+# when libprojectM is not vendored, so the build stays green on machines and CI jobs
+# without it; consumers check KOALAAMP_HAS_PROJECTM / engineAvailable().
+add_subdirectory(projectm)
