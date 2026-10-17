@@ -257,10 +257,14 @@ void drawBottom(const Skin& skin, QPainter& painter, const PleditState& state,
     const QRect tileRegion(left.right() + 1, bottom.top(),
                            std::max(0, right.left() - left.right() - 1), kPleditBottomHeight);
     drawTilesH(skin, painter, "PLAYLIST_BOTTOM_TILE", tileRegion, false);
-    skin.blit(painter, kSheet, "PLAYLIST_BOTTOM_LEFT_CORNER", left.x(), left.y());
-    skin.blit(painter, kSheet, "PLAYLIST_BOTTOM_RIGHT_CORNER", right.x(), right.y());
+    // The vis strip belongs to the band's middle, and the corner art is opaque:
+    // draw it first so the 125 px button corner covers it at the minimum width,
+    // where the band is exactly the two corners and there is no middle at all.
+    // The strip appears as soon as the window is dragged wider.
     skin.blit(painter, kSheet, "PLAYLIST_VISUALIZER_BACKGROUND", pleditVisualizer(state).x(),
               pleditVisualizer(state).y());
+    skin.blit(painter, kSheet, "PLAYLIST_BOTTOM_LEFT_CORNER", left.x(), left.y());
+    skin.blit(painter, kSheet, "PLAYLIST_BOTTOM_RIGHT_CORNER", right.x(), right.y());
 
     // Running total time (right-padded to 18 cells) and the mini track time.
     long totalMs = 0;
@@ -385,7 +389,14 @@ QRect pleditBottom(const PleditState& state) {
                  pleditWidth(state), kPleditBottomHeight);
 }
 
-QRect pleditBottomLeft(const PleditState&) { return QRect(0, 0, 125, kPleditBottomHeight); }
+QRect pleditBottomLeft(const PleditState& state) {
+    // The left corner is the 125 px chunk of the band art that carries the baked
+    // ADD/REM/SEL/MISC buttons — it must sit IN the band. (It used to return y=0,
+    // which painted the whole button strip over the title bar and left the band's
+    // left side empty: the pledit looked like a pile of loose art.)
+    const QRect bottom = pleditBottom(state);
+    return QRect(0, bottom.top(), 125, kPleditBottomHeight);
+}
 
 QRect pleditBottomRight(const PleditState& state) {
     const QRect bottom = pleditBottom(state);

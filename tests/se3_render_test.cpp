@@ -131,6 +131,41 @@ TEST_CASE("SE-3 playlist geometry tiles in 25x29 segments", "[se3][geometry]") {
     CHECK(grip.bottom() == pleditHeight(state) - 1);
 }
 
+TEST_CASE("SE-3 bottom-band pieces all live in the bottom band", "[se3][geometry]") {
+    // Regression guard: every piece painted into the band must sit inside it.
+    // The 125 px left corner carries the baked ADD/REM/SEL/MISC buttons, so
+    // painting it anywhere else peels the button strip off the band and plaster
+    // it over the title bar — `pleditBottomLeft` returned QRect(0, 0, 125, 38)
+    // (a band y of zero), which is exactly how the playlist window came to look
+    // like a pile of loose art.
+    for (const int widthSegments : {0, 1, 2, 5}) {
+        for (const int heightSegments : {0, 1, 3}) {
+            PleditState state;
+            state.widthSegments = widthSegments;
+            state.heightSegments = heightSegments;
+            const QRect band = pleditBottom(state);
+            CAPTURE(widthSegments, heightSegments);
+
+            const std::vector<QRect> pieces = {
+                pleditBottomLeft(state),     pleditBottomRight(state),
+                pleditVisualizer(state),     pleditRunningTime(state),
+                pleditMiniTime(state),       pleditResizeGrip(state),
+                pleditMenuButton(state, 0),  pleditMenuButton(state, 3),
+                pleditActionButton(state, 0), pleditActionButton(state, 5),
+            };
+            for (const QRect& piece : pieces) {
+                CHECK(piece.top() >= band.top());
+                CHECK(piece.bottom() <= band.bottom());
+            }
+
+            // The button corner is the band's left 125 px, flush with its top.
+            CHECK(pleditBottomLeft(state).left() == 0);
+            CHECK(pleditBottomLeft(state).top() == band.top());
+            CHECK(pleditBottomLeft(state).width() == 125);
+        }
+    }
+}
+
 TEST_CASE("SE-3 row visuals encode selected / current / queued / hover",
           "[se3][geometry]") {
     const PleditColors colors = pleditGoldenColors();
