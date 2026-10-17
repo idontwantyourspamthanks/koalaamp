@@ -105,11 +105,26 @@ done
 
 if [ "$have_skin" -eq 0 ]; then
     base_skin=third_party/skins/base-2.91.wsz
-    config_dir=${XDG_CONFIG_HOME:-$HOME/.config}/KoalaAmp/KoalaAmp
-    if [ -f "$base_skin" ]; then
+    # The app's config dir: Qt uses ~/.config/<org>/<app> on Linux (honouring
+    # XDG_CONFIG_HOME) and ~/Library/Preferences/<org>/<app> on macOS.
+    remembered=0
+    for config_dir in "${XDG_CONFIG_HOME:-$HOME/.config}/KoalaAmp/KoalaAmp" \
+                      "$HOME/Library/Preferences/KoalaAmp/KoalaAmp"; do
+        # Only trust the entry if the skin it names is still there: a moved or
+        # deleted skin would otherwise leave the app with nothing to load and
+        # only a stderr line to show for it, when we could have passed a skin
+        # that works. Relative entries resolve against the repo root, which is
+        # where this script already sits.
+        current=$(awk -F'\t' '$1 == "current" { print $2; exit }' \
+                  "$config_dir/skindb.txt" 2>/dev/null || true)
+        if [ -n "$current" ] && [ -e "$current" ]; then
+            remembered=1
+        fi
+    done
+    if [ "$remembered" -eq 1 ]; then
+        : # the app restores the remembered skin itself; passing one overrides it
+    elif [ -f "$base_skin" ]; then
         set -- "$@" --skin "$base_skin"
-    elif grep -qs '^current' "$config_dir/skindb.txt"; then
-        : # the app restores the remembered skin itself
     elif [ -x spikes/fe3_wsz/fetch-skin.sh ]; then
         echo "run.sh: fetching the classic base skin (third_party/ is not committed)"
         spikes/fe3_wsz/fetch-skin.sh || echo "run.sh: fetch failed — pass --skin <file.wsz>" >&2
