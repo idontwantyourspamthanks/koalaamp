@@ -24,6 +24,7 @@
 #if defined(KOALAAMP_HAS_GL_VISUALIZER)
 #include "ui/VisualizerWindow.hpp"
 #endif
+#include "ui/PcmFanout.hpp"
 
 #include <cstdio>
 #include <filesystem>
@@ -175,8 +176,18 @@ int main(int argc, char** argv) {
     dsp->setSettings(startupDsp);
     auto eqSink = std::make_unique<koalaamp::ui::DspEqSink>(*dsp);
     auto albumEqStore = std::make_unique<koalaamp::audio::AlbumEqStore>();
+    // VZ-1: the visualizer consumes the same post-DSP samples as the main window's
+    // spectrum. It joins as a second reader of a fan-out after the DSP — installing
+    // another engine tap would replace the DSP chain instead of adding a reader
+    // (PcmFanout's rule). Declaration order matters: the fan-out outlives the
+    // transport that captures its callback.
+    koalaamp::ui::PcmFanout pcmFanout;
+    pcmFanout.add(window.visFeed().callback());
+#if defined(KOALAAMP_HAS_GL_VISUALIZER)
+    pcmFanout.add(visualizer.canvas().pcmCallback());
+#endif
     auto transport = std::make_unique<koalaamp::ui::PlaybackCoreTransport>(
-        *core, window.visFeed(), dsp->makeCallback(window.visFeed().callback()));
+        *core, window.visFeed(), dsp->makeCallback(pcmFanout.callback()));
     window.setTransport(transport.get());
     playlist.setTransport(transport.get());
     equalizer.setEqSink(eqSink.get());

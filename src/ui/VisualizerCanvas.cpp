@@ -74,6 +74,14 @@ void VisualizerCanvas::pushSizeToEngine() {
                     std::max(1, static_cast<int>(height() * ratio)));
 }
 
+playback::IAudioEngine::PcmCb VisualizerCanvas::pcmCallback() {
+    return [this](const float* interleaved, std::size_t frames,
+                  const playback::PcmFormat& format) {
+        // Audio thread: no allocation, no lock, no GUI.
+        m_ring.push(interleaved, frames, format.channels);
+    };
+}
+
 void VisualizerCanvas::requestPreset(const std::string& path) {
     m_pendingPreset = path;
     update();  // paintGL applies it, with the context current

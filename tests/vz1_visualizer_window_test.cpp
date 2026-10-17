@@ -26,7 +26,10 @@
 
 #include "interop/projectm/VisualizerEngine.hpp"
 #include "skins/SkinSet.hpp"
+#include "playback/IAudioEngine.hpp"
 #include "ui/GenRenderer.hpp"
+#include "ui/PcmFanout.hpp"
+#include "ui/VisualizerCanvas.hpp"
 #include "ui/VisualizerWindow.hpp"
 
 namespace {
@@ -34,8 +37,11 @@ namespace {
 using koalaamp::interop::visualizer::IVisualizerEngine;
 using koalaamp::interop::visualizer::createEngine;
 using koalaamp::interop::visualizer::engineAvailable;
+using koalaamp::playback::PcmFormat;
 using koalaamp::ui::genLayout;
 using koalaamp::ui::genSnapSize;
+using koalaamp::ui::PcmFanout;
+using koalaamp::ui::VisualizerCanvas;
 using koalaamp::ui::VisualizerWindow;
 
 /// The engine a build without libprojectM hands the window: present, honest
@@ -102,6 +108,11 @@ TEST_CASE("VZ-1 the visualizer window is a gen window hosting the app's canvas",
 }
 
 TEST_CASE("VZ-1 the visualizer window wears the skin's gen frame", "[vz1][viswindow]") {
+    // CI has no skins (they are fetched locally), so a missing fixture skips rather
+    // than fails — the SE-2/SE-3 pattern.
+    if (!std::filesystem::exists(std::filesystem::path(KOALAAMP_SE2_SKIN))) {
+        SKIP("skin fixture missing — run spikes/fe3_wsz/fetch-skin.sh");
+    }
     const auto skinSet = koalaamp::skins::loadSkinSet(KOALAAMP_SE2_SKIN);
     REQUIRE(skinSet.has_value());
     REQUIRE(skinSet->hasSheet("GEN"));
@@ -125,6 +136,9 @@ TEST_CASE("VZ-1 the visualizer window wears the skin's gen frame", "[vz1][viswin
 TEST_CASE("VZ-1 a skin without gen.bmp gets the designed fallback frame", "[vz1][viswindow]") {
     // A real corpus skin that omits gen.bmp — the case the fallback exists for.
     const auto corpus = std::filesystem::path(KOALAAMP_CORPUS_DIR);
+    if (!std::filesystem::exists(corpus)) {
+        SKIP("corpus missing — run scripts/fetch-corpus.sh");
+    }
     std::optional<koalaamp::skins::SkinSet> skinSet;
     for (const auto& entry : std::filesystem::directory_iterator(corpus)) {
         if (entry.path().extension() != ".wsz") {
@@ -136,6 +150,7 @@ TEST_CASE("VZ-1 a skin without gen.bmp gets the designed fallback frame", "[vz1]
             break;
         }
     }
+    INFO("picked a corpus skin without gen.bmp");
     REQUIRE(skinSet.has_value());
     REQUIRE_FALSE(skinSet->hasSheet("GEN"));
 
@@ -222,6 +237,34 @@ TEST_CASE("VZ-1 the visualizer window drags, closes and scales like a Winamp win
 
     window.setAlwaysOnTop(true);
     CHECK(window.isAlwaysOnTop());
+}
+
+TEST_CASE("VZ-1 the canvas's callback is the visualizer's end of the PCM fan-out",
+          "[vz1][window]") {
+    auto engine = createEngine();
+    VisualizerCanvas canvas(*engine);
+
+    // The fan-out is how the visualizer gets post-DSP audio without becoming a
+    // second engine tap; the canvas's callback fills the ring paintGL drains.
+    koalaamp::ui::PcmFanout fanout;
+    fanout.add(canvas.pcmCallback());
+
+    PcmFormat format;
+    format.channels = 2;
+    const std::vector<float> stereo{0.5F, -0.5F, 0.25F, -0.25F, 0.125F, -0.125F};
+    fanout.callback()(stereo.data(), 3, format);
+
+    std::vector<float> out(6, 0.0F);
+    REQUIRE(canvas.pcmRing().readNew(out.data(), 3) == 3);
+    CHECK(out == stereo);
+
+    // Mono is duplicated into both channels (MilkDrop is a stereo effect).
+    format.channels = 1;
+    const std::vector<float> mono{1.0F, 0.0F};
+    fanout.callback()(mono.data(), 2, format);
+    std::vector<float> monoOut(4, 0.0F);
+    REQUIRE(canvas.pcmRing().readNew(monoOut.data(), 2) == 2);
+    CHECK(monoOut == std::vector<float>{1.0F, 1.0F, 0.0F, 0.0F});
 }
 
 int main(int argc, char** argv) {

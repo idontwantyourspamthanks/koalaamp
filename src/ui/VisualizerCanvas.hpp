@@ -29,6 +29,7 @@
 #include <string>
 #include <vector>
 
+#include "playback/IAudioEngine.hpp"
 #include "ui/StereoPcmRing.hpp"
 
 namespace koalaamp::interop::visualizer {
@@ -50,6 +51,11 @@ public:
     /// The ring the app's PCM fan-out writes into — producer: the audio thread,
     /// consumer: paintGL.
     StereoPcmRing& pcmRing() { return m_ring; }
+
+    /// The callback to hand to `PcmFanout`: it pushes the same post-DSP frames the
+    /// spectrum sees into `pcmRing()`. Audio-thread rules apply (no allocation, no
+    /// lock, no GUI) — see StereoPcmRing.
+    playback::IAudioEngine::PcmCb pcmCallback();
 
     /// Ask for a preset. Applied on the next paintGL, with the GL context current.
     void requestPreset(const std::string& path);

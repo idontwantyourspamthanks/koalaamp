@@ -23,7 +23,13 @@ The production visualizer: a skin-chromed window where projectM renders the user
   FE-14 §10 (masked toplevel) remains the answer for any skin that ever shapes one, and its
   macOS/Windows gap applies unchanged. Not yet in `WindowSet` (no snapping/persistence — spec §5.3
   "Vis Phase 1.5"). Suite `koalaamp_vz1_viswindow_tests` (5 cases)._
-- [ ] PCM wiring: PcmTap ring buffer → `projectm_pcm_add_float` (interleaved L/R) throttled to ~30Hz or per-frame; same post-DSP feed as the main-window spectrum. — _The engine-side half landed: `pushPcm` takes interleaved float stereo and chunks internally without allocating; the canvas drains its ring per frame. The PcmTap producer is not wired yet._
+- [x] PCM wiring: PcmTap ring buffer → `projectm_pcm_add_float` (interleaved L/R) throttled to ~30Hz or
+  per-frame; same post-DSP feed as the main-window spectrum. — _There is no `PcmTap` type: the seam is
+  `PcmFanout` (`src/ui/PcmFanout.hpp`), and the app now installs
+  `dsp.makeCallback(pcmFanout.callback())` with the spectrum's VisFeed and the canvas as consumers
+  (`VisualizerCanvas::pcmCallback()`, `src/main.cpp`) — the visualizer sees the same post-DSP samples,
+  and a second reader can never replace the DSP chain. The canvas drains its ring per frame in
+  `paintGL`; `ProjectMEngine::pushPcm` chunks without allocating and calls `projectm_pcm_add_float`._
 - [ ] Preset store: user folders watched (QFileSystemWatcher) + recursive scan for `.milk`/`.milk2`; the shipped starter pack (RL-1-cleared subset); preset metadata cache for instant cycling.
 - [ ] Cycling: random / ordered / locked; next/prev hotkeys + on-screen skinned control; preset name overlay on switch (Winamp-style, auto-fade).
 - [ ] Hot-swap: `projectm_load_preset_file` without window/context teardown (FE-14's measured switch cost as the budget).
