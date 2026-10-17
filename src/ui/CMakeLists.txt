@@ -86,7 +86,13 @@ target_link_libraries(koalaamp_ui
 # types; without libprojectM the faade supplies its stub, so this is always safe.
 find_package(Qt6 QUIET COMPONENTS OpenGLWidgets)
 if(TARGET Qt6::OpenGLWidgets)
-    target_sources(koalaamp_ui PRIVATE VisualizerCanvas.cpp VisualizerCanvas.hpp)
+    target_sources(koalaamp_ui PRIVATE
+        GenRenderer.cpp
+        GenRenderer.hpp
+        VisualizerCanvas.cpp
+        VisualizerCanvas.hpp
+        VisualizerWindow.cpp
+        VisualizerWindow.hpp)
     # koalaamp_interop is only for the seam header's include path: the canvas takes
     # its engine from the caller, so this module never links the rendering back end
     # (and its third-party headers stay out of every UI consumer).

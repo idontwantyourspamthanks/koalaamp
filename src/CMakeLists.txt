@@ -26,3 +26,12 @@ if(TARGET koalaamp_ui_playback)
     target_link_libraries(koalaamp PRIVATE koalaamp_ui_playback)
     target_compile_definitions(koalaamp PRIVATE KOALAAMP_HAS_PLAYBACK_CORE=1)
 endif()
+# VZ-1: the app creates the visualizer's engine (the UI layer never links the back
+# end), so the facade - and with it libprojectM, or its stub - is linked here.
+if(KOALAAMP_HAS_GL_VISUALIZER AND TARGET koalaamp_interop_projectm)
+    target_link_libraries(koalaamp PRIVATE koalaamp_interop_projectm)
+    if(KOALAAMP_HAS_PROJECTM)
+        set_target_properties(koalaamp PROPERTIES
+            BUILD_RPATH "${KOALAAMP_PROJECTM_LIBDIR}")
+    endif()
+endif()

@@ -376,6 +376,30 @@ if(KOALAAMP_HAS_GL_VISUALIZER)
     message(STATUS "KoalaAmp: VZ-1 window tests enabled")
 endif()
 
+# VZ-1: the visualizer window itself - the gen frame (skinned, or the designed
+# fallback), the canvas host, Winamp close/drag/scale, and the no-projectM state.
+# Offscreen like the other widget suites; the real GL render is FE-14's xvfb path.
+if(KOALAAMP_HAS_GL_VISUALIZER)
+    add_executable(koalaamp_vz1_viswindow_tests vz1_visualizer_window_test.cpp)
+    koalaamp_enable_warnings(koalaamp_vz1_viswindow_tests)
+    target_link_libraries(koalaamp_vz1_viswindow_tests PRIVATE Catch2::Catch2WithMain koalaamp_ui
+        koalaamp_interop_projectm)
+    target_compile_definitions(koalaamp_vz1_viswindow_tests PRIVATE
+        "KOALAAMP_SE2_SKIN=\"${CMAKE_SOURCE_DIR}/third_party/skins/base-2.91.wsz\""
+        "KOALAAMP_CORPUS_DIR=\"${CMAKE_SOURCE_DIR}/third_party/skins-corpus\"")
+    if(KOALAAMP_HAS_PROJECTM)
+        set_target_properties(koalaamp_vz1_viswindow_tests PROPERTIES
+            BUILD_RPATH "${KOALAAMP_PROJECTM_LIBDIR}")
+        catch_discover_tests(koalaamp_vz1_viswindow_tests PROPERTIES
+            DISCOVERY_MODE PRE_TEST
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    else()
+        catch_discover_tests(koalaamp_vz1_viswindow_tests PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    endif()
+    message(STATUS "KoalaAmp: VZ-1 visualizer window tests enabled")
+endif()
+
 # PL-1: playlist formats. The unit suite (round-trip, byte-exact M3U8 emission,
 # leniency corpus, index, autosave) and the fuzz pass are Qt-free and link only
 # the Qt-free `koalaamp_playlist` module — the fuzz binary is the ASAN/UBSAN

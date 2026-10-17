@@ -13,7 +13,16 @@ The production visualizer: a skin-chromed window where projectM renders the user
   `StereoPcmRing` on its own ~60fps frame clock and applies queued preset loads inside
   `paintGL`. — _`src/interop/projectm/`, `src/ui/VisualizerCanvas.*`; suites
   `koalaamp_vz1_engine_tests` and `koalaamp_vz1_window_tests`._
-- [ ] `VisualizerWindow` with the hosting mode FE-14 recorded (masked vs unmasked toplevel); skin chrome from `gen`/visspec-class bitmaps with designed fallback.
+- [x] `VisualizerWindow` with the hosting mode FE-14 recorded (masked vs unmasked toplevel); skin
+  chrome from `gen`/visspec-class bitmaps with designed fallback. — _`src/ui/VisualizerWindow.{hpp,cpp}`
+  on `src/ui/GenRenderer.{hpp,cpp}`: the tiled gen frame (25 px title/bottom tiles, 29 px side
+  borders, close box, title in the skin font) and a designed fallback for the many skins that omit
+  `gen.bmp`. The canvas fills the client rect and the engine is injected, so the UI never links the
+  back end. App wiring in `src/main.cpp`: the clutterbar V toggles the window, its close box hides
+  it, `--always-on-top` covers it. Hosting: a gen frame is rectangular, so this window is unmasked —
+  FE-14 §10 (masked toplevel) remains the answer for any skin that ever shapes one, and its
+  macOS/Windows gap applies unchanged. Not yet in `WindowSet` (no snapping/persistence — spec §5.3
+  "Vis Phase 1.5"). Suite `koalaamp_vz1_viswindow_tests` (5 cases)._
 - [ ] PCM wiring: PcmTap ring buffer → `projectm_pcm_add_float` (interleaved L/R) throttled to ~30Hz or per-frame; same post-DSP feed as the main-window spectrum. — _The engine-side half landed: `pushPcm` takes interleaved float stereo and chunks internally without allocating; the canvas drains its ring per frame. The PcmTap producer is not wired yet._
 - [ ] Preset store: user folders watched (QFileSystemWatcher) + recursive scan for `.milk`/`.milk2`; the shipped starter pack (RL-1-cleared subset); preset metadata cache for instant cycling.
 - [ ] Cycling: random / ordered / locked; next/prev hotkeys + on-screen skinned control; preset name overlay on switch (Winamp-style, auto-fade).

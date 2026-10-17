@@ -21,6 +21,9 @@
 #include "ui/EqWindow.hpp"
 #include "ui/WindowPlatform.hpp"
 #include "ui/WindowSet.hpp"
+#if defined(KOALAAMP_HAS_GL_VISUALIZER)
+#include "ui/VisualizerWindow.hpp"
+#endif
 
 #include <cstdio>
 #include <filesystem>
@@ -93,6 +96,13 @@ int main(int argc, char** argv) {
     koalaamp::ui::MainWindow window;
     koalaamp::ui::PlaylistWindow playlist;
     koalaamp::ui::EqWindow equalizer;
+#if defined(KOALAAMP_HAS_GL_VISUALIZER)
+    // VZ-1: the visualizer's engine is created here and handed to the window. The
+    // UI layer never links the rendering back end; a build without libprojectM
+    // still gets a window that says the visualizer is unavailable.
+    auto visualizerEngine = koalaamp::interop::visualizer::createEngine();
+    koalaamp::ui::VisualizerWindow visualizer(*visualizerEngine);
+#endif
     koalaamp::ui::WindowSet windowSet(window, equalizer, playlist);
 
     // The skin DB carries both the last-used skin and the per-skin window
@@ -128,6 +138,19 @@ int main(int argc, char** argv) {
                      "          (the classic fixture is fetched by "
                      "spikes/fe3_wsz/fetch-skin.sh)\n");
     }
+
+#if defined(KOALAAMP_HAS_GL_VISUALIZER)
+    if (skinSet.has_value()) {
+        visualizer.setSkin(&*skinSet);
+    }
+    // The clutterbar's V toggles the visualizer, and its close box hides it — the
+    // classic behaviour. The window is not in WindowSet yet (the spec's "Vis Phase
+    // 1.5"), so it neither snaps nor persists its position.
+    QObject::connect(&window, &koalaamp::ui::MainWindow::visualizerToggled, &visualizer,
+                     &QWidget::setVisible);
+    QObject::connect(&visualizer, &koalaamp::ui::VisualizerWindow::closeRequested, &visualizer,
+                     &QWidget::hide);
+#endif
 
 #ifdef KOALAAMP_HAS_PLAYBACK_CORE
     koalaamp::playback::PlaybackConfig config;
@@ -259,6 +282,9 @@ int main(int argc, char** argv) {
     windowSet.attach();
     if (parser.isSet(alwaysOnTopOption)) {
         windowSet.setKeepOnTop(true);
+#if defined(KOALAAMP_HAS_GL_VISUALIZER)
+        visualizer.setAlwaysOnTop(true);
+#endif
     }
     const bool restored = !skinPath.empty() && windowSet.restoreLayout(skinDb, skinPath);
     if (!restored) {

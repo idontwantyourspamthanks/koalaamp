@@ -89,6 +89,13 @@ and adapted with attribution in the file header, not linked.
     description, with attribution in the file header. The filter math,
     ReplayGain arithmetic and limiter are original. No WCL/Winamp source was
     consulted.
+  - **Webamp** (MIT) — VZ-1's gen-window frame (`src/ui/GenRenderer.cpp`) uses
+    the classic *tiling steps* documented in `docs/research/skins.md` §1.4,
+    which cites Webamp's `constants.ts` (`WINDOW_RESIZE_SEGMENT_WIDTH` 25 /
+    `WINDOW_RESIZE_SEGMENT_HEIGHT` 29); the sprite coordinates themselves come
+    from the already-attributed SE-1 sprite table. The frame composition (which
+    piece tiles where) and the designed fallback are original, as is the
+    visualizer window. No WCL/Winamp source was consulted.
 - The Nullsoft `base-2.91.wsz` skin artwork is **not shipped or committed**; the
   FE-3/SE-1 fixtures fetch it locally (MD5-pinned) into gitignored
   `third_party/skins/` via `spikes/fe3_wsz/fetch-skin.sh`. SE-1's 30-skin
