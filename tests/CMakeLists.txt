@@ -318,6 +318,15 @@ catch_discover_tests(koalaamp_se4_snap_tests PROPERTIES
     TIMEOUT 180)
 message(STATUS "KoalaAmp: SE-4 Part B snap/dock tests enabled")
 
+# VZ-1: the visualizer's PCM plumbing — the fan-out that gives the visualizer's
+# ring a second reader of the DSP output (never a second setPcmCallback), and the
+# stereo ring projectM is fed from. Qt-free logic; links the UI lib for the types.
+add_executable(koalaamp_vz1_tests vz1_test.cpp)
+koalaamp_enable_warnings(koalaamp_vz1_tests)
+target_link_libraries(koalaamp_vz1_tests PRIVATE Catch2::Catch2WithMain koalaamp_ui)
+catch_discover_tests(koalaamp_vz1_tests)
+message(STATUS "KoalaAmp: VZ-1 visualizer plumbing tests enabled")
+
 # PL-1: playlist formats. The unit suite (round-trip, byte-exact M3U8 emission,
 # leniency corpus, index, autosave) and the fuzz pass are Qt-free and link only
 # the Qt-free `koalaamp_playlist` module — the fuzz binary is the ASAN/UBSAN

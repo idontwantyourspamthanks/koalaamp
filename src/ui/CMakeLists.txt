@@ -27,6 +27,7 @@ add_library(koalaamp_ui STATIC
     MainWindow.hpp
     MediaName.cpp
     MediaName.hpp
+    PcmFanout.hpp
     PlayerRenderer.cpp
     PlayerRenderer.hpp
     PlayerState.hpp
@@ -48,6 +49,8 @@ add_library(koalaamp_ui STATIC
     SkinHitRegion.hpp
     SkinnedWindow.cpp
     SkinnedWindow.hpp
+    StereoPcmRing.cpp
+    StereoPcmRing.hpp
     TitleText.cpp
     TitleText.hpp
     Transport.hpp
