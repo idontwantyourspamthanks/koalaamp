@@ -27,6 +27,7 @@
 #include <memory>
 #include <string>
 #include <string_view>
+#include <vector>
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -157,6 +158,26 @@ int main(int argc, char** argv) {
     playlist.setTransport(transport.get());
     equalizer.setEqSink(eqSink.get());
     equalizer.setAlbumEqStore(albumEqStore.get());
+
+    // The windows follow the engine through the transport's signals, which exist
+    // for exactly this. Without these connections the UI only re-reads the
+    // transport when the user presses something, and the player's tick timer —
+    // the other thing that polls — starts only while something is already
+    // animating: a track that begins playing asynchronously therefore never
+    // showed a time or a position, and the progress bar stayed empty.
+    const auto followTransport = [transport = transport.get()](auto* window) {
+        const auto sync = [window](auto&&...) { window->syncFromTransport(); };
+        QObject::connect(transport, &koalaamp::ui::PlaybackCoreTransport::stateChanged, window,
+                         sync);
+        QObject::connect(transport, &koalaamp::ui::PlaybackCoreTransport::trackChanged, window,
+                         sync);
+        QObject::connect(transport, &koalaamp::ui::PlaybackCoreTransport::positionChanged, window,
+                         sync);
+        QObject::connect(transport, &koalaamp::ui::PlaybackCoreTransport::volumeChanged, window,
+                         sync);
+    };
+    followTransport(&window);
+    followTransport(&playlist);
 #else
     (void)nullAudioOption;
 #endif
@@ -199,6 +220,38 @@ int main(int argc, char** argv) {
                              playlist.savePlaylist(file.toStdString());
                          }
                      });
+
+    // SE-3: the playlist's "add media" verbs. The pledit ADD menu, its transport
+    // eject button and Play-with-an-empty-list all emit `mediaOpenRequested`;
+    // the window hosts no dialog, and nothing else connected it, so those
+    // controls were dead (drag-and-drop was the only way in). The host owns the
+    // dialog here, exactly like the playlist open/save verbs above.
+    //
+    // Only this one signal needs the host: `MainWindow::openFiles()` (its eject
+    // button / L key) already opens its own dialog and plays the chosen file,
+    // and emits `ejectRequested()` merely as a notification — connecting that
+    // here would open a second dialog. `MainWindow::mediaOpenRequested` fires
+    // only when there is no playback core, and no dialog is opened on that path.
+    const QString mediaFilter = QStringLiteral(
+        "Media files (*.mp3 *.m4a *.aac *.flac *.ogg *.oga *.opus *.wav *.aiff *.ape *.wv "
+        "*.wma *.mka *.mod *.xm *.it *.s3m *.umx *.mid *.cue);;All files (*)");
+    const auto addMediaFiles = [&playlist, mediaFilter] {
+        const QStringList files = QFileDialog::getOpenFileNames(
+            &playlist, QStringLiteral("Add file(s)"), QString(), mediaFilter);
+        if (files.isEmpty()) {
+            return;
+        }
+        std::vector<std::string> paths;
+        paths.reserve(static_cast<std::size_t>(files.size()));
+        for (const QString& file : files) {
+            paths.push_back(file.toStdString());
+        }
+        playlist.addMediaFiles(paths);
+    };
+    QObject::connect(&playlist, &koalaamp::ui::PlaylistWindow::mediaOpenRequested, &playlist,
+                     addMediaFiles);
+    QObject::connect(&window, &koalaamp::ui::MainWindow::mediaOpenRequested, &window,
+                     addMediaFiles);
 
     // The window set owns the inter-window toggles: the main window's EQ/PL
     // buttons show/hide their windows; each secondary close button hides it.

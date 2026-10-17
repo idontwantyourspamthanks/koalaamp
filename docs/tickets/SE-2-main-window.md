@@ -141,3 +141,6 @@ No WCL/GPL source was consulted. The added behaviour is ported from Webamp (MIT)
 commit — `css/main-window.css`, `js/skinSelectors.ts`, `js/visualizer/FFT.ts`,
 `js/visualizer/Visualizer.ts`, `js/components/Marquee.tsx`, `js/utils.ts` — with attribution in the
 file headers and `LICENSES.md`. The sprite table itself is SE-1's.
+
+## Post-review fixes
+- **The player now follows the engine.** `PlaybackCoreTransport` already emitted `stateChanged` / `trackChanged` / `positionChanged` / `volumeChanged`, but nothing was connected to them, and `syncFromTransport()` stopped short of its own contract ("...and repaints"). The animation timer — the only other poller — is gated on the status it is meant to keep current, so a track that began playing asynchronously never produced a time or a position: the progress bar stayed empty and the clock dark. The host now connects the four signals to both windows' `syncFromTransport()`, which re-evaluates the tick timer and repaints.

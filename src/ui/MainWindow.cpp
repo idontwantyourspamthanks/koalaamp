@@ -221,6 +221,13 @@ void MainWindow::syncFromTransport() {
     m_state.kbpsKnown = bitrate > 0;
     m_state.kbps = std::max(0, bitrate);
     m_state.marqueeOffsetPx = marqueeScrollPx(m_state.title, m_marqueeStep);
+    // A transport event can flip the status under us (the engine starts
+    // asynchronously), so re-evaluate the poll timer before painting — the
+    // timer is what advances the position, and it only runs while the status
+    // says something is happening. The header's contract for this method is
+    // "pulls the transport's state into the render state and repaints".
+    updateTickTimer();
+    requestRepaint();
 }
 
 void MainWindow::setState(const PlayerState& state) {
