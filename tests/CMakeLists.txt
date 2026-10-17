@@ -335,11 +335,19 @@ koalaamp_enable_warnings(koalaamp_vz1_engine_tests)
 target_link_libraries(koalaamp_vz1_engine_tests PRIVATE Catch2::Catch2WithMain
     koalaamp_interop_projectm)
 if(KOALAAMP_HAS_PROJECTM)
-    # The vendored .so is not on the loader's search path.
+    # The vendored library is not on the loader's search path: an RPATH for the
+    # ELF/Mach-O builds, and the DLL directory on PATH for Windows — needed at
+    # ctest time, which is why discovery is deferred (below).
     set_target_properties(koalaamp_vz1_engine_tests PROPERTIES
         BUILD_RPATH "${KOALAAMP_PROJECTM_LIBDIR}")
+    # PRE_TEST: build-time discovery executes the exe where no test ENVIRONMENT
+    # applies, and on Windows it needs libprojectM-4.dll on PATH (0xc0000135). The CI
+    # job provides that path, the same way it already provides Qt's and vcpkg's.
+    catch_discover_tests(koalaamp_vz1_engine_tests PROPERTIES
+        DISCOVERY_MODE PRE_TEST)
+else()
+    catch_discover_tests(koalaamp_vz1_engine_tests)
 endif()
-catch_discover_tests(koalaamp_vz1_engine_tests)
 message(STATUS "KoalaAmp: VZ-1 engine seam tests enabled")
 
 # VZ-1: the window side - the GL canvas that hosts the engine. Offscreen like the
@@ -355,9 +363,16 @@ if(KOALAAMP_HAS_GL_VISUALIZER)
     if(KOALAAMP_HAS_PROJECTM)
         set_target_properties(koalaamp_vz1_window_tests PROPERTIES
             BUILD_RPATH "${KOALAAMP_PROJECTM_LIBDIR}")
+        # PRE_TEST for the same reason as the SE-2 widget suites (build-time
+        # discovery runs the exe where no test ENVIRONMENT applies), and because on
+        # Windows the vendored projectM DLL is only on the job's PATH.
+        catch_discover_tests(koalaamp_vz1_window_tests PROPERTIES
+            DISCOVERY_MODE PRE_TEST
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    else()
+        catch_discover_tests(koalaamp_vz1_window_tests PROPERTIES
+            ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     endif()
-    catch_discover_tests(koalaamp_vz1_window_tests PROPERTIES
-        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     message(STATUS "KoalaAmp: VZ-1 window tests enabled")
 endif()
 

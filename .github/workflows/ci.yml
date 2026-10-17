@@ -76,6 +76,14 @@ jobs:
           # discovery (CatchAddTests executes the test exes) and for ctest.
           echo "PATH=$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin;$env:PATH" >> $env:GITHUB_ENV
 
+      # Our own vendored shared libraries need the same treatment on Windows:
+      # libprojectM-4.dll is installed into third_party/projectm/bin, which is
+      # neither on PATH nor reachable by RPATH (Windows has none). Without it a
+      # test exe that links the VZ-1 facade fails to start with 0xc0000135.
+      - name: Vendored native DLLs on PATH (Windows)
+        if: runner.os == 'Windows'
+        run: echo "PATH=$env:GITHUB_WORKSPACE/third_party/projectm/bin;$env:PATH" >> $env:GITHUB_ENV
+
       # Qt widget tests must not pick a real platform plugin on headless
       # runners: export offscreen at the JOB level so both Catch2's build-time
       # discovery (PRE_TEST still shells out to the exe) and every ctest run
