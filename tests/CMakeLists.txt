@@ -342,6 +342,22 @@ endif()
 catch_discover_tests(koalaamp_vz1_engine_tests)
 message(STATUS "KoalaAmp: VZ-1 engine seam tests enabled")
 
+# VZ-1: the window side - the GL canvas that hosts the engine. Offscreen like the
+# other widget suites (no context is created here), so the render path is verified
+# separately under xvfb-run, the way FE-14 did it. Only exists when the canvas does.
+if(KOALAAMP_HAS_GL_VISUALIZER)
+    add_executable(koalaamp_vz1_window_tests vz1_window_test.cpp)
+    koalaamp_enable_warnings(koalaamp_vz1_window_tests)
+    target_link_libraries(koalaamp_vz1_window_tests PRIVATE Catch2::Catch2 koalaamp_ui)
+    if(KOALAAMP_HAS_PROJECTM)
+        set_target_properties(koalaamp_vz1_window_tests PROPERTIES
+            BUILD_RPATH "${KOALAAMP_PROJECTM_LIBDIR}")
+    endif()
+    catch_discover_tests(koalaamp_vz1_window_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    message(STATUS "KoalaAmp: VZ-1 window tests enabled")
+endif()
+
 # PL-1: playlist formats. The unit suite (round-trip, byte-exact M3U8 emission,
 # leniency corpus, index, autosave) and the fuzz pass are Qt-free and link only
 # the Qt-free `koalaamp_playlist` module — the fuzz binary is the ASAN/UBSAN

@@ -78,6 +78,24 @@ target_link_libraries(koalaamp_ui
            Qt6::Widgets Qt6::Gui
     PRIVATE Qt6::OpenGL)
 
+# --- VZ-1: the visualizer's GL canvas ---------------------------------------
+# Qt's OpenGLWidgets module is found *softly*: a Qt built without the OpenGL feature
+# must still configure, with the visualizer simply absent (main.cpp's wiring is
+# compiled out via KOALAAMP_HAS_GL_VISUALIZER) rather than failing on a machine we
+# cannot reproduce. The engine faade is linked PUBLIC because the canvas exposes its
+# types; without libprojectM the faade supplies its stub, so this is always safe.
+find_package(Qt6 QUIET COMPONENTS OpenGLWidgets)
+if(TARGET Qt6::OpenGLWidgets)
+    target_sources(koalaamp_ui PRIVATE VisualizerCanvas.cpp VisualizerCanvas.hpp)
+    target_link_libraries(koalaamp_ui PUBLIC Qt6::OpenGLWidgets koalaamp_interop_projectm)
+    target_compile_definitions(koalaamp_ui PUBLIC KOALAAMP_HAS_GL_VISUALIZER=1)
+    set(KOALAAMP_HAS_GL_VISUALIZER TRUE CACHE INTERNAL "Qt OpenGLWidgets present (VZ-1)")
+    message(STATUS "KoalaAmp: Qt OpenGLWidgets found - the visualizer canvas is enabled")
+else()
+    set(KOALAAMP_HAS_GL_VISUALIZER FALSE CACHE INTERNAL "Qt OpenGLWidgets present (VZ-1)")
+    message(STATUS "KoalaAmp: Qt OpenGLWidgets missing - the visualizer window is disabled")
+endif()
+
 # The PlaybackCore bridge is a separate target because it (and only it) needs
 # the libvlc-backed core; koalaamp_ui itself stays engine-free so the widget
 # and renderer tests run anywhere Qt does.
