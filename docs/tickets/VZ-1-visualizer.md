@@ -39,7 +39,17 @@ The production visualizer: a skin-chromed window where projectM renders the user
   `--presets DIR`, loads the first preset, and follows the selection (the canvas queues loads into
   `paintGL`, so this is safe before GL exists). Still open: the shipped starter pack (RL-1's) and the
   metadata cache the task-4 cycling UI wants. Suite `koalaamp_vz1_preset_tests`._
-- [ ] Cycling: random / ordered / locked; next/prev hotkeys + on-screen skinned control; preset name overlay on switch (Winamp-style, auto-fade).
+- [ ] Cycling: random / ordered / locked; next/prev hotkeys + on-screen skinned control; preset name
+  overlay on switch (Winamp-style, auto-fade). — _`PresetCycler` (`src/ui/PresetCycler.{hpp,cpp}`):
+  ordered/random (the order is delegated to the store, which never repeats the current preset in
+  random), locked = auto-advance off with manual N/P still working, and a settable interval (default
+  30 s; `--preset-cycle-ms`, 0 = locked, until settings own it). The window's MilkDrop keys (N/P/R/L)
+  emit requests the app wires to the cycler, and every switch is announced by `VisualizerOverlay`
+  (`src/ui/VisualizerOverlay.{hpp,cpp}`): the skin's 5x6 font on a translucent plate over the render,
+  fading out after 2 s and starting its clock when actually mapped. The overlay is a raised *sibling*
+  of the GL canvas so projectM's GL state is never interleaved with Qt painting. Still open: the
+  on-screen skinned control — classic skins carry no visualizer buttons, so it needs `genex.bmp`
+  widget art, which LI-3 owns. Suites `koalaamp_vz1_preset_tests`, `koalaamp_vz1_viswindow_tests`._
 - [ ] Hot-swap: `projectm_load_preset_file` without window/context teardown (FE-14's measured switch cost as the budget).
 - [ ] Fullscreen mode (own toplevel, exclusive-mode borderless); ESC/exit restores.
 - [ ] Per-preset `sampler_*` textures resolved from the preset's directory (projectM 4.2 sprite API); base texture pack shipped.

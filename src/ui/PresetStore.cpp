@@ -3,6 +3,8 @@
 // PresetStore — see PresetStore.hpp for the contract and the ticket reference.
 #include "ui/PresetStore.hpp"
 
+#include <QFileInfo>
+
 #include <algorithm>
 #include <filesystem>
 #include <system_error>
@@ -41,6 +43,12 @@ std::string nearestExistingDirectory(const std::string& path) {
 bool PresetStore::isPresetFile(const QString& fileName) {
     const QString suffix = fileName.section('.', -1).toLower();
     return fileName.contains('.') && (suffix == QStringLiteral("milk") || suffix == QStringLiteral("milk2"));
+}
+
+std::string PresetStore::presetDisplayName(const std::string& path) {
+    QString name = QFileInfo(QString::fromStdString(path)).completeBaseName();
+    name.replace('_', ' ');
+    return name.toStdString();
 }
 
 PresetStore::PresetStore(QObject* parent) : QObject(parent) {

@@ -11,13 +11,18 @@
 // libprojectM.
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <optional>
 #include <string>
 #include <vector>
 
 #include <QApplication>
+#include <QElapsedTimer>
+#include <QEventLoop>
+#include <QThread>
 #include <QColor>
 #include <QImage>
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 
@@ -69,6 +74,21 @@ void sendMouse(QWidget& widget, QEvent::Type type, const QPoint& pos, Qt::MouseB
     QMouseEvent event(type, QPointF(pos), QPointF(widget.mapToGlobal(pos)), button,
                       button == Qt::NoButton ? Qt::NoButton : Qt::LeftButton, Qt::NoModifier);
     QApplication::sendEvent(&widget, &event);
+}
+
+void sendKey(QWidget& widget, Qt::Key key) {
+    QKeyEvent event(QEvent::KeyPress, key, Qt::NoModifier);
+    QApplication::sendEvent(&widget, &event);
+}
+
+bool waitFor(const std::function<bool()>& ready, int timeoutMs = 5000) {
+    QElapsedTimer timer;
+    timer.start();
+    while (!ready() && timer.elapsed() < timeoutMs) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 50);
+        QThread::msleep(10);
+    }
+    return ready();
 }
 
 void click(QWidget& widget, const QPoint& pos) {
@@ -265,6 +285,56 @@ TEST_CASE("VZ-1 the canvas's callback is the visualizer's end of the PCM fan-out
     std::vector<float> monoOut(4, 0.0F);
     REQUIRE(canvas.pcmRing().readNew(monoOut.data(), 2) == 2);
     CHECK(monoOut == std::vector<float>{1.0F, 1.0F, 0.0F, 0.0F});
+}
+
+TEST_CASE("VZ-1 the visualizer window's MilkDrop keys ask for a change", "[vz1][viswindow]") {
+    StubEngine engine;
+    VisualizerWindow window(engine);
+
+    int nexts = 0;
+    int previous = 0;
+    int orders = 0;
+    int locks = 0;
+    QObject::connect(&window, &VisualizerWindow::nextPresetRequested, [&nexts] { ++nexts; });
+    QObject::connect(&window, &VisualizerWindow::previousPresetRequested,
+                     [&previous] { ++previous; });
+    QObject::connect(&window, &VisualizerWindow::orderToggleRequested, [&orders] { ++orders; });
+    QObject::connect(&window, &VisualizerWindow::lockedToggleRequested, [&locks] { ++locks; });
+
+    sendKey(window, Qt::Key_N);
+    sendKey(window, Qt::Key_P);
+    sendKey(window, Qt::Key_R);
+    sendKey(window, Qt::Key_L);
+    CHECK(nexts == 1);
+    CHECK(previous == 1);
+    CHECK(orders == 1);
+    CHECK(locks == 1);
+
+    // An unrelated key is not swallowed into a request.
+    sendKey(window, Qt::Key_Q);
+    CHECK(nexts == 1);
+}
+
+TEST_CASE("VZ-1 a preset switch is announced and then fades out", "[vz1][viswindow]") {
+    StubEngine engine;
+    VisualizerWindow window(engine);
+    CHECK_FALSE(window.isPresetNameVisible());
+
+    window.showPresetName("/presets/01_phat_RippleNebula9.milk");
+    // The announced name is the file's display form, not the path.
+    CHECK(window.presetName() == "01 phat RippleNebula9");
+    CHECK(window.isPresetNameVisible());
+    CHECK(window.presetNameOpacity() == 1.0);
+
+    // ...and it goes away on its own (the overlay fades and hides).
+    CHECK(waitFor([&window] { return !window.isPresetNameVisible(); }));
+    CHECK(window.presetNameOpacity() == 0.0);
+
+    // Clearing it explicitly also works.
+    window.showPresetName("/presets/two.milk");
+    CHECK(window.isPresetNameVisible());
+    window.showPresetName("");
+    CHECK_FALSE(window.isPresetNameVisible());
 }
 
 int main(int argc, char** argv) {

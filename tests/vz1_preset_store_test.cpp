@@ -21,10 +21,12 @@
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
 
+#include "ui/PresetCycler.hpp"
 #include "ui/PresetStore.hpp"
 
 namespace {
 
+using koalaamp::ui::PresetCycler;
 using koalaamp::ui::PresetOrder;
 using koalaamp::ui::PresetStore;
 
@@ -182,6 +184,64 @@ TEST_CASE("VZ-1 a store with no presets is quiet, not broken", "[vz1][presets]")
     store.setWatching(true);
     CHECK(store.isWatching());
     CHECK_FALSE(store.next());
+}
+
+TEST_CASE("VZ-1 the cycler advances the store, and locking stops the timer", "[vz1][presets]") {
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const std::filesystem::path root(dir.path().toStdString());
+    writeFile(root / "a.milk");
+    writeFile(root / "b.milk");
+    writeFile(root / "c.milk");
+
+    PresetStore store;
+    store.setRoots({root.string()});
+    PresetCycler cycler(store);
+
+    CHECK(cycler.order() == PresetOrder::Ordered);
+    CHECK(store.order() == PresetOrder::Ordered);
+    CHECK(cycler.isCycling());  // unlocked, interval > 0, presets to move through
+
+    CHECK(cycler.next());
+    CHECK(store.currentIndex() == 1);
+    CHECK(cycler.previous());
+    CHECK(store.currentIndex() == 0);
+
+    cycler.toggleOrder();
+    CHECK(cycler.order() == PresetOrder::Random);
+    CHECK(store.order() == PresetOrder::Random);  // the store owns the order
+    cycler.setOrder(PresetOrder::Ordered);
+    CHECK(store.order() == PresetOrder::Ordered);
+
+    // Locked: no auto-advance, but the keys still move.
+    cycler.setLocked(true);
+    CHECK_FALSE(cycler.isCycling());
+    CHECK(cycler.next());
+    CHECK(store.currentIndex() == 1);
+    cycler.toggleLocked();
+    CHECK_FALSE(cycler.isLocked());
+    CHECK(cycler.isCycling());
+
+    // A non-positive interval is another way to stop the timer (settings may use it).
+    cycler.setIntervalMs(0);
+    CHECK_FALSE(cycler.isCycling());
+    cycler.setIntervalMs(20);
+    CHECK(cycler.isCycling());
+
+    // ...and the timer really does advance the selection.
+    const std::string before = store.current();
+    CHECK(waitFor([&store, &before] { return store.current() != before; }));
+    CHECK(cycler.next());
+    CHECK(cycler.previous());
+}
+
+TEST_CASE("VZ-1 an empty store leaves the cycler idle", "[vz1][presets]") {
+    PresetStore store;
+    PresetCycler cycler(store);
+    CHECK_FALSE(cycler.isCycling());  // nothing to cycle through
+    CHECK_FALSE(cycler.next());
+    cycler.setIntervalMs(20);
+    CHECK_FALSE(cycler.isCycling());
 }
 
 int main(int argc, char** argv) {

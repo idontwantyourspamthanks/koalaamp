@@ -28,6 +28,8 @@ add_library(koalaamp_ui STATIC
     MediaName.cpp
     MediaName.hpp
     PcmFanout.hpp
+    PresetCycler.cpp
+    PresetCycler.hpp
     PresetStore.cpp
     PresetStore.hpp
     PlayerRenderer.cpp
@@ -93,6 +95,8 @@ if(TARGET Qt6::OpenGLWidgets)
         GenRenderer.hpp
         VisualizerCanvas.cpp
         VisualizerCanvas.hpp
+        VisualizerOverlay.cpp
+        VisualizerOverlay.hpp
         VisualizerWindow.cpp
         VisualizerWindow.hpp)
     # koalaamp_interop is only for the seam header's include path: the canvas takes

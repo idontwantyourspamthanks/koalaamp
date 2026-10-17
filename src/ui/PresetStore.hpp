@@ -39,6 +39,11 @@ class PresetStore : public QObject {
 public:
     /// `.milk`/`.milk2`, case-insensitively — real packs use both.
     static bool isPresetFile(const QString& fileName);
+    /// The name a preset is announced by: the file's base name with underscores
+    /// turned into spaces ("01_phat_RippleNebula9.milk" -> "01 phat RippleNebula9").
+    /// (MilkDrop's own `psName` would need the file parsed; this is the honest
+    /// approximation until the metadata cache lands.)
+    static std::string presetDisplayName(const std::string& path);
 
     explicit PresetStore(QObject* parent = nullptr);
 

@@ -32,6 +32,7 @@
 #include "skins/SkinSet.hpp"
 #include "ui/GenRenderer.hpp"
 #include "ui/SkinnedWindow.hpp"
+#include "ui/VisualizerOverlay.hpp"
 #include "ui/VisualizerCanvas.hpp"
 
 namespace koalaamp::ui {
@@ -89,8 +90,23 @@ public:
     /// The close box, in 1x skin pixels (the window scales it).
     QRect closeButtonRect() const { return genLayout(contentSize()).closeButton; }
 
+    // --- preset announcements (task 4) ---------------------------------------
+    /// Announces a preset switch: the overlay shows the file's display name and
+    /// fades it out. Empty clears it.
+    void showPresetName(const std::string& path);
+    /// The name currently being announced ("" when the overlay is clear).
+    std::string presetName() const { return m_presetName; }
+    bool isPresetNameVisible() const;
+    qreal presetNameOpacity() const;
+
 signals:
     void closeRequested();
+    /// MilkDrop's keys, forwarded as requests: the app owns the cycler, this window
+    /// only knows what the user asked for (N/P move, R toggles random, L locks).
+    void nextPresetRequested();
+    void previousPresetRequested();
+    void orderToggleRequested();
+    void lockedToggleRequested();
     void doubleSizeChanged(bool on);
     void alwaysOnTopChanged(bool on);
 
@@ -98,6 +114,7 @@ protected:
     void paintEvent(QPaintEvent* event) override;
     void mousePressEvent(QMouseEvent* event) override;
     void mouseReleaseEvent(QMouseEvent* event) override;
+    void keyPressEvent(QKeyEvent* event) override;
     void changeEvent(QEvent* event) override;
     bool isTitleBarAt(const QPoint& point) const override;
 
@@ -111,6 +128,8 @@ private:
 
     interop::visualizer::IVisualizerEngine& m_engine;
     VisualizerCanvas* m_canvas = nullptr;
+    VisualizerOverlay* m_overlay = nullptr;
+    std::string m_presetName;
     const skins::SkinSet* m_skin = nullptr;
     QSize m_clientSize{kGenWidth, kGenHeight};
     std::string m_title = "VISUALIZER";

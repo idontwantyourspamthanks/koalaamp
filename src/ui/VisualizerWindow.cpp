@@ -3,11 +3,14 @@
 // VisualizerWindow — see VisualizerWindow.hpp for the hosting and fallback rules.
 #include "ui/VisualizerWindow.hpp"
 
+#include "ui/PresetStore.hpp"
+
 #include <algorithm>
 
 #include <QColor>
 #include <QEvent>
 #include <QFont>
+#include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
 
@@ -33,6 +36,10 @@ VisualizerWindow::VisualizerWindow(interop::visualizer::IVisualizerEngine& engin
     : SkinnedWindow(parent), m_engine(engine) {
     m_canvas = new VisualizerCanvas(m_engine, this);
     m_canvas->setVisible(visualizerAvailable());
+    // The overlay is a sibling above the canvas: the canvas owns the GL path, and
+    // painting text into it would mean mixing Qt painting with projectM's GL state.
+    m_overlay = new VisualizerOverlay(this);
+    m_overlay->hide();
     applyTitle();
     updateShape();
 }
@@ -41,6 +48,9 @@ VisualizerWindow::~VisualizerWindow() = default;
 
 void VisualizerWindow::setSkin(const skins::SkinSet* skin) {
     m_skin = skin;
+    if (m_overlay != nullptr) {
+        m_overlay->setSkin(skin);
+    }
     updateShape();
 }
 
@@ -108,8 +118,51 @@ void VisualizerWindow::layoutCanvas() {
     if (m_canvas == nullptr) {
         return;
     }
-    m_canvas->setGeometry(toDevice(clientRect()));
+    const QRect client = toDevice(clientRect());
+    m_canvas->setGeometry(client);
     m_canvas->setVisible(visualizerAvailable());
+    if (m_overlay != nullptr) {
+        m_overlay->setGeometry(client);
+        m_overlay->setScale(m_scale);
+        m_overlay->raise();  // stays above the canvas it annotates
+    }
+}
+
+void VisualizerWindow::showPresetName(const std::string& path) {
+    m_presetName = path.empty() ? std::string{} : PresetStore::presetDisplayName(path);
+    m_overlay->showName(m_presetName);
+}
+
+bool VisualizerWindow::isPresetNameVisible() const {
+    return m_overlay != nullptr && m_overlay->showing();
+}
+
+qreal VisualizerWindow::presetNameOpacity() const {
+    return m_overlay != nullptr ? m_overlay->opacity() : 0.0;
+}
+
+void VisualizerWindow::keyPressEvent(QKeyEvent* event) {
+    // MilkDrop's own keys, on the visualizer window: N/P move, R toggles random
+    // order, L locks the preset in place. The window only asks; the app decides.
+    // (F for fullscreen is task 6, and app-wide hotkeys are a later ticket.)
+    switch (event->key()) {
+        case Qt::Key_N:
+            emit nextPresetRequested();
+            break;
+        case Qt::Key_P:
+            emit previousPresetRequested();
+            break;
+        case Qt::Key_R:
+            emit orderToggleRequested();
+            break;
+        case Qt::Key_L:
+            emit lockedToggleRequested();
+            break;
+        default:
+            SkinnedWindow::keyPressEvent(event);
+            return;
+    }
+    event->accept();
 }
 
 void VisualizerWindow::applyTitle() {

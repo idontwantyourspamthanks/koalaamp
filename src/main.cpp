@@ -22,6 +22,7 @@
 #include "ui/WindowPlatform.hpp"
 #include "ui/WindowSet.hpp"
 #if defined(KOALAAMP_HAS_GL_VISUALIZER)
+#include "ui/PresetCycler.hpp"
 #include "ui/PresetStore.hpp"
 #include "ui/VisualizerWindow.hpp"
 #endif
@@ -99,6 +100,11 @@ int main(int argc, char** argv) {
         QStringLiteral("MilkDrop preset folder to scan recursively for the visualizer"),
         QStringLiteral("dir"));
     parser.addOption(presetsOption);
+    const QCommandLineOption presetCycleOption(
+        QStringLiteral("preset-cycle-ms"),
+        QStringLiteral("Advance the visualizer to a new preset every N ms (0 = locked)"),
+        QStringLiteral("ms"));
+    parser.addOption(presetCycleOption);
 #endif
     parser.process(app);
 
@@ -174,9 +180,32 @@ int main(int argc, char** argv) {
     QObject::connect(&presetStore, &koalaamp::ui::PresetStore::currentChanged, &visualizer,
                      [&visualizer](const std::string& path) {
                          if (!path.empty()) {
+                             // Announce it, then load it: the load is queued into
+                             // paintGL, so the name is what the user sees first.
+                             visualizer.showPresetName(path);
                              visualizer.canvas().requestPreset(path);
                          }
                      });
+
+    // Cycling (task 4): the window's MilkDrop keys ask, the cycler decides. Locked
+    // stops the auto-advance; N/P keep working either way.
+    koalaamp::ui::PresetCycler presetCycler(presetStore);
+    if (parser.isSet(presetCycleOption)) {
+        bool ok = false;
+        const int interval = parser.value(presetCycleOption).toInt(&ok);
+        if (ok) {
+            presetCycler.setIntervalMs(interval);
+            presetCycler.setLocked(interval <= 0);
+        }
+    }
+    QObject::connect(&visualizer, &koalaamp::ui::VisualizerWindow::nextPresetRequested,
+                     &presetCycler, &koalaamp::ui::PresetCycler::next);
+    QObject::connect(&visualizer, &koalaamp::ui::VisualizerWindow::previousPresetRequested,
+                     &presetCycler, &koalaamp::ui::PresetCycler::previous);
+    QObject::connect(&visualizer, &koalaamp::ui::VisualizerWindow::orderToggleRequested,
+                     &presetCycler, &koalaamp::ui::PresetCycler::toggleOrder);
+    QObject::connect(&visualizer, &koalaamp::ui::VisualizerWindow::lockedToggleRequested,
+                     &presetCycler, &koalaamp::ui::PresetCycler::toggleLocked);
 #endif
 
 #ifdef KOALAAMP_HAS_PLAYBACK_CORE
