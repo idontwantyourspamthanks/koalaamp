@@ -51,7 +51,13 @@ The production visualizer: a skin-chromed window where projectM renders the user
   on-screen skinned control — classic skins carry no visualizer buttons, so it needs `genex.bmp`
   widget art, which LI-3 owns. Suites `koalaamp_vz1_preset_tests`, `koalaamp_vz1_viswindow_tests`._
 - [ ] Hot-swap: `projectm_load_preset_file` without window/context teardown (FE-14's measured switch cost as the budget).
-- [ ] Fullscreen mode (own toplevel, exclusive-mode borderless); ESC/exit restores.
+- [ ] Fullscreen mode (own toplevel, exclusive-mode borderless); ESC/exit restores. —
+  _`VisualizerWindow::setFullscreen` (F toggles, ESC leaves): borderless fullscreen with the gen chrome
+  dropped and the canvas taking the whole window; leaving restores the windowed size, shape and geometry.
+  Offscreen-tested (state, the chrome-less layout, ESC restoring, and a resize requested while fullscreen
+  still applying afterwards). The real-surface check under Xvfb proves only the chrome-less takeover —
+  there is no window manager there to honour `showFullScreen`, so the geometry stays windowed. Win/macOS
+  and a real desktop remain unverified, and "the window remembers state" needs the settings store._
 - [ ] Per-preset `sampler_*` textures resolved from the preset's directory (projectM 4.2 sprite API); base texture pack shipped.
 - [ ] Nightly preset soak: 500-preset corpus, 10s/preset timeout, crash/hang/FPS log.
 

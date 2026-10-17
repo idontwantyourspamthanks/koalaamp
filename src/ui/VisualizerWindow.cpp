@@ -114,11 +114,33 @@ void VisualizerWindow::updateShape() {
     update();
 }
 
+void VisualizerWindow::setFullscreen(bool on) {
+    if (on == m_fullscreen) {
+        return;
+    }
+    m_fullscreen = on;
+    if (on) {
+        m_windowedGeometry = geometry();
+        showFullScreen();
+    } else {
+        showNormal();
+        updateShape();  // fixed size and shape again
+        if (m_windowedGeometry.isValid()) {
+            setGeometry(m_windowedGeometry);
+        }
+    }
+    layoutCanvas();
+    update();
+    emit fullscreenChanged(on);
+}
+
 void VisualizerWindow::layoutCanvas() {
     if (m_canvas == nullptr) {
         return;
     }
-    const QRect client = toDevice(clientRect());
+    // Fullscreen shows the render alone, so the canvas takes the whole window
+    // instead of the gen frame's client rect.
+    const QRect client = m_fullscreen ? rect() : toDevice(clientRect());
     m_canvas->setGeometry(client);
     m_canvas->setVisible(visualizerAvailable());
     if (m_overlay != nullptr) {
@@ -158,6 +180,16 @@ void VisualizerWindow::keyPressEvent(QKeyEvent* event) {
         case Qt::Key_L:
             emit lockedToggleRequested();
             break;
+        case Qt::Key_F:
+            setFullscreen(!m_fullscreen);
+            break;
+        case Qt::Key_Escape:
+            if (!m_fullscreen) {
+                SkinnedWindow::keyPressEvent(event);
+                return;
+            }
+            setFullscreen(false);
+            break;
         default:
             SkinnedWindow::keyPressEvent(event);
             return;
@@ -173,6 +205,15 @@ void VisualizerWindow::paintEvent(QPaintEvent* /*event*/) {
     QPainter painter(this);
     painter.setRenderHint(QPainter::Antialiasing, false);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, false);
+
+    if (m_fullscreen) {
+        // The canvas covers the window; this is only the frame before it appears.
+        painter.fillRect(rect(), Qt::black);
+        if (!visualizerAvailable()) {
+            drawUnavailableMessage(painter);
+        }
+        return;
+    }
 
     const skins::Skin& sheets = m_skin != nullptr ? m_skin->sheets : noSheets();
     painter.drawImage(0, 0, chromeImage(sheets, contentSize(), m_title, isActiveWindow(), m_scale));

@@ -90,6 +90,12 @@ public:
     /// The close box, in 1x skin pixels (the window scales it).
     QRect closeButtonRect() const { return genLayout(contentSize()).closeButton; }
 
+    // --- fullscreen (task 6) --------------------------------------------------
+    /// Borderless fullscreen: the render alone, no gen chrome. ESC (or F) leaves
+    /// it and restores the windowed geometry and shape.
+    void setFullscreen(bool on);
+    bool isFullscreen() const { return m_fullscreen; }
+
     // --- preset announcements (task 4) ---------------------------------------
     /// Announces a preset switch: the overlay shows the file's display name and
     /// fades it out. Empty clears it.
@@ -107,6 +113,8 @@ signals:
     void previousPresetRequested();
     void orderToggleRequested();
     void lockedToggleRequested();
+    /// F (and ESC, when leaving) report the state so the app can react to it.
+    void fullscreenChanged(bool on);
     void doubleSizeChanged(bool on);
     void alwaysOnTopChanged(bool on);
 
@@ -130,6 +138,8 @@ private:
     VisualizerCanvas* m_canvas = nullptr;
     VisualizerOverlay* m_overlay = nullptr;
     std::string m_presetName;
+    bool m_fullscreen = false;
+    QRect m_windowedGeometry;
     const skins::SkinSet* m_skin = nullptr;
     QSize m_clientSize{kGenWidth, kGenHeight};
     std::string m_title = "VISUALIZER";

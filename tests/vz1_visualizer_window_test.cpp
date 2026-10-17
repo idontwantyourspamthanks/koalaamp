@@ -337,6 +337,43 @@ TEST_CASE("VZ-1 a preset switch is announced and then fades out", "[vz1][viswind
     CHECK_FALSE(window.isPresetNameVisible());
 }
 
+TEST_CASE("VZ-1 fullscreen shows the render alone and restores the window", "[vz1][viswindow]") {
+    // The stub engine keeps the canvas hidden, so showing the window here creates no
+    // GL context — this test is about geometry and state, not rendering.
+    StubEngine engine;
+    VisualizerWindow window(engine);
+    const QRect windowedClient = window.clientRect();
+    int changes = 0;
+    QObject::connect(&window, &VisualizerWindow::fullscreenChanged, [&changes] { ++changes; });
+
+    // F enters, and the canvas takes the whole window: no title bar, no borders.
+    sendKey(window, Qt::Key_F);
+    CHECK(window.isFullscreen());
+    CHECK(window.windowState().testFlag(Qt::WindowFullScreen));
+    CHECK(window.canvas().geometry() == window.rect());
+    CHECK(changes == 1);
+
+    // ESC leaves it and the gen frame is back.
+    sendKey(window, Qt::Key_Escape);
+    CHECK_FALSE(window.isFullscreen());
+    CHECK_FALSE(window.windowState().testFlag(Qt::WindowFullScreen));
+    CHECK(window.canvas().geometry() == windowedClient);
+    CHECK(window.size() == window.contentSize());
+    CHECK(changes == 2);
+
+    // ESC while windowed is not ours to handle.
+    sendKey(window, Qt::Key_Escape);
+    CHECK_FALSE(window.isFullscreen());
+    CHECK(changes == 2);
+
+    // A resize request while fullscreen still applies once restored.
+    window.setFullscreen(true);
+    window.setClientSize(QSize(300, 200));
+    window.setFullscreen(false);
+    CHECK(window.size() == window.contentSize());
+    CHECK(window.contentSize().width() >= 300);
+}
+
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
     return Catch::Session().run(argc, argv);
