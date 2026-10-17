@@ -410,9 +410,16 @@ TEST_CASE("PlaybackCore: volume applies to the tap PCM (0-100 perceptual)", "[fe
     PlaybackCore core(nullOutputConfig());
     core.addObserver(&observer);
     core.play(MediaRef{MediaRef::Kind::Path, wav.string()});
-    REQUIRE(waitFor([&] { return core.metrics().pcmRms > 0.2; }));
+    // Wait for *settled* tap audio, and keep the exact sample that satisfied the
+    // wait: a partial first callback already clears a lower bar, and reading the
+    // ring again afterwards is what made this flaky (CI saw < 0.3 and failed the
+    // baseline check while the local run passed).
+    double baseline = 0.0;
+    REQUIRE(waitFor([&] {
+        baseline = core.metrics().pcmRms;
+        return baseline > 0.3;
+    }));
 
-    const double baseline = core.metrics().pcmRms;
     INFO("baseline RMS=" << baseline);
     CHECK(baseline > 0.3); // 0.5-amplitude sine → ~0.35
 
