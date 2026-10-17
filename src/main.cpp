@@ -22,6 +22,7 @@
 #include "ui/WindowPlatform.hpp"
 #include "ui/WindowSet.hpp"
 #if defined(KOALAAMP_HAS_GL_VISUALIZER)
+#include "ui/PresetStore.hpp"
 #include "ui/VisualizerWindow.hpp"
 #endif
 #include "ui/PcmFanout.hpp"
@@ -92,6 +93,13 @@ int main(int argc, char** argv) {
     parser.addOption(nullAudioOption);
     parser.addOption(selfTestOption);
     parser.addOption(alwaysOnTopOption);
+#if defined(KOALAAMP_HAS_GL_VISUALIZER)
+    const QCommandLineOption presetsOption(
+        QStringLiteral("presets"),
+        QStringLiteral("MilkDrop preset folder to scan recursively for the visualizer"),
+        QStringLiteral("dir"));
+    parser.addOption(presetsOption);
+#endif
     parser.process(app);
 
     koalaamp::ui::MainWindow window;
@@ -151,6 +159,24 @@ int main(int argc, char** argv) {
                      &QWidget::setVisible);
     QObject::connect(&visualizer, &koalaamp::ui::VisualizerWindow::closeRequested, &visualizer,
                      &QWidget::hide);
+
+    // The preset library (task 3): scanning, the watcher, and the selection. The
+    // cycling *policy* is task 4's — this only makes the folder's presets available,
+    // loads the first one, and follows the selection when it moves.
+    koalaamp::ui::PresetStore presetStore;
+    if (parser.isSet(presetsOption)) {
+        presetStore.setRoots({parser.value(presetsOption).toStdString()});
+        presetStore.setWatching(true);
+    }
+    if (!presetStore.empty()) {
+        visualizer.canvas().requestPreset(presetStore.current());
+    }
+    QObject::connect(&presetStore, &koalaamp::ui::PresetStore::currentChanged, &visualizer,
+                     [&visualizer](const std::string& path) {
+                         if (!path.empty()) {
+                             visualizer.canvas().requestPreset(path);
+                         }
+                     });
 #endif
 
 #ifdef KOALAAMP_HAS_PLAYBACK_CORE

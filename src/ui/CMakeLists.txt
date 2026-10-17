@@ -28,6 +28,8 @@ add_library(koalaamp_ui STATIC
     MediaName.cpp
     MediaName.hpp
     PcmFanout.hpp
+    PresetStore.cpp
+    PresetStore.hpp
     PlayerRenderer.cpp
     PlayerRenderer.hpp
     PlayerState.hpp

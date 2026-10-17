@@ -400,6 +400,14 @@ if(KOALAAMP_HAS_GL_VISUALIZER)
     message(STATUS "KoalaAmp: VZ-1 visualizer window tests enabled")
 endif()
 
+# VZ-1 task 3: the preset library - the recursive scan, the watcher, and the
+# ordered/random selection. Qt Core only, so it needs no GL and no platform plugin.
+add_executable(koalaamp_vz1_preset_tests vz1_preset_store_test.cpp)
+koalaamp_enable_warnings(koalaamp_vz1_preset_tests)
+target_link_libraries(koalaamp_vz1_preset_tests PRIVATE Catch2::Catch2WithMain koalaamp_ui)
+catch_discover_tests(koalaamp_vz1_preset_tests)
+message(STATUS "KoalaAmp: VZ-1 preset store tests enabled")
+
 # PL-1: playlist formats. The unit suite (round-trip, byte-exact M3U8 emission,
 # leniency corpus, index, autosave) and the fuzz pass are Qt-free and link only
 # the Qt-free `koalaamp_playlist` module — the fuzz binary is the ASAN/UBSAN

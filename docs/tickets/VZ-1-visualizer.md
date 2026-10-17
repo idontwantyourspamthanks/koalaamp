@@ -30,7 +30,15 @@ The production visualizer: a skin-chromed window where projectM renders the user
   (`VisualizerCanvas::pcmCallback()`, `src/main.cpp`) — the visualizer sees the same post-DSP samples,
   and a second reader can never replace the DSP chain. The canvas drains its ring per frame in
   `paintGL`; `ProjectMEngine::pushPcm` chunks without allocating and calls `projectm_pcm_add_float`._
-- [ ] Preset store: user folders watched (QFileSystemWatcher) + recursive scan for `.milk`/`.milk2`; the shipped starter pack (RL-1-cleared subset); preset metadata cache for instant cycling.
+- [ ] Preset store: user folders watched (QFileSystemWatcher) + recursive scan for `.milk`/`.milk2`;
+  the shipped starter pack (RL-1-cleared subset); preset metadata cache for instant cycling. —
+  _`PresetStore` (`src/ui/PresetStore.{hpp,cpp}`) landed: the recursive scan (hidden entries skipped,
+  like the library scanner), a debounced `QFileSystemWatcher` over the roots *and* every directory the
+  scan walked — a root that does not exist yet is watched through its nearest existing ancestor, so a
+  folder dropped in later is picked up — and ordered/random selection with wrapping. The app takes
+  `--presets DIR`, loads the first preset, and follows the selection (the canvas queues loads into
+  `paintGL`, so this is safe before GL exists). Still open: the shipped starter pack (RL-1's) and the
+  metadata cache the task-4 cycling UI wants. Suite `koalaamp_vz1_preset_tests`._
 - [ ] Cycling: random / ordered / locked; next/prev hotkeys + on-screen skinned control; preset name overlay on switch (Winamp-style, auto-fade).
 - [ ] Hot-swap: `projectm_load_preset_file` without window/context teardown (FE-14's measured switch cost as the budget).
 - [ ] Fullscreen mode (own toplevel, exclusive-mode borderless); ESC/exit restores.
