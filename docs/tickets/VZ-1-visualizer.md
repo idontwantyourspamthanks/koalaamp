@@ -1,13 +1,20 @@
 # VZ-1 · projectM visualizer window
 
-- **Milestone:** M2 · **Est:** 5d · **Depends:** FE-14, FE-4 · **Status:** unstarted
+- **Milestone:** M2 · **Est:** 5d · **Depends:** FE-14, FE-4 · **Status:** in-progress
 
 ## Story
 The production visualizer: a skin-chromed window where projectM renders the user's MilkDrop preset folder, driven by real post-DSP PCM from the playback pipeline — random/ordered cycling, hot-switching, fullscreen, and the curated starter pack shipped in the installer.
 
 ## Tasks
+- [x] Engine seam + canvas host: `IVisualizerEngine` with the GL-context-bound lifecycle
+  FE-14 measured (create/destroy/load require a current context; `render` draws into the
+  widget's FBO), `createEngine()` plus a stub whose `available()` is false in a build
+  without libprojectM, and `VisualizerCanvas` — a `QOpenGLWidget` that drains a
+  `StereoPcmRing` on its own ~60fps frame clock and applies queued preset loads inside
+  `paintGL`. — _`src/interop/projectm/`, `src/ui/VisualizerCanvas.*`; suites
+  `koalaamp_vz1_engine_tests` and `koalaamp_vz1_window_tests`._
 - [ ] `VisualizerWindow` with the hosting mode FE-14 recorded (masked vs unmasked toplevel); skin chrome from `gen`/visspec-class bitmaps with designed fallback.
-- [ ] PCM wiring: PcmTap ring buffer → `projectm_pcm_add_float` (interleaved L/R) throttled to ~30Hz or per-frame; same post-DSP feed as the main-window spectrum.
+- [ ] PCM wiring: PcmTap ring buffer → `projectm_pcm_add_float` (interleaved L/R) throttled to ~30Hz or per-frame; same post-DSP feed as the main-window spectrum. — _The engine-side half landed: `pushPcm` takes interleaved float stereo and chunks internally without allocating; the canvas drains its ring per frame. The PcmTap producer is not wired yet._
 - [ ] Preset store: user folders watched (QFileSystemWatcher) + recursive scan for `.milk`/`.milk2`; the shipped starter pack (RL-1-cleared subset); preset metadata cache for instant cycling.
 - [ ] Cycling: random / ordered / locked; next/prev hotkeys + on-screen skinned control; preset name overlay on switch (Winamp-style, auto-fade).
 - [ ] Hot-swap: `projectm_load_preset_file` without window/context teardown (FE-14's measured switch cost as the budget).
