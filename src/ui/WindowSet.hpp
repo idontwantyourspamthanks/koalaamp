@@ -65,6 +65,15 @@ public:
     /// Shows the whole set (all three windows). Winamp opens them all.
     void showAll();
 
+    /// Places the set in the classic arrangement — the EQ flush against the
+    /// player's right edge, the playlist flush beneath it — centred on the
+    /// primary screen's available area and kept on it. Used when a skin has no
+    /// saved layout (a first run), so the app opens in the shape users expect
+    /// and the set is docked from the start (the first drag of the player then
+    /// carries the group). Geometry only: visibility stays with `showAll()` and
+    /// `restoreLayout()`. Returns the arrangement's bounding rect.
+    QRect applyDefaultArrangement();
+
     SkinnedWindow* window(WindowId id) const;
     MainWindow& mainWindow() { return m_main; }
     EqWindow& eqWindow() { return m_eq; }

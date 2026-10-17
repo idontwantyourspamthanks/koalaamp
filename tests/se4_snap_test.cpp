@@ -17,7 +17,9 @@
 #include <string>
 
 #include <QApplication>
+#include <QGuiApplication>
 #include <QPoint>
+#include <QScreen>
 #include <QTest>
 
 #include <catch2/catch_test_macros.hpp>
@@ -201,6 +203,43 @@ TEST_CASE("SE-4 older layout records restore windows visible", "[se4][layout]") 
     CHECK(state->mainVisible);
     CHECK(state->eqVisible);
     CHECK(state->playlistVisible);
+}
+
+TEST_CASE("SE-6 the set opens in the classic arrangement", "[se6][arrange]") {
+    // First run (no saved layout): the three windows used to land wherever the
+    // compositor put them - the same spot for all of them, which reads as one
+    // ambiguous pile and hides the docking SE-4 implements.
+    Scene scene;
+    const QRect arranged = scene.set.applyDefaultArrangement();
+
+    const QRect mainRect(scene.main.pos(), scene.main.size());
+    const QRect eqRect(scene.eq.pos(), scene.eq.size());
+    const QRect listRect(scene.playlist.pos(), scene.playlist.size());
+
+    // Winamp's shape: the EQ flush against the player's right edge, the playlist
+    // flush beneath it.
+    CHECK(eqRect.topLeft() == QPoint(mainRect.right() + 1, mainRect.top()));
+    CHECK(listRect.topLeft() == QPoint(mainRect.left(), mainRect.bottom() + 1));
+
+    const QScreen* screen = QGuiApplication::primaryScreen();
+    REQUIRE(screen != nullptr);
+    const QRect available = screen->availableGeometry();
+    const bool fits =
+        available.width() >= arranged.width() && available.height() >= arranged.height();
+    if (fits) {
+        CHECK(available.contains(mainRect));
+        CHECK(available.contains(eqRect));
+        CHECK(available.contains(listRect));
+        CHECK(available.contains(arranged));
+    } else {
+        // Larger than the screen: pinned to its origin rather than hung off it.
+        CHECK(mainRect.topLeft() == available.topLeft());
+    }
+
+    // Flush-adjacent, so the set is docked from the start: the first drag of the
+    // player carries the whole group, which is what makes the set feel like one
+    // window rather than three.
+    CHECK(scene.set.dockGroup(WindowId::Main).size() == 3);
 }
 
 int main(int argc, char** argv) {

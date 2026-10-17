@@ -262,6 +262,11 @@ int main(int argc, char** argv) {
     }
     const bool restored = !skinPath.empty() && windowSet.restoreLayout(skinDb, skinPath);
     if (!restored) {
+        // SE-6: no layout remembered for this skin — open the set in the classic
+        // arrangement (EQ flush right of the player, playlist flush beneath it)
+        // instead of wherever the compositor dropped the three windows, which is
+        // the same spot for all of them and reads as one ambiguous pile.
+        windowSet.applyDefaultArrangement();
         windowSet.showAll();
     }
 

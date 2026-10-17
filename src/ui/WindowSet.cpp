@@ -5,6 +5,9 @@
 #include <cmath>
 #include <utility>
 
+#include <QGuiApplication>
+#include <QScreen>
+
 #include "ui/PleditState.hpp"
 
 namespace koalaamp::ui {
@@ -66,6 +69,44 @@ void WindowSet::showAll() {
         m_lastPos[static_cast<std::size_t>(i)] = widget(idAt(i))->pos();
     }
     recomputeDockGroups();
+}
+
+QRect WindowSet::applyDefaultArrangement() {
+    const QSize mainSize = widget(WindowId::Main)->size();
+    const QSize eqSize = widget(WindowId::Eq)->size();
+    const QSize listSize = widget(WindowId::Playlist)->size();
+
+    // Winamp's shape: the player, the EQ beside it, the playlist underneath.
+    const int totalW = mainSize.width() + eqSize.width();
+    const int totalH = mainSize.height() + listSize.height();
+
+    // No screen (the offscreen harness): the set is its own universe.
+    QRect available(0, 0, totalW, totalH);
+    if (const QScreen* screen = QGuiApplication::primaryScreen()) {
+        available = screen->availableGeometry();
+    }
+
+    // Centre the whole set, then keep it on the screen when it fits. When it
+    // does not fit, the max(0, …) leaves the origin at the area's top-left.
+    int x = available.x() + std::max(0, (available.width() - totalW) / 2);
+    int y = available.y() + std::max(0, (available.height() - totalH) / 2);
+    if (totalW <= available.width()) {
+        x = std::clamp(x, available.left(), available.right() + 1 - totalW);
+    }
+    if (totalH <= available.height()) {
+        y = std::clamp(y, available.top(), available.bottom() + 1 - totalH);
+    }
+
+    const QPoint origin(x, y);
+    widget(WindowId::Main)->move(origin);
+    widget(WindowId::Eq)->move(origin + QPoint(mainSize.width(), 0));
+    widget(WindowId::Playlist)->move(origin + QPoint(0, mainSize.height()));
+
+    for (int i = 0; i < kWindowCount; ++i) {
+        m_lastPos[static_cast<std::size_t>(i)] = widget(idAt(i))->pos();
+    }
+    recomputeDockGroups();  // flush-adjacent, so the first drag carries the set
+    return QRect(origin, QSize(totalW, totalH));
 }
 
 SkinnedWindow* WindowSet::window(WindowId id) const { return widget(id); }

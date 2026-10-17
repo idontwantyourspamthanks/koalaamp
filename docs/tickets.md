@@ -100,6 +100,12 @@
 - **Acceptance:** golden screenshots per state; slider drag updates biquads within one block; preset switch glitch-free; `.eqf` round-trips.
 - **Depends:** SE-1, SE-4, AU-1
 
+### SE-6 · Default window arrangement on first run — *0.5d*
+- **Tasks:** player + EQ flush right + playlist flush below, centred on the primary screen and kept on it; applied only when the skin has no saved layout, before `showAll()`.
+- **Acceptance:** window-set suite asserts the three rects are flush-adjacent, inside the available screen area, and one dock group; the set opens in the classic arrangement on a real server.
+- **Status:** in-progress ([brief](tickets/SE-6-default-arrangement.md))
+- **Depends:** SE-4
+
 ### AU-1 · DSP pipeline + 10-band EQ — *5d*
 - **Tasks:** spec §4.1 chain; biquad bank (Winamp + Constant-Q); preamp; limiter; `.eqf` parse/write + `winamp.q1` import; auto-load per track; **no-native-EQ assertion on the callbacks path** (FE-2 rule); golden transfer-function tests.
 - **Acceptance:** transfer functions match reference curves; `.eqf` byte-compat round-trip; latency budget held; allocation-free steady state; runtime assertion never fires.
