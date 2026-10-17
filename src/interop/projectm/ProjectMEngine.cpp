@@ -13,6 +13,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
+#include <mutex>
 #include <utility>
 #include <vector>
 
@@ -22,6 +23,11 @@ namespace {
 /// projectM's callbacks write here — they receive this through user_data, so the
 /// engine needs no friendship. lastError() reports the last warning-or-worse.
 struct CallbackState {
+    // projectM may invoke the callbacks from threads other than the one that set
+    // them (current_thread_only is false, so a load on the GL thread still reports
+    // worker-thread logs), so the status string needs a guard. pushPcm never comes
+    // near this, which keeps the render path lock-free and allocation-free.
+    mutable std::mutex mutex;
     std::string lastError;
 };
 
@@ -32,6 +38,7 @@ extern "C" void projectmLogCallback(const char* message, projectm_log_level leve
         return;
     }
     if (level >= PROJECTM_LOG_LEVEL_WARN) {
+        const std::scoped_lock lock(state->mutex);
         state->lastError = message;
     }
 }
@@ -48,7 +55,10 @@ extern "C" void projectmPresetFailedCallback(const char* filename, const char* m
         text += ": ";
         text += message;
     }
-    state->lastError = std::move(text);
+    {
+        const std::scoped_lock lock(state->mutex);
+        state->lastError = std::move(text);
+    }
 }
 
 /// The host drives preset cycling (VZ-1b), so projectM's own advance is not used.
@@ -164,7 +174,10 @@ public:
     }
 
     std::string presetName() const override { return presetName_; }
-    std::string lastError() const override { return state_.lastError; }
+    std::string lastError() const override {
+        const std::scoped_lock lock(state_.mutex);
+        return state_.lastError;
+    }
 
 private:
     projectm_handle handle_ = nullptr;

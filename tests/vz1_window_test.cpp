@@ -21,13 +21,18 @@
 
 namespace {
 
+using koalaamp::interop::visualizer::createEngine;
 using koalaamp::interop::visualizer::engineAvailable;
 using koalaamp::ui::VisualizerCanvas;
 
 }  // namespace
 
-TEST_CASE("VZ-1 the canvas owns an engine and the PCM ring", "[vz1][window]") {
-    VisualizerCanvas canvas;
+TEST_CASE("VZ-1 the canvas drives the engine it is given, and owns the PCM ring",
+          "[vz1][window]") {
+    // The canvas does not know how the engine was built — the app decides that.
+    auto engine = createEngine();
+    REQUIRE(engine != nullptr);
+    VisualizerCanvas canvas(*engine);
     // The factory never returns null, and availability is a build property: a build
     // without libprojectM must say so rather than pretend.
     CHECK(canvas.engine().available() == engineAvailable());
@@ -44,7 +49,8 @@ TEST_CASE("VZ-1 the canvas owns an engine and the PCM ring", "[vz1][window]") {
 }
 
 TEST_CASE("VZ-1 queuing a preset without a context is harmless", "[vz1][window]") {
-    VisualizerCanvas canvas;
+    auto engine = createEngine();
+    VisualizerCanvas canvas(*engine);
     canvas.requestPreset("/nonexistent/preset.milk");
     // Never shown, so paintGL has not run: the request is still queued and nothing
     // has touched GL. The assertion that matters is that neither this nor the

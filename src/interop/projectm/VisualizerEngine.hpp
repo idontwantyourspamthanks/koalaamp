@@ -50,6 +50,10 @@ public:
 
     /// Load a preset. Must be called with the GL context current: queue it into
     /// the widget's paintGL, never call it from a timer callback.
+    ///
+    /// A true return means the request was accepted, NOT that the preset loaded:
+    /// projectM's load calls return void and report failure asynchronously through
+    /// the switch-failed callback, which lastError() surfaces.
     virtual bool loadPresetFile(const std::string& path, bool smoothTransition) = 0;
     virtual bool loadPresetData(const std::string& name, const std::string& data,
                                 bool smoothTransition) = 0;
@@ -57,6 +61,10 @@ public:
     /// Feed interleaved stereo PCM (2 floats per frame) from the visualizer's
     /// ring. Never blocks, never allocates: frames beyond projectM's per-call
     /// maximum are chunked internally.
+    ///
+    /// Render thread only — the canvas drains its ring in paintGL. Never call this
+    /// from the audio callback: the engine owns buffers and state that have no
+    /// business on that thread (PcmFanout's "no allocation, no lock" rule).
     virtual void pushPcm(const float* interleavedStereo, std::size_t frames) = 0;
 
     /// Render one frame into `targetFbo`.

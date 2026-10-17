@@ -348,7 +348,10 @@ message(STATUS "KoalaAmp: VZ-1 engine seam tests enabled")
 if(KOALAAMP_HAS_GL_VISUALIZER)
     add_executable(koalaamp_vz1_window_tests vz1_window_test.cpp)
     koalaamp_enable_warnings(koalaamp_vz1_window_tests)
-    target_link_libraries(koalaamp_vz1_window_tests PRIVATE Catch2::Catch2 koalaamp_ui)
+    # The test constructs the engine itself (as the app will), so it links the
+    # faade and needs the vendored .so on its RPATH; the UI lib deliberately does not.
+    target_link_libraries(koalaamp_vz1_window_tests PRIVATE Catch2::Catch2 koalaamp_ui
+        koalaamp_interop_projectm)
     if(KOALAAMP_HAS_PROJECTM)
         set_target_properties(koalaamp_vz1_window_tests PROPERTIES
             BUILD_RPATH "${KOALAAMP_PROJECTM_LIBDIR}")

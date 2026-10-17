@@ -20,7 +20,7 @@ target_include_directories(koalaamp_interop_projectm PUBLIC "${CMAKE_SOURCE_DIR}
 
 if(projectM4_FOUND)
     target_include_directories(koalaamp_interop_projectm PRIVATE "${_pm_hints}/include")
-    target_link_libraries(koalaamp_interop_projectm PUBLIC libprojectM::projectM)
+    target_link_libraries(koalaamp_interop_projectm PRIVATE libprojectM::projectM)
     target_compile_definitions(koalaamp_interop_projectm PUBLIC KOALAAMP_HAS_PROJECTM=1)
     # Consumers (the app, the tests) add this to their RPATH when they link the
     # façade, since the .so is not installed anywhere the loader searches.

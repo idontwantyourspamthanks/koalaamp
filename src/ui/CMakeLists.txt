@@ -87,7 +87,10 @@ target_link_libraries(koalaamp_ui
 find_package(Qt6 QUIET COMPONENTS OpenGLWidgets)
 if(TARGET Qt6::OpenGLWidgets)
     target_sources(koalaamp_ui PRIVATE VisualizerCanvas.cpp VisualizerCanvas.hpp)
-    target_link_libraries(koalaamp_ui PUBLIC Qt6::OpenGLWidgets koalaamp_interop_projectm)
+    # koalaamp_interop is only for the seam header's include path: the canvas takes
+    # its engine from the caller, so this module never links the rendering back end
+    # (and its third-party headers stay out of every UI consumer).
+    target_link_libraries(koalaamp_ui PUBLIC Qt6::OpenGLWidgets PRIVATE koalaamp_interop)
     target_compile_definitions(koalaamp_ui PUBLIC KOALAAMP_HAS_GL_VISUALIZER=1)
     set(KOALAAMP_HAS_GL_VISUALIZER TRUE CACHE INTERNAL "Qt OpenGLWidgets present (VZ-1)")
     message(STATUS "KoalaAmp: Qt OpenGLWidgets found - the visualizer canvas is enabled")
