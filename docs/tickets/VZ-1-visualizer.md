@@ -50,7 +50,13 @@ The production visualizer: a skin-chromed window where projectM renders the user
   of the GL canvas so projectM's GL state is never interleaved with Qt painting. Still open: the
   on-screen skinned control — classic skins carry no visualizer buttons, so it needs `genex.bmp`
   widget art, which LI-3 owns. Suites `koalaamp_vz1_preset_tests`, `koalaamp_vz1_viswindow_tests`._
-- [ ] Hot-swap: `projectm_load_preset_file` without window/context teardown (FE-14's measured switch cost as the budget).
+- [ ] Hot-swap: `projectm_load_preset_file` without window/context teardown (FE-14's measured switch cost as
+  the budget). — _No teardown happens by construction: the canvas queues loads into `paintGL` and calls
+  `loadPresetFile` on the live engine, and neither the canvas nor `ProjectMEngine` ever re-creates the
+  projectM instance or the GL context for a load. Evidence: FE-14's measured 1.9-7.4 ms per switch
+  (`docs/spikes/projectm-qt.md` §5) and the cycling runs from this work, where consecutive screenshots
+  show different presets rendered from the same window and context. Still open: the acceptance's in-app
+  p95 at 1080p on real GPU hardware._
 - [ ] Fullscreen mode (own toplevel, exclusive-mode borderless); ESC/exit restores. —
   _`VisualizerWindow::setFullscreen` (F toggles, ESC leaves): borderless fullscreen with the gen chrome
   dropped and the canvas taking the whole window; leaving restores the windowed size, shape and geometry.
