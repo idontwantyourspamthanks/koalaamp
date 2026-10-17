@@ -34,27 +34,33 @@ void StereoPcmRing::push(const float* interleaved, std::size_t frames, int chann
     m_write.store(write, std::memory_order_release);
 }
 
-std::size_t StereoPcmRing::readRecent(float* out, std::size_t maxFrames) const noexcept {
+std::size_t StereoPcmRing::readNew(float* out, std::size_t maxFrames) noexcept {
     if (out == nullptr || maxFrames == 0) {
         return 0;
     }
     const std::uint64_t end = m_write.load(std::memory_order_acquire);
-    const auto capacityFrames = m_mask + 1;
-    // One frame is unusable so the reader can never confuse full with empty, and
-    // a producer that outruns the reader simply loses the oldest audio.
-    const std::size_t available =
-        static_cast<std::size_t>(std::min<std::uint64_t>(end, capacityFrames - 1));
+    const auto capacityFrames = static_cast<std::uint64_t>(m_mask + 1);
+    // One frame is unusable so full and empty stay distinguishable. If the writer
+    // lapped us, the oldest frames are already overwritten: skip forward to the
+    // oldest intact frame instead of waiting (the audio thread never blocks).
+    const std::uint64_t oldest = end >= capacityFrames ? end - (capacityFrames - 1) : 0;
+    if (m_read < oldest) {
+        m_read = oldest;
+    }
+    const std::size_t available = static_cast<std::size_t>(end - m_read);
     const std::size_t requested = std::min(maxFrames, available);
     for (std::size_t i = 0; i < requested; ++i) {
-        // Oldest-first within the requested window.
-        const std::uint64_t frame = end - requested + i;
-        const std::size_t slot = (static_cast<std::size_t>(frame) & m_mask) * 2;
+        const std::size_t slot = (static_cast<std::size_t>(m_read + i) & m_mask) * 2;
         out[i * 2] = m_data[slot];
         out[i * 2 + 1] = m_data[slot + 1];
     }
+    m_read += requested;
     return requested;
 }
 
-void StereoPcmRing::clear() noexcept { m_write.store(0, std::memory_order_release); }
+void StereoPcmRing::clear() noexcept {
+    m_write.store(0, std::memory_order_release);
+    m_read = 0;
+}
 
 }  // namespace koalaamp::ui
