@@ -21,8 +21,10 @@ The production visualizer: a skin-chromed window where projectM renders the user
   back end. App wiring in `src/main.cpp`: the clutterbar V toggles the window, its close box hides
   it, `--always-on-top` covers it. Hosting: a gen frame is rectangular, so this window is unmasked —
   FE-14 §10 (masked toplevel) remains the answer for any skin that ever shapes one, and its
-  macOS/Windows gap applies unchanged. Not yet in `WindowSet` (no snapping/persistence — spec §5.3
-  "Vis Phase 1.5"). Suite `koalaamp_vz1_viswindow_tests` (5 cases)._
+  macOS/Windows gap applies unchanged. It has since gained a slot in `WindowSet` — it snaps to its siblings
+  and remembers where *and* whether it was open, while staying out of the dock groups, `showAll()` and the
+  group drag (spec §5.3's "Vis Phase 1.5"; suite `koalaamp_se4_snap_tests`). Suite
+  `koalaamp_vz1_viswindow_tests` (5 cases)._
 - [x] PCM wiring: PcmTap ring buffer → `projectm_pcm_add_float` (interleaved L/R) throttled to ~30Hz or
   per-frame; same post-DSP feed as the main-window spectrum. — _There is no `PcmTap` type: the seam is
   `PcmFanout` (`src/ui/PcmFanout.hpp`), and the app now installs
