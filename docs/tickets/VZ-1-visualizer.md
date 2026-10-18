@@ -67,7 +67,7 @@ The production visualizer: a skin-chromed window where projectM renders the user
   there is no window manager there to honour `showFullScreen`, so the geometry stays windowed. Win/macOS
   and a real desktop remain unverified, and "the window remembers state" needs the settings store._
 - [ ] Per-preset `sampler_*` textures resolved from the preset's directory (projectM 4.2 sprite API); base texture pack shipped.
-- [ ] Nightly preset soak: 500-preset corpus, 10s/preset timeout, crash/hang/FPS log. — _Built:
+- [x] Nightly preset soak: 500-preset corpus, 10s/preset timeout, crash/hang/FPS log. — _Built:
   `scripts/fetch-presets.sh` fetches a pinned, sorted slice (default 500; the FE-14 pin holds 9795)
   into the gitignored `third_party/presets/soak/`, and the app's `--soak-presets DIR --soak-hold-ms N`
   mode holds each preset in turn, logging frames and fps per preset and exiting 2 when one renders no
@@ -75,16 +75,18 @@ The production visualizer: a skin-chromed window where projectM renders the user
   preset it died on). `PresetSoak` takes a frame-count callback rather than a window pointer, so it is
   unit-tested without a GL context (`koalaamp_vz1_preset_tests`). The nightly job is
   `.github/workflows/nightly-soak.yml` (schedule + manual, 500 x 10 s, log uploaded as an artifact).
-  Verified locally end to end on the 10-preset cream corpus: every preset held, 41-64 frames each at
-  49-64 fps under llvmpipe, exit 0 (and exit 2 on a deliberately frozen renderer). Still open: the
-  acceptance run itself — 500 presets x 10 s, zero crashes/hangs — which needs that job to actually run._
+  Verified end to end: first on the 10-preset cream corpus locally, then by the job itself — run
+  39126467893 held 500/500 presets with zero stalls and exit 0 (99.6 min). The one heavy preset and the
+  fps figures are in the Acceptance section below, along with what those figures do and do not mean._
 
 ## Acceptance
 - 500-preset nightly: zero crashes/hangs. — **Met** (run 39126467893, 2026-10-18): 500/500 presets
   held, zero stalls, exit 0, 99.6 min wall. Per-preset fps under software GL at 1280x720: min 28.1,
-  p5 57.3, median 61.8, p95 62.6 — one preset below 30 (`00224-EoS + Phat - chasers 17 sentinels ghoul
-  - nz+ ihavenothingtoffal likeness`, 28.1 fps / 281 frames, i.e. heavy rather than hung; next lowest
-  53.4). `nightly-soak.yml` keeps running this nightly.
+  p5 57.3, median 61.8, p95 62.6 — but read that ceiling correctly: 62.6 is the canvas's own ~60 fps
+  frame clock (a 16 ms tick), so median and p95 mean "kept up with the clock", not "the renderer's
+  limit". The minimum is the only figure that shows a preset falling behind: `00224-EoS + Phat - chasers
+  17 sentinels ghoul - nz+ ihavenothingtoffal likeness` at 28.1 fps over 281 frames (heavy, not hung;
+  next lowest 53.4). `nightly-soak.yml` keeps running this nightly.
 - ≥ 55fps p95 at 1080p on GTX1050-class — **not** answered by the nightly job: software GL on a
   shared CI runner says nothing about that hardware, and the soak's own regime (llvmpipe, 1280x720,
   the ~175x75 gen-window canvas) is a different workload — its p5 of 57.3 fps must not be read as this
