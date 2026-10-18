@@ -557,3 +557,46 @@ TEST_CASE("SkinDb load tolerates malformed lines and forgetting works", "[se1][d
     CHECK(db.forget("/tmp/y.wsz") == 1);
     CHECK(db.recent().empty());
 }
+
+TEST_CASE("the visualizer's placement round-trips in its own record", "[skins][db]") {
+    koalaamp::skins::SkinDb db;
+    auto& state = db.layoutFor("/tmp/skin.wsz");
+    state.main = {10, 20};
+    state.playlistVisible = false;
+    state.visualizer = koalaamp::skins::WindowPlacement{30, 40};
+    state.visualizerVisible = false;
+
+    std::ostringstream out;
+    db.save(out);
+    const std::string text = out.str();
+    // The visualizer rides in its own record: a reader that predates it still
+    // parses the `layout` line exactly as before (its key is positional).
+    CHECK(text.find("layout2\t30\t40\t1\t") != std::string::npos);
+    CHECK(text.find("layout\t10\t20") != std::string::npos);
+
+    koalaamp::skins::SkinDb reloaded;
+    std::istringstream in(text);
+    reloaded.load(in);
+    const auto& restored = reloaded.layoutFor("/tmp/skin.wsz");
+    CHECK(restored.main.x == 10);
+    CHECK(restored.main.y == 20);
+    CHECK_FALSE(restored.playlistVisible);
+    REQUIRE(restored.visualizer.has_value());
+    CHECK(restored.visualizer->x == 30);
+    CHECK(restored.visualizer->y == 40);
+    CHECK_FALSE(restored.visualizerVisible);
+}
+
+TEST_CASE("a database written before the visualizer existed still loads", "[skins][db]") {
+    // Eleven fields and no `layout2`: the pre-VZ-1 shape, key last.
+    std::istringstream in("current\t/tmp/x.wsz\n"
+                          "layout\t1\t2\t3\t4\t5\t6\t275\t0\t0\t/tmp/x.wsz\n");
+    koalaamp::skins::SkinDb db;
+    db.load(in);
+    const auto& state = db.layoutFor("/tmp/x.wsz");
+    CHECK(state.main.x == 1);
+    CHECK(state.main.y == 2);
+    CHECK(state.playlist.x == 5);
+    CHECK_FALSE(state.visualizer.has_value());
+    CHECK(state.visualizerVisible);
+}

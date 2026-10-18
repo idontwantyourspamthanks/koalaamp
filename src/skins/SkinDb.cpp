@@ -127,8 +127,32 @@ void SkinDb::save(std::ostream& out) const {
             << '\t' << state.equalizer.y << '\t' << state.playlist.x << '\t' << state.playlist.y
             << '\t' << state.playlistWidth << '\t' << state.playlistHeight << '\t' << flags
             << '\t' << key << '\n';
+        if (state.visualizer.has_value()) {
+            // A separate record keeps the `layout` line above byte-identical in
+            // meaning for every reader that predates the visualizer.
+            out << "layout2\t" << state.visualizer->x << '\t' << state.visualizer->y << '\t'
+                << (state.visualizerVisible ? 0 : 1) << '\t' << key << '\n';
+        }
     }
 }
+
+namespace {
+
+/// The stored key is the tab-joined *tail* of a record line, not a single field:
+/// older writers emitted keys that may themselves contain tabs, so readers
+/// reassemble them from a start index to the end.
+std::string keyFrom(const std::vector<std::string>& parts, std::size_t start) {
+    std::string key;
+    for (std::size_t i = start; i < parts.size(); ++i) {
+        if (i > start) {
+            key += '\t';
+        }
+        key += parts[i];
+    }
+    return key;
+}
+
+}  // namespace
 
 void SkinDb::load(std::istream& in) {
     clear();
@@ -177,13 +201,7 @@ void SkinDb::load(std::istream& in) {
             state.mainVisible = (parsedFlags & 8) == 0;
             state.eqVisible = (parsedFlags & 16) == 0;
             state.playlistVisible = (parsedFlags & 32) == 0;
-            std::string key;
-            for (std::size_t i = 10; i < parts.size(); ++i) {
-                if (i > 10) {
-                    key += '\t';
-                }
-                key += parts[i];
-            }
+            const std::string key = keyFrom(parts, 10);
             // Canonicalise the stored key: the writer stores keyFor(skin)
             // (weakly-canonical), and layout() looks up by keyFor(skin) too —
             // but a record line can carry a relative or rooted path that
@@ -192,6 +210,21 @@ void SkinDb::load(std::istream& in) {
             // Windows). Canonicalising here keeps load() self-consistent with
             // the writer/reader regardless of where the file was written.
             m_layouts[keyFor(key)] = state;
+        } else if (parts[0] == "layout2" && parts.size() >= 5) {
+            // VZ-1's visualizer placement, kept in its own record: the classic
+            // `layout` line's key is positional (the tab-joined tail from index
+            // 10), so widening it would silently change the meaning of every
+            // existing line. A reader that predates this tag ignores the line,
+            // and a file with no visualizer simply has no line.
+            int x = 0;
+            int y = 0;
+            int hidden = 0;
+            if (!parseInt(parts[1], x) || !parseInt(parts[2], y) || !parseInt(parts[3], hidden)) {
+                continue;
+            }
+            SkinLayoutState& state = m_layouts[keyFor(keyFrom(parts, 4))];
+            state.visualizer = WindowPlacement{x, y};
+            state.visualizerVisible = hidden == 0;
         }
     }
 }
