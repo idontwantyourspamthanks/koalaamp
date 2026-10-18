@@ -9,13 +9,17 @@ A first run — a fresh config, or the first launch of a skin with no saved layo
 player, EQ and playlist windows wherever the compositor puts them, which in practice is the same
 coordinates for all three: the app opens as one ambiguous pile, and the docking SE-4 implements is
 never *seen* (you cannot drag a window "next to" another when everything is already on top of it).
-Winamp opens its set in the classic arrangement — the EQ flush against the player's right edge, the
-playlist flush beneath the player. Place the set there when a skin has no saved layout, so the app
-opens in the shape users expect and the very first drag of the player carries the whole group.
+Winamp opens its set in the classic arrangement — one vertical column: the EQ flush beneath the
+player, the playlist flush beneath the EQ. (This was first written as "the EQ flush against the
+player's right edge", which is not what the reference does; corrected against Winamp 2.x, where
+pressing EQ docks it *below* the player and the playlist follows below that.) Place the set there
+when a skin has no saved layout, so the app opens in the shape users expect and the very first drag
+of the player carries the whole group.
 
 ## Tasks
-- [x] `WindowSet::applyDefaultArrangement()`: player at a centred/clamped origin, EQ flush to its
-      right, playlist flush below it.
+- [x] `WindowSet::applyDefaultArrangement()`: player at a centred/clamped origin, EQ flush beneath
+      it, playlist flush beneath the EQ, visualizer beside the column. (Corrected 2026-10-18: the EQ
+      was placed flush to the player's *right*, which showed up as a two-column first run.)
 - [x] Call it from `main.cpp` when `restoreLayout()` reports no saved layout, *before* `showAll()`
       (so the group docks as it is shown).
 - [x] Test in the window-set suite: the three rectangles are flush-adjacent, inside the available

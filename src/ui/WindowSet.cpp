@@ -76,9 +76,11 @@ QRect WindowSet::applyDefaultArrangement() {
     const QSize eqSize = widget(WindowId::Eq)->size();
     const QSize listSize = widget(WindowId::Playlist)->size();
 
-    // Winamp's shape: the player, the EQ beside it, the playlist underneath.
-    const int totalW = mainSize.width() + eqSize.width();
-    const int totalH = mainSize.height() + listSize.height();
+    // Winamp's shape: one vertical column — the player, the EQ flush beneath it, the
+    // playlist flush beneath that. SE-6 pinned this as "the EQ beside the player"
+    // originally; against the reference the EQ belongs *below* the player.
+    const int totalW = std::max(mainSize.width(), std::max(eqSize.width(), listSize.width()));
+    const int totalH = mainSize.height() + eqSize.height() + listSize.height();
 
     // No screen (the offscreen harness): the set is its own universe.
     QRect available(0, 0, totalW, totalH);
@@ -99,8 +101,13 @@ QRect WindowSet::applyDefaultArrangement() {
 
     const QPoint origin(x, y);
     widget(WindowId::Main)->move(origin);
-    widget(WindowId::Eq)->move(origin + QPoint(mainSize.width(), 0));
-    widget(WindowId::Playlist)->move(origin + QPoint(0, mainSize.height()));
+    widget(WindowId::Eq)->move(origin + QPoint(0, mainSize.height()));
+    widget(WindowId::Playlist)->move(origin + QPoint(0, mainSize.height() + eqSize.height()));
+    // The visualizer has no slot in the classic stack: it opens beside the column,
+    // top-aligned with the player, so the stack itself stays flush.
+    if (m_visualizer != nullptr) {
+        m_visualizer->move(origin + QPoint(totalW, 0));
+    }
 
     for (int i = 0; i < kWindowCount; ++i) {
         m_lastPos[static_cast<std::size_t>(i)] = widget(idAt(i))->pos();

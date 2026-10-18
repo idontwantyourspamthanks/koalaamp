@@ -216,10 +216,11 @@ TEST_CASE("SE-6 the set opens in the classic arrangement", "[se6][arrange]") {
     const QRect eqRect(scene.eq.pos(), scene.eq.size());
     const QRect listRect(scene.playlist.pos(), scene.playlist.size());
 
-    // Winamp's shape: the EQ flush against the player's right edge, the playlist
-    // flush beneath it.
-    CHECK(eqRect.topLeft() == QPoint(mainRect.right() + 1, mainRect.top()));
-    CHECK(listRect.topLeft() == QPoint(mainRect.left(), mainRect.bottom() + 1));
+    // Winamp's shape: one vertical column — the EQ flush beneath the player, the
+    // playlist flush beneath the EQ (SE-6 corrected 2026-10-18; the EQ used to be
+    // placed to the player's right, which showed up as a two-column first run).
+    CHECK(eqRect.topLeft() == QPoint(mainRect.left(), mainRect.bottom() + 1));
+    CHECK(listRect.topLeft() == QPoint(mainRect.left(), eqRect.bottom() + 1));
 
     const QScreen* screen = QGuiApplication::primaryScreen();
     REQUIRE(screen != nullptr);
