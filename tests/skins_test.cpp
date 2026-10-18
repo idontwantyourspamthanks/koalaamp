@@ -598,6 +598,28 @@ TEST_CASE("a database written before the visualizer existed still loads", "[skin
     CHECK_FALSE(state.visualizer.has_value());
 }
 
+TEST_CASE("bundled KoalaAmp skins decode cleanly", "[skins][bundled]") {
+    const std::filesystem::path dir{KOALAAMP_BUNDLED_SKINS};
+    const char* names[] = {"KoalaAmp-Aqua.wsz", "KoalaAmp-Laser.wsz", "KoalaAmp-Riot.wsz",
+                           "KoalaAmp-Starz.wsz"};
+    for (const char* name : names) {
+        const auto loaded = loadSkinSet(dir / name);
+        INFO(name);
+        REQUIRE(loaded.has_value());
+        CHECK(loaded->warnings.empty());
+        CHECK(loaded->sheetSize("main.bmp") == QSize(275, 116));
+        CHECK(loaded->sheetSize("titlebar.bmp").width() >= 344);
+        CHECK(loaded->sheetSize("eqmain.bmp").height() >= 315);
+        CHECK(loaded->hasSheet("PLEDIT"));
+        CHECK(loaded->hasSheet("EQ_EX"));
+        CHECK(loaded->hasSheet("GEN"));
+        CHECK(loaded->hasSheet("TEXT"));
+        CHECK(loaded->pleditColors.font == "Tahoma");
+        CHECK(loaded->visColor.colors.size() == VisColor::kCount);
+        CHECK(loaded->region.empty());
+    }
+}
+
 TEST_CASE("a stray visualizer record cannot fabricate a layout", "[skins][db]") {
     // `layout2` decorates the record the classic line created. On its own it must
     // not produce one: an all-zero layout would move the classic three to (0,0).

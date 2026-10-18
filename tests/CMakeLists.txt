@@ -98,6 +98,8 @@ add_executable(koalaamp_skins_tests skins_test.cpp)
 koalaamp_enable_warnings(koalaamp_skins_tests)
 target_include_directories(koalaamp_skins_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(koalaamp_skins_tests PRIVATE Catch2::Catch2WithMain koalaamp_skins)
+target_compile_definitions(koalaamp_skins_tests PRIVATE
+    "KOALAAMP_BUNDLED_SKINS=\"${CMAKE_SOURCE_DIR}/skins\"")
 catch_discover_tests(koalaamp_skins_tests)
 
 add_executable(koalaamp_skins_corpus_tests skins_corpus_test.cpp)

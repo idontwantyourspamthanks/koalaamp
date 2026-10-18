@@ -160,8 +160,9 @@ int main(int argc, char** argv) {
     } else {
         std::fprintf(stderr,
                      "koalaamp: no skin loaded — pass --skin <file.wsz>\n"
-                     "          (the classic fixture is fetched by "
-                     "spikes/fe3_wsz/fetch-skin.sh)\n");
+                     "          bundled skins: skins/KoalaAmp-Aqua.wsz,\n"
+                     "          skins/KoalaAmp-Laser.wsz, skins/KoalaAmp-Riot.wsz,\n"
+                     "          skins/KoalaAmp-Starz.wsz\n");
     }
 
 #if defined(KOALAAMP_HAS_GL_VISUALIZER)
