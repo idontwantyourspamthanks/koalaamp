@@ -411,6 +411,36 @@ int main(int argc, char** argv) {
     const auto showMainMenu = [&] {
         QMenu menu;
 
+        QMenu* presets = menu.addMenu(QStringLiteral("Presets"));
+        if (presetStore.empty()) {
+            QAction* none =
+                presets->addAction(QStringLiteral("(no presets — pass --presets DIR)"));
+            none->setEnabled(false);
+        } else {
+            QAction* current = presets->addAction(QString::fromStdString(
+                koalaamp::ui::PresetStore::presetDisplayName(presetStore.current())));
+            current->setEnabled(false);  // the name the overlay just announced
+            presets->addSeparator();
+            QAction* previous = presets->addAction(QStringLiteral("Previous preset"));
+            QObject::connect(previous, &QAction::triggered, &window,
+                             [&presetCycler] { presetCycler.previous(); });
+            QAction* next = presets->addAction(QStringLiteral("Next preset"));
+            QObject::connect(next, &QAction::triggered, &window,
+                             [&presetCycler] { presetCycler.next(); });
+            presets->addSeparator();
+            QAction* random = presets->addAction(QStringLiteral("Random order"));
+            random->setCheckable(true);
+            random->setChecked(presetCycler.order() == koalaamp::ui::PresetOrder::Random);
+            QObject::connect(random, &QAction::triggered, &window,
+                             [&presetCycler] { presetCycler.toggleOrder(); });
+            QAction* hold = presets->addAction(QStringLiteral("Hold this preset only"));
+            hold->setCheckable(true);
+            hold->setChecked(presetCycler.isLocked());
+            QObject::connect(hold, &QAction::triggered, &window,
+                             [&presetCycler] { presetCycler.toggleLocked(); });
+        }
+        menu.addSeparator();
+
         QMenu* skins = menu.addMenu(QStringLiteral("Skins"));
         QStringList offered;
         const auto addSkin = [&](const std::filesystem::path& path) {
