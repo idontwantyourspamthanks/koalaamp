@@ -332,7 +332,10 @@ TEST_CASE("VZ-1 the soak calls out a preset that stops rendering", "[vz1][preset
     QObject::connect(&soak, &PresetSoak::finished,
                      [&exitCode](int code, const QString& /*reason*/) { exitCode = code; });
 
-    soak.start(20);
+    // Well under five seconds (production) and under the hold, so the stall is
+    // what ends this run rather than the soak completing.
+    soak.setStallMs(5);
+    soak.start(200);
     CHECK(waitFor([&exitCode] { return exitCode >= 0; }, 3000));
 
     CHECK(exitCode == 2);

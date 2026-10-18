@@ -7,13 +7,6 @@
 #include <cstdio>
 
 namespace koalaamp::ui {
-namespace {
-
-/// Ticks with no new frame before the preset is called stalled. The tick is a
-/// quarter of the hold, so this is roughly three quarters of a hold.
-constexpr int kStallTicks = 3;
-
-}  // namespace
 
 PresetSoak::PresetSoak(PresetStore& store, PresetCycler& cycler, FrameCountFn frames,
                        QObject* parent)
@@ -35,7 +28,6 @@ void PresetSoak::start(int holdMs) {
 
     m_running = true;
     m_stalled = false;
-    m_stalledTicks = 0;
     // The soak drives the cycler itself (one clock), so the cycler must not run
     // its own timer; ordered, so every preset is seen exactly once.
     m_cycler.setOrder(PresetOrder::Ordered);
@@ -44,6 +36,7 @@ void PresetSoak::start(int holdMs) {
     m_framesAtPresetStart = m_frames();
     m_framesAtLastTick = m_framesAtPresetStart;
     m_since.start();
+    m_sinceLastFrame.start();
     m_heartbeat.setInterval(std::max(1, m_holdMs / 4));
     m_heartbeat.start();
 
@@ -53,19 +46,25 @@ void PresetSoak::start(int holdMs) {
             .arg(QString::fromStdString(PresetStore::presetDisplayName(m_store.current()))));
 }
 
+void PresetSoak::setStallMs(int ms) {
+    m_stallMs = std::max(1, ms);
+}
+
 void PresetSoak::tick() {
     if (!m_running) {
         return;
     }
 
     const std::uint64_t frames = m_frames();
-    m_stalledTicks = frames == m_framesAtLastTick ? m_stalledTicks + 1 : 0;
-    m_framesAtLastTick = frames;
-    if (m_stalledTicks >= kStallTicks) {
+    if (frames != m_framesAtLastTick) {
+        m_framesAtLastTick = frames;
+        m_sinceLastFrame.restart();
+    }
+    if (m_sinceLastFrame.elapsed() >= m_stallMs) {
         m_stalled = true;
-        log(QStringLiteral("STALL: \"%1\" rendered no new frame over %2 ticks")
+        log(QStringLiteral("STALL: \"%1\" rendered no new frame for %2 ms")
                 .arg(QString::fromStdString(PresetStore::presetDisplayName(m_store.current())))
-                .arg(m_stalledTicks));
+                .arg(m_sinceLastFrame.elapsed()));
         const QString reason = QStringLiteral("stalled on %1")
                                    .arg(QString::fromStdString(m_store.current()));
         stop();

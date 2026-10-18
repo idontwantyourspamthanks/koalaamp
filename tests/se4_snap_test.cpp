@@ -264,23 +264,19 @@ TEST_CASE("SE-4 the visualizer's slot snaps to the set and round-trips through t
     CHECK(visualizer.x() == scene.main.x() + scene.main.width());
     CHECK(scene.set.dockGroups().empty());
 
-    // A registered window is recorded; visibility is the *intent*, because Qt
-    // hides toplevels as the event loop unwinds.
-    scene.set.setVisualizerVisible(true);
+    // A registered window is recorded -- its position, and nothing about whether it
+    // is open, so a later launch cannot be talked into hiding it.
     const auto recorded = scene.set.layout();
     REQUIRE(recorded.visualizer.has_value());
     CHECK(recorded.visualizer->x == visualizer.x());
     CHECK(recorded.visualizer->y == visualizer.y());
-    CHECK(recorded.visualizerVisible);
 
-    // ...and the record restores: both the position and the visibility come back,
-    // which is the half that reads the layout2 fields.
+    // ...and the record restores the position, which is the half that reads the
+    // layout2 fields.
     visualizer.move(700, 700);
-    scene.set.setVisualizerVisible(false);
     scene.set.applyLayout(recorded);
     CHECK(visualizer.x() == recorded.visualizer->x);
     CHECK(visualizer.y() == recorded.visualizer->y);
-    CHECK(scene.set.isVisualizerVisible());
 
     // A layout that predates the visualizer leaves it alone.
     visualizer.move(33, 44);

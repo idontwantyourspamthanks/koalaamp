@@ -564,14 +564,13 @@ TEST_CASE("the visualizer's placement round-trips in its own record", "[skins][d
     state.main = {10, 20};
     state.playlistVisible = false;
     state.visualizer = koalaamp::skins::WindowPlacement{30, 40};
-    state.visualizerVisible = false;
 
     std::ostringstream out;
     db.save(out);
     const std::string text = out.str();
     // The visualizer rides in its own record: a reader that predates it still
     // parses the `layout` line exactly as before (its key is positional).
-    CHECK(text.find("layout2\t30\t40\t1\t") != std::string::npos);
+    CHECK(text.find("layout2\t30\t40\t") != std::string::npos);
     CHECK(text.find("layout\t10\t20") != std::string::npos);
 
     koalaamp::skins::SkinDb reloaded;
@@ -584,7 +583,6 @@ TEST_CASE("the visualizer's placement round-trips in its own record", "[skins][d
     REQUIRE(restored.visualizer.has_value());
     CHECK(restored.visualizer->x == 30);
     CHECK(restored.visualizer->y == 40);
-    CHECK_FALSE(restored.visualizerVisible);
 }
 
 TEST_CASE("a database written before the visualizer existed still loads", "[skins][db]") {
@@ -598,7 +596,6 @@ TEST_CASE("a database written before the visualizer existed still loads", "[skin
     CHECK(state.main.y == 2);
     CHECK(state.playlist.x == 5);
     CHECK_FALSE(state.visualizer.has_value());
-    CHECK(state.visualizerVisible);
 }
 
 TEST_CASE("a stray visualizer record cannot fabricate a layout", "[skins][db]") {

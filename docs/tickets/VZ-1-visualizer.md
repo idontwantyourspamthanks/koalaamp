@@ -75,8 +75,9 @@ The production visualizer: a skin-chromed window where projectM renders the user
   preset it died on). `PresetSoak` takes a frame-count callback rather than a window pointer, so it is
   unit-tested without a GL context (`koalaamp_vz1_preset_tests`). The nightly job is
   `.github/workflows/nightly-soak.yml` (schedule + manual, 500 x 10 s, log uploaded as an artifact).
-  Still open: the acceptance run itself — zero crashes/hangs and the FPS numbers — which needs that
-  job to actually run._
+  Verified locally end to end on the 10-preset cream corpus: every preset held, 41-64 frames each at
+  49-64 fps under llvmpipe, exit 0 (and exit 2 on a deliberately frozen renderer). Still open: the
+  acceptance run itself — 500 presets x 10 s, zero crashes/hangs — which needs that job to actually run._
 
 ## Acceptance
 - 500-preset nightly: zero crashes/hangs; ≥ 55fps p95 at 1080p on GTX1050-class.

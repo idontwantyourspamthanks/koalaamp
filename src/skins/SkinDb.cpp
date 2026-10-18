@@ -130,8 +130,8 @@ void SkinDb::save(std::ostream& out) const {
         if (state.visualizer.has_value()) {
             // A separate record keeps the `layout` line above byte-identical in
             // meaning for every reader that predates the visualizer.
-            out << "layout2\t" << state.visualizer->x << '\t' << state.visualizer->y << '\t'
-                << (state.visualizerVisible ? 0 : 1) << '\t' << key << '\n';
+            out << "layout2\t" << state.visualizer->x << '\t' << state.visualizer->y << '\t' << key
+                << '\n';
         }
     }
 }
@@ -210,7 +210,7 @@ void SkinDb::load(std::istream& in) {
             // Windows). Canonicalising here keeps load() self-consistent with
             // the writer/reader regardless of where the file was written.
             m_layouts[keyFor(key)] = state;
-        } else if (parts[0] == "layout2" && parts.size() >= 5) {
+        } else if (parts[0] == "layout2" && parts.size() >= 4) {
             // VZ-1's visualizer placement, kept in its own record: the classic
             // `layout` line's key is positional (the tab-joined tail from index
             // 10), so widening it would silently change the meaning of every
@@ -218,17 +218,15 @@ void SkinDb::load(std::istream& in) {
             // and a file with no visualizer simply has no line.
             int x = 0;
             int y = 0;
-            int hidden = 0;
-            if (!parseInt(parts[1], x) || !parseInt(parts[2], y) || !parseInt(parts[3], hidden)) {
+            if (!parseInt(parts[1], x) || !parseInt(parts[2], y)) {
                 continue;
             }
             // Decorate the record the `layout` line created; never create one. A
             // stray or hand-edited `layout2` must not fabricate an all-zero layout
             // for the classic three, which would move them to (0,0) on restore.
-            const auto found = m_layouts.find(keyFor(keyFrom(parts, 4)));
+            const auto found = m_layouts.find(keyFor(keyFrom(parts, 3)));
             if (found != m_layouts.end()) {
                 found->second.visualizer = WindowPlacement{x, y};
-                found->second.visualizerVisible = hidden == 0;
             }
         }
     }

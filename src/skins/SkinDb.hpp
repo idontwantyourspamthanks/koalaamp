@@ -47,8 +47,12 @@ struct SkinLayoutState {
     /// VZ-1: where the visualizer window was, once it has been placed. No value
     /// means "not recorded" — what a database written before the window existed
     /// says, and why the newer `layout2` record is optional.
+    ///
+    /// Deliberately no visibility: the classic three are opened by the set at
+    /// launch, but a visualizer is opened on demand, so remembering "hidden" would
+    /// mean a registered-but-never-opened window writes a record that hides it on
+    /// every later launch.
     std::optional<WindowPlacement> visualizer;
-    bool visualizerVisible = true;
     bool operator==(const SkinLayoutState&) const = default;
 };
 

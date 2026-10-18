@@ -380,7 +380,6 @@ skins::SkinLayoutState WindowSet::layout() const {
         // build without a visualizer must keep saying "no visualizer record"
         // rather than gain a bogus 0,0 one.
         state.visualizer = skins::WindowPlacement{m_visualizer->x(), m_visualizer->y()};
-        state.visualizerVisible = m_visualizerVisible;
     }
     return state;
 }
@@ -404,8 +403,9 @@ void WindowSet::applyLayout(const skins::SkinLayoutState& state) {
     // The visualizer moves only when both halves exist: a database written
     // before it (no record) or a build without it (no window) must leave it be.
     if (m_visualizer != nullptr && state.visualizer.has_value()) {
+        // Position only: whether the visualizer is open is the user's business this
+        // session, not something a layout should decide at launch.
         m_visualizer->move(state.visualizer->x, state.visualizer->y);
-        setVisualizerVisible(state.visualizerVisible);
     }
 
     m_applying = false;

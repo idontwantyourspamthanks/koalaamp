@@ -37,6 +37,14 @@ public:
     /// How many frames the renderer has drawn so far.
     using FrameCountFn = std::function<std::uint64_t()>;
 
+    /// No new frame for this long means the preset has hung. It is a fixed window,
+    /// not a fraction of the hold: a slow first frame (llvmpipe warming up) must
+    /// not read as a stall, and the ticket's holds are ten seconds.
+    static constexpr int kStallMs = 5000;
+    /// Shorter for tests, which must not idle for five seconds to see a stall.
+    void setStallMs(int ms);
+    int stallMs() const { return m_stallMs; }
+
     /// `frames` must outlive the soak. `store` and `cycler` are driven by it: the
     /// cycler ends up ordered and locked, because the soak is the single clock.
     PresetSoak(PresetStore& store, PresetCycler& cycler, FrameCountFn frames,
@@ -68,12 +76,14 @@ private:
     std::vector<std::string> m_lines;
 
     QElapsedTimer m_since;
+    QElapsedTimer m_sinceLastFrame;
     QTimer m_heartbeat;
     std::uint64_t m_framesAtPresetStart = 0;
     std::uint64_t m_framesAtLastTick = 0;
     std::size_t m_remaining = 0;
-    int m_stalledTicks = 0;
+    std::uint64_t m_framesAtLastTickBase = 0;
     int m_holdMs = 0;
+    int m_stallMs = kStallMs;
     bool m_running = false;
     bool m_stalled = false;
 };

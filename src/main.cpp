@@ -212,13 +212,17 @@ int main(int argc, char** argv) {
     }
     // VZ-1 task 8: the nightly soak. Every preset in turn, one log line each, and
     // a non-zero exit when one stops rendering (the ticket's hang).
+    // Declared outside the block: the soak owns the timer that drives the whole
+    // run, so letting it die at the block's closing brace would print the header
+    // and then sit there as an ordinary app.
+    std::unique_ptr<koalaamp::ui::PresetSoak> soak;
     if (parser.isSet(soakPresetsOption)) {
         // The soak directory is authoritative: passing --presets as well must not
         // silently soak a different corpus than the one the caller asked for.
         presetStore.setRoots({parser.value(soakPresetsOption).toStdString()});
         presetStore.setWatching(true);
         windowSet.setVisualizerVisible(true);  // nothing renders while hidden
-        auto soak = std::make_unique<koalaamp::ui::PresetSoak>(
+        soak = std::make_unique<koalaamp::ui::PresetSoak>(
             presetStore, presetCycler, [&visualizer] { return visualizer.framesRendered(); });
         int holdMs = 10000;
         if (parser.isSet(soakHoldOption)) {
