@@ -310,6 +310,46 @@ def gel(w: int, h: int, top: Rgb, bot: Rgb, ink_border: bool = True) -> Image.Im
     return im
 
 
+def gel_x_tile(w: int, h: int, top: Rgb, bot: Rgb) -> Image.Image:
+    """A gel that repeats horizontally without seams.
+
+    `gel` beve ls all four edges, so tiling it shows a light/dark line every unit
+    (gen.bmp's fill pieces are tiled across the bar in 25 px steps). Keep the top
+    and bottom edges -- they belong to the bar -- and flatten the left and right
+    ones into the neighbouring interior column.
+    """
+    im = gel(w, h, top, bot)
+    for y in range(h):
+        im.putpixel((0, y), im.getpixel((1, y)))
+        im.putpixel((w - 1, y), im.getpixel((w - 2, y)))
+    return im
+
+
+def flat_right(im: Image.Image) -> Image.Image:
+    """Drop a piece's right-edge bevel where the next tiled piece continues it.
+
+    The 125 px bottom bar is the bar's left end: the fill tiles continue to its
+    right, so its own right bevel would show as a 1 px seam between them.
+    """
+    w, h = im.size
+    for y in range(h):
+        im.putpixel((w - 1, y), im.getpixel((w - 2, y)))
+    return im
+
+
+def gel_y_tile(w: int, h: int, top: Rgb, bot: Rgb) -> Image.Image:
+    """A gel that repeats vertically without seams.
+
+    For the side borders: the left and right edges are the window frame and stay,
+    the top and bottom ones repeat and must go.
+    """
+    im = gel(w, h, top, bot)
+    for x in range(w):
+        im.putpixel((x, 0), im.getpixel((x, 1)))
+        im.putpixel((x, h - 1), im.getpixel((x, h - 2)))
+    return im
+
+
 def pressed(im: Image.Image) -> Image.Image:
     # Invert the vertical gradient and darken, the way a gel button sinks.
     w, h = im.size
@@ -1049,13 +1089,15 @@ def build_gen(theme: Theme) -> Image.Image:
         if selected:
             hline(im, 0, y + 19, 155, theme.accent)
 
-    im.paste(gel(125, 14, theme.panel_hi, theme.panel_lo), (0, 42))
-    im.paste(gel(125, 14, theme.panel, theme.panel_lo), (0, 57))
-    im.paste(gel(25, 14, theme.panel, theme.panel_lo), (127, 72))
-    left = gel(11, 29, theme.panel_hi, theme.panel_lo)
+    im.paste(flat_right(gel(125, 14, theme.panel_hi, theme.panel_lo)), (0, 42))
+    im.paste(flat_right(gel(125, 14, theme.panel, theme.panel_lo)), (0, 57))
+    # Tiled across the bar in 25 px steps: must not carry its own side edges.
+    im.paste(gel_x_tile(25, 14, theme.panel, theme.panel_lo), (127, 72))
+    # Tiled down the window side in 29 px steps: must not carry top/bottom edges.
+    left = gel_y_tile(11, 29, theme.panel_hi, theme.panel_lo)
     im.paste(left, (127, 42))
-    im.paste(gel(11, 24, theme.panel_hi, theme.panel_lo), (158, 42))
-    im.paste(gel(8, 29, theme.panel, theme.panel_lo), (139, 42))
+    im.paste(gel_y_tile(11, 24, theme.panel_hi, theme.panel_lo), (158, 42))
+    im.paste(gel_y_tile(8, 29, theme.panel, theme.panel_lo), (139, 42))
     im.paste(gel(8, 24, theme.panel, theme.panel_lo), (170, 42))
     im.paste(icon_button(9, 9, theme.button_top, theme.button_bot, CLOSE, theme.button_ink), (148, 42))
     return im

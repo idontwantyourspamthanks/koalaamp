@@ -67,20 +67,25 @@ void drawSideBorder(const Skin& skin, QPainter& painter, const char* fill, const
     }
 }
 
-/// The bottom bar: the two 125 px halves butted against the ends, the fill
-/// sprites repeated in between. On a window narrower than 250 px the halves
-/// overlap and nothing is left to fill (the reference width is 194 px, so this
-/// is the common case).
-void drawBottomBar(const Skin& skin, QPainter& painter, const QRect& bottom) {
-    const int leftWidth = std::min(kBottomHalfWidth, bottom.width() - kGenRightBorder);
-    blitGen(skin, painter, "GEN_BOTTOM_LEFT", bottom.x(), bottom.y(), leftWidth, bottom.height());
+/// The bottom bar. The atlas stores it as two 125 px *variants* of one bar — a
+/// light one and a vivid blue one, the same way the title bar has two rows — not
+/// as a left end and a right end. Butting them (the earlier guess) produced a
+/// two-tone bar with a seam at x=69; instead one variant runs the full width and
+/// the fill tiles continue it.
+void drawBottomBar(const Skin& skin, QPainter& painter, const QRect& bottom, bool active) {
+    // The atlas stores the bar as two stacked full-length variants (selected and
+    // unselected, the same way the title bar has two rows), each carrying cyan
+    // tile markers every 25 px -- verified against a real skin's gen.bmp, where the
+    // bottom rows start at x=0 and the markers sit at x=25/50/75. So: one variant as
+    // the bar's left end, then the fill unit tiled across the rest. The seams this
+    // used to show came from the fill sprite being drawn as a bordered standalone
+    // piece instead of an edge-free tile unit; that is the generator's job.
+    const char* bar = active ? "GEN_BOTTOM_LEFT" : "GEN_BOTTOM_RIGHT";
+    const int barWidth = std::min(kBottomHalfWidth, bottom.width());
+    blitGen(skin, painter, bar, bottom.x(), bottom.y(), barWidth, bottom.height());
 
-    const int rightX = std::max(bottom.x(), bottom.x() + bottom.width() - kBottomHalfWidth);
-    blitGen(skin, painter, "GEN_BOTTOM_RIGHT", rightX, bottom.y(),
-            bottom.x() + bottom.width() - rightX, bottom.height());
-
-    for (int x = bottom.x() + leftWidth; x < rightX;) {
-        const int step = std::min(kGenSegment, rightX - x);
+    for (int x = bottom.x() + barWidth; x < bottom.x() + bottom.width();) {
+        const int step = std::min(kGenSegment, bottom.x() + bottom.width() - x);
         blitGen(skin, painter, "GEN_BOTTOM_FILL", x, bottom.y(), step, bottom.height());
         x += step;
     }
@@ -109,7 +114,9 @@ void paintFallbackFrame(QPainter& painter, const QSize& size, const GenLayout& l
 void drawTitle(const Skin& skin, QPainter& painter, const GenLayout& layout, const std::string& text,
                int clipRight) {
     const int y = layout.title.top() + (layout.title.height() - koalaamp::skins::kCharHeight) / 2;
-    int penX = layout.title.x() + kGenLeftBorder + 2;
+    // After the 25 px left corner sprite: starting at the border width put the text
+    // on top of the corner art.
+    int penX = layout.title.x() + kGenSegment + 3;
     if (!text.empty() && skin.sheet(kSheetText) != nullptr) {
         painter.save();
         painter.setClipRect(QRect(penX, y, std::max(0, clipRight - penX),
@@ -204,7 +211,7 @@ QImage renderGenWindow(const skins::Skin& skin, const QSize& contentSize, const 
         drawSideBorder(skin, painter, "GEN_MIDDLE_RIGHT", "GEN_MIDDLE_RIGHT_BOTTOM",
                        layout.rightBorder.x(), layout.rightBorder.width(), layout.rightBorder.top(),
                        layout.rightBorder.bottom() + 1);
-        drawBottomBar(skin, painter, layout.bottom);
+        drawBottomBar(skin, painter, layout.bottom, active);
         blitGen(skin, painter, "GEN_CLOSE_SELECTED", layout.closeButton.x(), layout.closeButton.y(),
                 layout.closeButton.width(), layout.closeButton.height());
     }

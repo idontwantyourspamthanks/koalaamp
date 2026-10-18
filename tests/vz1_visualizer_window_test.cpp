@@ -148,9 +148,10 @@ TEST_CASE("VZ-1 the visualizer window wears the skin's gen frame", "[vz1][viswin
     // The title bar's left corner is the skin's own GEN_TOP_LEFT sprite, blitted
     // at (0,0) — the title text starts further right, so this pixel is the art.
     CHECK(rendered.pixelColor(3, 3) == gen->pixelColor(3, 3));
-    // The bottom bar's right half is butted against the right edge.
+    // Bar (125 px variant) then tiled fill for 125..194, so the bottom-right pixel
+    // is the fill sprite's clipped tail.
     CHECK(rendered.pixelColor(rendered.width() - 1, rendered.height() - 1) ==
-          gen->pixelColor(124, 70));
+          gen->pixelColor(127 + 18, 72 + 13));
 }
 
 TEST_CASE("VZ-1 a skin without gen.bmp gets the designed fallback frame", "[vz1][viswindow]") {
