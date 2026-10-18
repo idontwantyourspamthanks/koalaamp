@@ -30,6 +30,7 @@
 #include <QSize>
 
 #include "skins/Skin.hpp"
+#include "skins/SkinText.hpp"
 
 namespace koalaamp::ui {
 
@@ -70,9 +71,13 @@ QSize genSnapSize(const QSize& wanted);
 /// The composing frame: title bar, borders, bottom bar, close box and the
 /// client area. `active` picks the skin's selected title-bar sprites; `title` is
 /// drawn in the skin's 5x6 font (uppercase-folded) or, without it, in the
-/// fallback font. Returns a `genSnapSize(contentSize) * scale` image.
-QImage renderGenWindow(const skins::Skin& skin, const QSize& contentSize, const std::string& title,
-                       bool active, int scale = 1);
+/// fallback font. `pledit` is the skin's playlist palette, used only when the skin
+/// ships no `gen.bmp`: the frame then borrows the playlist's colours, so the window
+/// still reads as part of the skin. nullptr keeps the neutral greys. Returns a
+/// `genSnapSize(contentSize) * scale` image.
+QImage renderGenWindow(const skins::Skin& skin, const skins::PleditColors* pledit,
+                       const QSize& contentSize, const std::string& title, bool active,
+                       int scale = 1);
 
 /// True when the fallback frame would be used (the skin ships no `gen.bmp`).
 bool genUsesFallback(const skins::Skin& skin);

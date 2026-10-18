@@ -16,8 +16,10 @@
 // that does shape it.
 //
 // Unlike the main/EQ windows a gen window ships a designed fallback (GenRenderer):
-// a skin without gen.bmp still gets a usable, draggable window, and a build
-// without libprojectM still gets a window that says so instead of failing.
+// a skin without gen.bmp still gets a usable, draggable window, framed in that skin's
+// own playlist palette (pledit.txt) so it does not read as a foreign grey window
+// beside the skin's other windows, and a build without libprojectM still gets a
+// window that says so instead of failing.
 //
 // docs/spec.md §5.2-5.3, §6.1; docs/tickets/VZ-1-visualizer.md task 1.
 #pragma once

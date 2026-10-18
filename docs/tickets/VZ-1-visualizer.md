@@ -17,7 +17,9 @@ The production visualizer: a skin-chromed window where projectM renders the user
   chrome from `gen`/visspec-class bitmaps with designed fallback. — _`src/ui/VisualizerWindow.{hpp,cpp}`
   on `src/ui/GenRenderer.{hpp,cpp}`: the tiled gen frame (25 px title/bottom tiles, 29 px side
   borders, close box, title in the skin font) and a designed fallback for the many skins that omit
-  `gen.bmp`. The canvas fills the client rect and the engine is injected, so the UI never links the
+  `gen.bmp`: it borrows that skin's `pledit.txt` palette, so a gen-less skin's visualizer reads as a
+  sibling of the playlist window instead of a neutral grey stranger beside it. The canvas fills the
+  client rect and the engine is injected, so the UI never links the
   back end. App wiring in `src/main.cpp`: the clutterbar V toggles the window, its close box hides
   it, `--always-on-top` covers it. Hosting: a gen frame is rectangular, so this window is unmasked —
   FE-14 §10 (masked toplevel) remains the answer for any skin that ever shapes one, and its

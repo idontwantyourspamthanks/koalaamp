@@ -26,14 +26,58 @@ constexpr char kSheetText[] = "TEXT";
 constexpr int kBorderCapHeight = 24;
 /// Width of the `GEN_BOTTOM_*` halves.
 constexpr int kBottomHalfWidth = 125;
-/// Fallback frame palette (used when the skin ships no `gen.bmp`).
-constexpr int kFallbackClient = 0x000000;
-constexpr int kFallbackFrame = 0x3C3C46;
-constexpr int kFallbackTitleActive = 0x2A2A32;
-constexpr int kFallbackTitleInactive = 0x232329;
-constexpr int kFallbackEdge = 0x6E6E7E;
-constexpr int kFallbackClose = 0x4A4A55;
-constexpr int kFallbackText = 0xC8C8D0;
+/// The colours a gen window's frame is painted with when the skin ships no `gen.bmp`.
+struct GenPalette {
+    int frame = 0;
+    int titleActive = 0;
+    int titleInactive = 0;
+    int edge = 0;
+    int close = 0;
+    int text = 0;
+    int client = 0;
+};
+
+/// Neutral greys: what a skin with neither `gen.bmp` nor `pledit.txt` gets, and what
+/// the window paints before any skin is chosen.
+GenPalette neutralPalette() {
+    GenPalette p;
+    p.frame = 0x3C3C46;
+    p.titleActive = 0x2A2A32;
+    p.titleInactive = 0x232329;
+    p.edge = 0x6E6E7E;
+    p.close = 0x4A4A55;
+    p.text = 0xC8C8D0;
+    p.client = 0x000000;
+    return p;
+}
+
+int rgbOf(const skins::Rgb& c) { return (c.r << 16) | (c.g << 8) | c.b; }
+
+int dim(int rgb, double factor) {
+    const auto channel = [factor](int v) {
+        const int scaled = static_cast<int>(v * factor);
+        return scaled < 0 ? 0 : (scaled > 255 ? 255 : scaled);
+    };
+    return (channel((rgb >> 16) & 0xFF) << 16) | (channel((rgb >> 8) & 0xFF) << 8) |
+           channel(rgb & 0xFF);
+}
+
+/// A gen window's closest sibling is the playlist window, so when the skin has no
+/// `gen.bmp` of its own the frame borrows the playlist's palette: the frame takes the
+/// playlist background, the active title its selection colour, the title text its
+/// current-row colour. That keeps the visualizer reading as part of the skin instead
+/// of as a neutral grey window beside it.
+GenPalette paletteFromPledit(const skins::PleditColors& pledit) {
+    GenPalette p;
+    p.frame = rgbOf(pledit.normalBg);
+    p.titleActive = rgbOf(pledit.selectedBg);
+    p.titleInactive = dim(p.frame, 0.85);
+    p.edge = rgbOf(pledit.current);
+    p.close = dim(p.titleActive, 0.75);
+    p.text = rgbOf(pledit.current);
+    p.client = 0x000000;
+    return p;
+}
 
 bool blitGen(const Skin& skin, QPainter& painter, const char* sprite, int x, int y, int clipW,
              int clipH) {
@@ -91,28 +135,28 @@ void drawBottomBar(const Skin& skin, QPainter& painter, const QRect& bottom, boo
     }
 }
 
-/// The fallback title bar and frame: neutral greys, so a skin without `gen.bmp`
-/// still gets a window that reads as one.
+/// The fallback title bar and frame, painted in `palette` (the skin's playlist colours
+/// when it ships `pledit.txt`, neutral greys otherwise).
 void paintFallbackFrame(QPainter& painter, const QSize& size, const GenLayout& layout,
-                        bool active) {
-    painter.fillRect(layout.title, QColor(active ? kFallbackTitleActive : kFallbackTitleInactive));
-    painter.fillRect(layout.leftBorder, QColor(kFallbackFrame));
-    painter.fillRect(layout.rightBorder, QColor(kFallbackFrame));
-    painter.fillRect(layout.bottom, QColor(kFallbackFrame));
-    painter.fillRect(layout.client, QColor(kFallbackClient));
+                        bool active, const GenPalette& palette) {
+    painter.fillRect(layout.title, QColor(active ? palette.titleActive : palette.titleInactive));
+    painter.fillRect(layout.leftBorder, QColor(palette.frame));
+    painter.fillRect(layout.rightBorder, QColor(palette.frame));
+    painter.fillRect(layout.bottom, QColor(palette.frame));
+    painter.fillRect(layout.client, QColor(palette.client));
 
     // A single light inner edge, the way the skinned frame's top-left highlight
     // reads.
-    painter.fillRect(QRect(size.width() / 2, layout.title.bottom(), 1, 1), QColor(kFallbackEdge));
+    painter.fillRect(QRect(size.width() / 2, layout.title.bottom(), 1, 1), QColor(palette.edge));
     painter.fillRect(QRect(layout.title.x(), layout.title.top(), size.width(), 1),
-                     QColor(kFallbackEdge));
-    painter.fillRect(layout.closeButton, QColor(kFallbackClose));
+                     QColor(palette.edge));
+    painter.fillRect(layout.closeButton, QColor(palette.close));
 }
 
 /// The window title: the skin's 5x6 uppercase font when it has one, otherwise
 /// the fallback font.
 void drawTitle(const Skin& skin, QPainter& painter, const GenLayout& layout, const std::string& text,
-               int clipRight) {
+               int clipRight, const GenPalette& palette) {
     const int y = layout.title.top() + (layout.title.height() - koalaamp::skins::kCharHeight) / 2;
     // After the 25 px left corner sprite: starting at the border width put the text
     // on top of the corner art.
@@ -140,7 +184,7 @@ void drawTitle(const Skin& skin, QPainter& painter, const GenLayout& layout, con
     QFont font;
     font.setPixelSize(koalaamp::skins::kCharHeight + 1);
     painter.setFont(font);
-    painter.setPen(QColor(kFallbackText));
+    painter.setPen(QColor(palette.text));
     painter.drawText(QRect(penX, layout.title.top(), std::max(0, clipRight - penX),
                            layout.title.height()),
                      Qt::AlignVCenter | Qt::AlignLeft, QString::fromStdString(text));
@@ -180,18 +224,22 @@ bool genUsesFallback(const skins::Skin& skin) {
     return skin.sheet(kSheetGen) == nullptr;
 }
 
-QImage renderGenWindow(const skins::Skin& skin, const QSize& contentSize, const std::string& title,
-                       bool active, int scale) {
+QImage renderGenWindow(const skins::Skin& skin, const skins::PleditColors* pledit,
+                       const QSize& contentSize, const std::string& title, bool active,
+                       int scale) {
     const QSize size = genSnapSize(contentSize);
     const GenLayout layout = genLayout(size);
+    // A skin without `gen.bmp` still needs a frame that belongs to the skin, so the
+    // fallback takes the playlist's colours when the caller has them.
+    const GenPalette palette = pledit != nullptr ? paletteFromPledit(*pledit) : neutralPalette();
     QImage image(size, QImage::Format_RGB32);
-    image.fill(QColor(kFallbackClient));
+    image.fill(QColor(palette.client));
 
     QPainter painter(&image);
     painter.setRenderHint(QPainter::SmoothPixmapTransform, false);
 
     if (genUsesFallback(skin)) {
-        paintFallbackFrame(painter, size, layout, active);
+        paintFallbackFrame(painter, size, layout, active, palette);
     } else {
         // Title bar: corners plus the repeated 25 px fill.
         const char* left = active ? "GEN_TOP_LEFT_SELECTED" : "GEN_TOP_LEFT";
@@ -216,7 +264,7 @@ QImage renderGenWindow(const skins::Skin& skin, const QSize& contentSize, const 
                 layout.closeButton.width(), layout.closeButton.height());
     }
 
-    drawTitle(skin, painter, layout, title, layout.closeButton.left() - kGenCloseMargin);
+    drawTitle(skin, painter, layout, title, layout.closeButton.left() - kGenCloseMargin, palette);
     painter.end();
 
     if (scale > 1) {

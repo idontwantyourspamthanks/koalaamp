@@ -26,9 +26,26 @@ const skins::Skin& noSheets() {
     return empty;
 }
 
-QImage chromeImage(const skins::Skin& sheets, const QSize& contentSize, const std::string& title,
-                   bool active, int scale) {
-    return renderGenWindow(sheets, contentSize, title, active, scale);
+QImage chromeImage(const skins::Skin& sheets, const skins::PleditColors* pledit,
+                   const QSize& contentSize, const std::string& title, bool active, int scale) {
+    return renderGenWindow(sheets, pledit, contentSize, title, active, scale);
+}
+
+/// The palette the fallback frame borrows when a skin ships no `gen.bmp`: the skin's
+/// own `pledit.txt`, so the visualizer keeps reading as part of the skin rather than
+/// as a neutral grey stranger parked beside the playlist.
+///
+/// Only when the skin actually ships `pledit.txt` — the parsed struct otherwise holds
+/// the built-in default style, which is some other skin's colours again.
+const skins::PleditColors* pleditIfShipped(const skins::SkinSet* set) {
+    if (set == nullptr) {
+        return nullptr;
+    }
+    const auto& missing = set->missingOptional;
+    if (std::find(missing.begin(), missing.end(), "pledit.txt") != missing.end()) {
+        return nullptr;
+    }
+    return &set->pleditColors;
 }
 
 }  // namespace
@@ -237,7 +254,8 @@ void VisualizerWindow::paintEvent(QPaintEvent* /*event*/) {
     }
 
     const skins::Skin& sheets = m_skin != nullptr ? m_skin->sheets : noSheets();
-    painter.drawImage(0, 0, chromeImage(sheets, contentSize(), m_title, isActiveWindow(), m_scale));
+    painter.drawImage(0, 0, chromeImage(sheets, pleditIfShipped(m_skin), contentSize(), m_title,
+                                        isActiveWindow(), m_scale));
 
     if (!visualizerAvailable()) {
         drawUnavailableMessage(painter);

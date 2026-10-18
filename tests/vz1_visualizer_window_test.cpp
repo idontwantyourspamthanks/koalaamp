@@ -392,6 +392,34 @@ TEST_CASE("VZ-1 fullscreen shows the render alone and restores the window", "[vz
     window.setScale(1);
 }
 
+TEST_CASE("VZ-1 a skin without gen.bmp frames itself in the skin's colours", "[vz1][gen]") {
+    // The visualizer is the only gen window, so a skin without `gen.bmp` used to get a
+    // neutral grey frame while the main, EQ and playlist windows all wore the skin. The
+    // frame now borrows the skin's playlist palette (`pledit.txt`), its closest sibling.
+    const koalaamp::skins::Skin noSheets;
+    CHECK(koalaamp::ui::genUsesFallback(noSheets));
+
+    koalaamp::skins::PleditColors pledit;
+    pledit.normalBg = koalaamp::skins::Rgb{16, 32, 48};
+    pledit.selectedBg = koalaamp::skins::Rgb{200, 100, 50};
+    pledit.current = koalaamp::skins::Rgb{240, 230, 200};
+
+    const QImage framed =
+        koalaamp::ui::renderGenWindow(noSheets, &pledit, QSize(194, 109), "VISUALIZER", true);
+    // The active title bar takes the playlist's selection colour...
+    CHECK(framed.pixelColor(3, 3) == QColor(200, 100, 50));
+    // ...the frame and the bottom bar its window background...
+    CHECK(framed.pixelColor(2, 60) == QColor(16, 32, 48));
+    CHECK(framed.pixelColor(97, 106) == QColor(16, 32, 48));
+    // ...and the inner highlight the current-row colour.
+    CHECK(framed.pixelColor(97, 0) == QColor(240, 230, 200));
+
+    // A skin with neither `gen.bmp` nor `pledit.txt` still gets the neutral greys.
+    const QImage grey =
+        koalaamp::ui::renderGenWindow(noSheets, nullptr, QSize(194, 109), "VISUALIZER", true);
+    CHECK(grey.pixelColor(3, 3) == QColor(0x2A, 0x2A, 0x32));
+}
+
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
     return Catch::Session().run(argc, argv);
