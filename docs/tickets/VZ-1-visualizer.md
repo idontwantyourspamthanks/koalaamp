@@ -40,7 +40,13 @@ The production visualizer: a skin-chromed window where projectM renders the user
   folder dropped in later is picked up — and ordered/random selection with wrapping. The app takes
   `--presets DIR`, loads the first preset, and follows the selection (the canvas queues loads into
   `paintGL`, so this is safe before GL exists). Still open: the shipped starter pack (RL-1's) and the
-  metadata cache the task-4 cycling UI wants. Suite `koalaamp_vz1_preset_tests`._
+  metadata cache the task-4 cycling UI wants.
+
+  On the starter pack: the community packs carry **no licence metadata at all** — a sample of 10
+  cream-of-the-crop presets contains zero licence/copyright text, and the `.milk` format has no field for
+  one (`docs/research/visuals.md` §6.4 already flags this as [UNVERIFIED]). "RL-1-cleared" therefore
+  cannot be established by inspecting files; KoalaAmp-authored presets are clean by construction and are
+  the cheap route. Suite `koalaamp_vz1_preset_tests`._
 - [ ] Cycling: random / ordered / locked; next/prev hotkeys + on-screen skinned control; preset name
   overlay on switch (Winamp-style, auto-fade). — _`PresetCycler` (`src/ui/PresetCycler.{hpp,cpp}`):
   ordered/random (the order is delegated to the store, which never repeats the current preset in
@@ -87,11 +93,11 @@ The production visualizer: a skin-chromed window where projectM renders the user
   limit". The minimum is the only figure that shows a preset falling behind: `00224-EoS + Phat - chasers
   17 sentinels ghoul - nz+ ihavenothingtoffal likeness` at 28.1 fps over 281 frames (heavy, not hung;
   next lowest 53.4). `nightly-soak.yml` keeps running this nightly.
-- ≥ 55fps p95 at 1080p on GTX1050-class — **not** answered by the nightly job: software GL on a
-  shared CI runner says nothing about that hardware, and the soak's own regime (llvmpipe, 1280x720,
-  the ~175x75 gen-window canvas) is a different workload — its p5 of 57.3 fps must not be read as this
-  number. Needs a measurement on real GPU hardware (FE-14's figures are the spike's, not the app's);
-  the soak already logs per-preset fps, so a `--fullscreen` flag would make that one command.
+- ~~≥ 55fps p95 at 1080p on GTX1050-class~~ — **dropped (owner decision, 2026-10-18):** no GPU
+  hardware available to the maintainer, and at this application's scale the visuals are not a
+  performance concern. The nightly soak's software-GL figures above stand as an informational baseline
+  (llvmpipe, 1280x720, the small gen-window canvas), and because the soak logs per-preset fps the number
+  can be taken on real hardware later without new code.
 - Preset switch < 300ms, no context loss, name overlay shows.
 - User adds a folder of presets → appears in the browser without restart (watcher).
 - Fullscreen enters/exits cleanly on all 3 OSes; window remembers state.
