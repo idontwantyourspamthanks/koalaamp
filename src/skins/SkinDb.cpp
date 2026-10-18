@@ -222,9 +222,14 @@ void SkinDb::load(std::istream& in) {
             if (!parseInt(parts[1], x) || !parseInt(parts[2], y) || !parseInt(parts[3], hidden)) {
                 continue;
             }
-            SkinLayoutState& state = m_layouts[keyFor(keyFrom(parts, 4))];
-            state.visualizer = WindowPlacement{x, y};
-            state.visualizerVisible = hidden == 0;
+            // Decorate the record the `layout` line created; never create one. A
+            // stray or hand-edited `layout2` must not fabricate an all-zero layout
+            // for the classic three, which would move them to (0,0) on restore.
+            const auto found = m_layouts.find(keyFor(keyFrom(parts, 4)));
+            if (found != m_layouts.end()) {
+                found->second.visualizer = WindowPlacement{x, y};
+                found->second.visualizerVisible = hidden == 0;
+            }
         }
     }
 }

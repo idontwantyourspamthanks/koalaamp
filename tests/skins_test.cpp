@@ -600,3 +600,12 @@ TEST_CASE("a database written before the visualizer existed still loads", "[skin
     CHECK_FALSE(state.visualizer.has_value());
     CHECK(state.visualizerVisible);
 }
+
+TEST_CASE("a stray visualizer record cannot fabricate a layout", "[skins][db]") {
+    // `layout2` decorates the record the classic line created. On its own it must
+    // not produce one: an all-zero layout would move the classic three to (0,0).
+    std::istringstream in("layout2\t30\t40\t0\t/tmp/x.wsz\n");
+    koalaamp::skins::SkinDb db;
+    db.load(in);
+    CHECK(db.layouts().empty());
+}
