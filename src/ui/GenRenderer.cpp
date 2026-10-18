@@ -53,7 +53,9 @@ GenPalette neutralPalette() {
 
 int rgbOf(const skins::Rgb& c) { return (c.r << 16) | (c.g << 8) | c.b; }
 
-int dim(int rgb, double factor) {
+/// Per-channel scale: <1 darkens, >1 lightens. Named for what it does at both ends —
+/// the frame's derived shades go both ways.
+int scale(int rgb, double factor) {
     const auto channel = [factor](int v) {
         const int scaled = static_cast<int>(v * factor);
         return scaled < 0 ? 0 : (scaled > 255 ? 255 : scaled);
@@ -63,17 +65,21 @@ int dim(int rgb, double factor) {
 }
 
 /// A gen window's closest sibling is the playlist window, so when the skin has no
-/// `gen.bmp` of its own the frame borrows the playlist's palette: the frame takes the
-/// playlist background, the active title its selection colour, the title text its
-/// current-row colour. That keeps the visualizer reading as part of the skin instead
-/// of as a neutral grey window beside it.
+/// `gen.bmp` of its own the frame borrows the playlist's palette: the frame is the
+/// playlist's window background, the title bar that frame raised a step, the title
+/// text the playlist's current-row colour.
+///
+/// Deliberately *not* `selectedBg` for the title bar: that is the selection highlight,
+/// and a saturated selection blue above the skin's own chrome reads as a foreign strip
+/// (it did, in the first cut). Steps keep the frame in the skin's family.
 GenPalette paletteFromPledit(const skins::PleditColors& pledit) {
     GenPalette p;
-    p.frame = rgbOf(pledit.normalBg);
-    p.titleActive = rgbOf(pledit.selectedBg);
-    p.titleInactive = dim(p.frame, 0.85);
-    p.edge = rgbOf(pledit.current);
-    p.close = dim(p.titleActive, 0.75);
+    const int frame = rgbOf(pledit.normalBg);
+    p.frame = frame;
+    p.titleActive = scale(frame, 1.6);
+    p.titleInactive = scale(frame, 0.85);
+    p.edge = scale(frame, 2.2);
+    p.close = scale(p.titleActive, 0.8);
     p.text = rgbOf(pledit.current);
     p.client = 0x000000;
     return p;

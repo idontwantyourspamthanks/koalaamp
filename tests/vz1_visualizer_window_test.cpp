@@ -406,13 +406,18 @@ TEST_CASE("VZ-1 a skin without gen.bmp frames itself in the skin's colours", "[v
 
     const QImage framed =
         koalaamp::ui::renderGenWindow(noSheets, &pledit, QSize(194, 109), "VISUALIZER", true);
-    // The active title bar takes the playlist's selection colour...
-    CHECK(framed.pixelColor(3, 3) == QColor(200, 100, 50));
-    // ...the frame and the bottom bar its window background...
+    // The frame and the bottom bar take the playlist's window background...
     CHECK(framed.pixelColor(2, 60) == QColor(16, 32, 48));
     CHECK(framed.pixelColor(97, 106) == QColor(16, 32, 48));
-    // ...and the inner highlight the current-row colour.
-    CHECK(framed.pixelColor(97, 0) == QColor(240, 230, 200));
+    // ...the title bar is that frame raised a step, and must *not* be the playlist's
+    // selection colour: a saturated selection blue above the skin's chrome reads as a
+    // foreign strip, which is the version that shipped first and was rejected on sight.
+    const QColor title = framed.pixelColor(3, 3);
+    CHECK(title != QColor(16, 32, 48));
+    CHECK(title.red() > 16);
+    CHECK(title != QColor(200, 100, 50));
+    // ...and the inner highlight is brighter than the frame.
+    CHECK(framed.pixelColor(97, 0).red() > 16);
 
     // A skin with neither `gen.bmp` nor `pledit.txt` still gets the neutral greys.
     const QImage grey =
