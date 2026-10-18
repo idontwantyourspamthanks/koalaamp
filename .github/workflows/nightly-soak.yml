@@ -29,15 +29,20 @@ jobs:
       - name: Install Qt 6.12.0
         uses: jurplel/install-qt-action@v4
         with:
+          # Kept in lockstep with ci.yml's linux-gcc preset on purpose: a divergent
+          # Qt between CI and the soak makes a soak failure unattributable.
           version: '6.12.0'
           cache: true
 
-      # The visualizer's canvas needs a GL context and the runner is headless:
-      # xvfb + llvmpipe, the same shape FE-14 measured with.
-      - name: Native deps (GL, xvfb, ninja)
+      # The same native deps ci.yml installs on Linux, plus xvfb: the configure
+      # step needs libcurl (servers), libvlc-dev + vlc-plugin-base (the playback
+      # seam), GL for the visualizer's canvas, and xvfb because the runner is
+      # headless. Missing any of these fails Configure rather than the soak.
+      - name: Native deps (same set as ci.yml, plus xvfb)
         run: |
           sudo apt-get update
-          sudo apt-get install -y ninja-build libgl-dev xvfb
+          sudo apt-get install -y ninja-build libgl-dev xvfb \
+            libcurl4-openssl-dev libvlc-dev vlc-plugin-base
 
       - name: Vendor header-only deps
         run: bash scripts/vendor-deps.sh
@@ -51,6 +56,10 @@ jobs:
       - name: Build
         run: cmake --build --preset linux-gcc
 
+      # Deliberately skinless: the visualizer falls back to its designed frame, so
+      # this job needs no skin fixture and stays independent of the skin corpora.
+      # Do not "fix" it by adding one.
+      #
       # Ten seconds a preset. A preset that renders no frames during its hold is
       # the hang this job exists to catch, and the app exits 2 for it; a crash
       # kills the process, failing the step with the log showing what ran last.

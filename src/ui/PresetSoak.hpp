@@ -41,7 +41,10 @@ public:
     /// not a fraction of the hold: a slow first frame (llvmpipe warming up) must
     /// not read as a stall, and the ticket's holds are ten seconds.
     static constexpr int kStallMs = 5000;
-    /// Shorter for tests, which must not idle for five seconds to see a stall.
+    /// Overrides the window (tests, tuning). Unset, `start()` uses a whole hold with
+    /// `kStallMs` as the floor: a preset compiling its shaders on a cold llvmpipe
+    /// renders nothing for a while, and that must not read as a hang, while the
+    /// ticket's ten-second holds mean "no frames for a hold" really is one.
     void setStallMs(int ms);
     int stallMs() const { return m_stallMs; }
 
@@ -84,6 +87,7 @@ private:
     std::uint64_t m_framesAtLastTickBase = 0;
     int m_holdMs = 0;
     int m_stallMs = kStallMs;
+    bool m_stallExplicit = false;
     bool m_running = false;
     bool m_stalled = false;
 };

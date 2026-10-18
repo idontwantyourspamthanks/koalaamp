@@ -28,6 +28,9 @@ void PresetSoak::start(int holdMs) {
 
     m_running = true;
     m_stalled = false;
+    if (!m_stallExplicit) {
+        m_stallMs = std::max(kStallMs, m_holdMs);
+    }
     // The soak drives the cycler itself (one clock), so the cycler must not run
     // its own timer; ordered, so every preset is seen exactly once.
     m_cycler.setOrder(PresetOrder::Ordered);
@@ -48,6 +51,7 @@ void PresetSoak::start(int holdMs) {
 
 void PresetSoak::setStallMs(int ms) {
     m_stallMs = std::max(1, ms);
+    m_stallExplicit = true;
 }
 
 void PresetSoak::tick() {

@@ -258,11 +258,13 @@ TEST_CASE("SE-4 the visualizer's slot snaps to the set and round-trips through t
 
     // Snapping pulls it flush to the player's right edge (3 px is inside Winamp's
     // 10 px tolerance) without joining the dock groups.
+    const auto dockGroupsBefore = scene.set.dockGroups();
     visualizer.resize(200, 120);
     visualizer.move(scene.main.x() + scene.main.width() + 3, scene.main.y() + 40);
     scene.set.snapVisualizer();
     CHECK(visualizer.x() == scene.main.x() + scene.main.width());
-    CHECK(scene.set.dockGroups().empty());
+    // Snapping must not enrol it: the dock groups are exactly what they were.
+    CHECK(scene.set.dockGroups() == dockGroupsBefore);
 
     // A registered window is recorded -- its position, and nothing about whether it
     // is open, so a later launch cannot be talked into hiding it.
