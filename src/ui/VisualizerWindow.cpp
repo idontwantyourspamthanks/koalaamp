@@ -59,6 +59,10 @@ bool VisualizerWindow::usesFallbackChrome() const {
     return m_skin == nullptr || genUsesFallback(m_skin->sheets);
 }
 
+std::uint64_t VisualizerWindow::framesRendered() const {
+    return m_canvas != nullptr ? m_canvas->framesRendered() : 0;
+}
+
 bool VisualizerWindow::visualizerAvailable() const {
     return m_engine.available();
 }

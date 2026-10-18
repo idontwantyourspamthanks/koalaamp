@@ -104,6 +104,7 @@ void VisualizerCanvas::paintGL() {
         m_engine.pushPcm(m_scratch.data(), frames);
     }
     m_engine.render(static_cast<std::uint32_t>(defaultFramebufferObject()));
+    ++m_frames;
 }
 
 }  // namespace koalaamp::ui

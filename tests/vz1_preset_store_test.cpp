@@ -6,6 +6,7 @@
 // window, no platform plugin.
 #include <algorithm>
 #include <cstdint>
+#include <cstdint>
 #include <filesystem>
 #include <system_error>
 #include <fstream>
@@ -17,17 +18,20 @@
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QTemporaryDir>
+#include <QTimer>
 #include <QThread>
 
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include "ui/PresetCycler.hpp"
+#include "ui/PresetSoak.hpp"
 #include "ui/PresetStore.hpp"
 
 namespace {
 
 using koalaamp::ui::PresetCycler;
+using koalaamp::ui::PresetSoak;
 using koalaamp::ui::PresetOrder;
 using koalaamp::ui::PresetStore;
 
@@ -265,4 +269,74 @@ TEST_CASE("VZ-1 an empty store leaves the cycler idle", "[vz1][presets]") {
 int main(int argc, char** argv) {
     QCoreApplication app(argc, argv);
     return Catch::Session().run(argc, argv);
+}
+
+TEST_CASE("VZ-1 the soak holds every preset once and reports its frames", "[vz1][presets]") {
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const std::filesystem::path root(dir.path().toStdString());
+    writeFile(root / "a.milk");
+    writeFile(root / "b.milk");
+    writeFile(root / "c.milk");
+
+    PresetStore store;
+    store.setRoots({root.string()});
+    PresetCycler cycler(store);
+
+    // A renderer that keeps drawing, so nothing looks stalled.
+    std::uint64_t frames = 0;
+    QTimer frameClock;
+    frameClock.setInterval(2);
+    QObject::connect(&frameClock, &QTimer::timeout, [&frames] { frames += 7; });
+    frameClock.start();
+
+    PresetSoak soak(store, cycler, [&frames] { return frames; });
+    int exitCode = -1;
+    QObject::connect(&soak, &PresetSoak::finished,
+                     [&exitCode](int code, const QString& /*reason*/) { exitCode = code; });
+
+    soak.start(40);
+    CHECK(waitFor([&exitCode] { return exitCode >= 0; }));
+    frameClock.stop();
+
+    CHECK(exitCode == 0);
+    CHECK_FALSE(soak.stalled());
+    // One line per preset, each carrying its frames and fps...
+    const auto fpsLines = std::count_if(soak.lines().begin(), soak.lines().end(),
+                                        [](const std::string& line) {
+                                            return line.find(" fps") != std::string::npos;
+                                        });
+    CHECK(fpsLines == 3);
+    // ...plus the header and the summary.
+    CHECK(soak.lines().size() >= 5);
+    CHECK(soak.lines().front().find("3 preset(s)") != std::string::npos);
+    // The soak drives the cycler itself, so the cycler must not keep a timer.
+    CHECK_FALSE(cycler.isCycling());
+}
+
+TEST_CASE("VZ-1 the soak calls out a preset that stops rendering", "[vz1][presets]") {
+    QTemporaryDir dir;
+    REQUIRE(dir.isValid());
+    const std::filesystem::path root(dir.path().toStdString());
+    writeFile(root / "a.milk");
+    writeFile(root / "b.milk");
+
+    PresetStore store;
+    store.setRoots({root.string()});
+    PresetCycler cycler(store);
+
+    // A renderer that never draws: the case the nightly soak exists to catch.
+    std::uint64_t frames = 0;
+    PresetSoak soak(store, cycler, [&frames] { return frames; });
+    int exitCode = -1;
+    QObject::connect(&soak, &PresetSoak::finished,
+                     [&exitCode](int code, const QString& /*reason*/) { exitCode = code; });
+
+    soak.start(20);
+    CHECK(waitFor([&exitCode] { return exitCode >= 0; }, 3000));
+
+    CHECK(exitCode == 2);
+    CHECK(soak.stalled());
+    REQUIRE_FALSE(soak.lines().empty());
+    CHECK(soak.lines().back().find("STALL") != std::string::npos);
 }

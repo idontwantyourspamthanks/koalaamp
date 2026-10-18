@@ -30,6 +30,8 @@ add_library(koalaamp_ui STATIC
     PcmFanout.hpp
     PresetCycler.cpp
     PresetCycler.hpp
+    PresetSoak.cpp
+    PresetSoak.hpp
     PresetStore.cpp
     PresetStore.hpp
     PlayerRenderer.cpp

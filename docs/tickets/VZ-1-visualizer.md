@@ -67,7 +67,16 @@ The production visualizer: a skin-chromed window where projectM renders the user
   there is no window manager there to honour `showFullScreen`, so the geometry stays windowed. Win/macOS
   and a real desktop remain unverified, and "the window remembers state" needs the settings store._
 - [ ] Per-preset `sampler_*` textures resolved from the preset's directory (projectM 4.2 sprite API); base texture pack shipped.
-- [ ] Nightly preset soak: 500-preset corpus, 10s/preset timeout, crash/hang/FPS log.
+- [ ] Nightly preset soak: 500-preset corpus, 10s/preset timeout, crash/hang/FPS log. — _Built:
+  `scripts/fetch-presets.sh` fetches a pinned, sorted slice (default 500; the FE-14 pin holds 9795)
+  into the gitignored `third_party/presets/soak/`, and the app's `--soak-presets DIR --soak-hold-ms N`
+  mode holds each preset in turn, logging frames and fps per preset and exiting 2 when one renders no
+  frames during its hold (the ticket's hang; a crash is the process dying with the log showing the
+  preset it died on). `PresetSoak` takes a frame-count callback rather than a window pointer, so it is
+  unit-tested without a GL context (`koalaamp_vz1_preset_tests`). The nightly job is
+  `.github/workflows/nightly-soak.yml` (schedule + manual, 500 x 10 s, log uploaded as an artifact).
+  Still open: the acceptance run itself — zero crashes/hangs and the FPS numbers — which needs that
+  job to actually run._
 
 ## Acceptance
 - 500-preset nightly: zero crashes/hangs; ≥ 55fps p95 at 1080p on GTX1050-class.

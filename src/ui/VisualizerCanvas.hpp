@@ -60,6 +60,10 @@ public:
     /// Ask for a preset. Applied on the next paintGL, with the GL context current.
     void requestPreset(const std::string& path);
 
+    /// Frames rendered since construction — the soak's liveness signal (a preset
+    /// that stops producing frames is what "hang" means here).
+    std::uint64_t framesRendered() const { return m_frames; }
+
     /// The engine being driven. available() is false in a build without libprojectM,
     /// and lastError() says so — which is what the window shows.
     interop::visualizer::IVisualizerEngine& engine() { return m_engine; }
@@ -83,6 +87,7 @@ private:
     QTimer m_frameClock;           ///< ~60 fps while shown
     std::string m_pendingPreset;   ///< applied in paintGL
     bool m_created = false;
+    std::uint64_t m_frames = 0;
 };
 
 }  // namespace koalaamp::ui

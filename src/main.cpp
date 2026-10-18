@@ -23,6 +23,7 @@
 #include "ui/WindowSet.hpp"
 #if defined(KOALAAMP_HAS_GL_VISUALIZER)
 #include "ui/PresetCycler.hpp"
+#include "ui/PresetSoak.hpp"
 #include "ui/PresetStore.hpp"
 #include "ui/VisualizerWindow.hpp"
 #endif
@@ -105,6 +106,15 @@ int main(int argc, char** argv) {
         QStringLiteral("Advance the visualizer to a new preset every N ms (0 = locked)"),
         QStringLiteral("ms"));
     parser.addOption(presetCycleOption);
+    const QCommandLineOption soakPresetsOption(
+        QStringLiteral("soak-presets"),
+        QStringLiteral("Soak: hold every preset in DIR in turn, logging frames and fps"),
+        QStringLiteral("dir"));
+    const QCommandLineOption soakHoldOption(
+        QStringLiteral("soak-hold-ms"), QStringLiteral("Soak: hold each preset for N ms"),
+        QStringLiteral("ms"));
+    parser.addOption(soakPresetsOption);
+    parser.addOption(soakHoldOption);
 #endif
     parser.process(app);
 
@@ -167,6 +177,7 @@ int main(int argc, char** argv) {
     QObject::connect(&visualizer, &koalaamp::ui::VisualizerWindow::closeRequested, &windowSet,
                      [&windowSet] { windowSet.setVisualizerVisible(false); });
 
+
     // The preset library (task 3): scanning, the watcher, and the selection. The
     // cycling *policy* is task 4's — this only makes the folder's presets available,
     // loads the first one, and follows the selection when it moves.
@@ -198,6 +209,28 @@ int main(int argc, char** argv) {
             presetCycler.setIntervalMs(interval);
             presetCycler.setLocked(interval <= 0);
         }
+    }
+    // VZ-1 task 8: the nightly soak. Every preset in turn, one log line each, and
+    // a non-zero exit when one stops rendering (the ticket's hang).
+    if (parser.isSet(soakPresetsOption)) {
+        // The soak directory is authoritative: passing --presets as well must not
+        // silently soak a different corpus than the one the caller asked for.
+        presetStore.setRoots({parser.value(soakPresetsOption).toStdString()});
+        presetStore.setWatching(true);
+        windowSet.setVisualizerVisible(true);  // nothing renders while hidden
+        auto soak = std::make_unique<koalaamp::ui::PresetSoak>(
+            presetStore, presetCycler, [&visualizer] { return visualizer.framesRendered(); });
+        int holdMs = 10000;
+        if (parser.isSet(soakHoldOption)) {
+            bool ok = false;
+            const int value = parser.value(soakHoldOption).toInt(&ok);
+            if (ok && value > 0) {
+                holdMs = value;
+            }
+        }
+        QObject::connect(soak.get(), &koalaamp::ui::PresetSoak::finished, &app,
+                         [&app](int code, const QString& /*reason*/) { app.exit(code); });
+        soak->start(holdMs);
     }
     QObject::connect(&visualizer, &koalaamp::ui::VisualizerWindow::nextPresetRequested,
                      &presetCycler, &koalaamp::ui::PresetCycler::next);

@@ -67,6 +67,8 @@ public:
     /// False in a build without libprojectM: the window then paints the
     /// unavailable message and hides the canvas.
     bool visualizerAvailable() const;
+    /// Frames the canvas has rendered (the soak's liveness signal).
+    std::uint64_t framesRendered() const;
 
     // --- view ---------------------------------------------------------------
     int scale() const { return m_scale; }

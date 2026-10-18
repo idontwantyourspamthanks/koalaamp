@@ -1,0 +1,73 @@
+# SPDX-License-Identifier: MIT
+#
+# nightly-soak — VZ-1 task 8: hold every preset of a pinned 500-preset slice for ten
+# seconds each and keep the log.
+#
+# It is deliberately not part of CI: it needs a GL-capable headless runner, a large
+# fetched corpus and hours, so it runs nightly (and on demand).
+#
+# The corpus is community-authored and fetched at a pinned commit, never committed
+# (AGENTS.md) — the same rule as the skin corpora.
+name: nightly soak
+
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preset-soak:
+    name: preset soak (500 presets)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 240
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Install Qt 6.12.0
+        uses: jurplel/install-qt-action@v4
+        with:
+          version: '6.12.0'
+          cache: true
+
+      # The visualizer's canvas needs a GL context and the runner is headless:
+      # xvfb + llvmpipe, the same shape FE-14 measured with.
+      - name: Native deps (GL, xvfb, ninja)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y ninja-build libgl-dev xvfb
+
+      - name: Vendor header-only deps
+        run: bash scripts/vendor-deps.sh
+
+      - name: Fetch the pinned preset slice
+        run: bash scripts/fetch-presets.sh 500
+
+      - name: Configure
+        run: cmake --preset linux-gcc
+
+      - name: Build
+        run: cmake --build --preset linux-gcc
+
+      # Ten seconds a preset. A preset that renders no frames during its hold is
+      # the hang this job exists to catch, and the app exits 2 for it; a crash
+      # kills the process, failing the step with the log showing what ran last.
+      - name: Soak
+        run: |
+          set -o pipefail
+          xvfb-run -a --server-args="-screen 0 1280x720x24" \
+            env QT_QPA_PLATFORM=xcb \
+            ./build/linux-gcc/src/koalaamp \
+              --soak-presets third_party/presets/soak \
+              --soak-hold-ms 10000 \
+              --null-audio | tee soak.log
+
+      - name: Upload the soak log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: preset-soak-log
+          path: soak.log
+          if-no-files-found: warn
