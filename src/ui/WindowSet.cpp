@@ -238,17 +238,70 @@ bool WindowSet::docked(WindowId a, WindowId b) const {
 
 void WindowSet::setSnapTolerance(int px) { m_snapTolerance = std::max(0, px); }
 
+void WindowSet::setVisualizerWindow(SkinnedWindow* window) {
+    m_visualizer = window;
+    if (m_visualizer == nullptr || m_visualizerAttached) {
+        return;
+    }
+    m_visualizerAttached = true;
+    m_visualizerVisible = m_visualizer->isVisible();
+    // Only the drag end: the visualizer snaps to the set, but never docks, so
+    // nothing here touches the dock groups.
+    QObject::connect(m_visualizer, &SkinnedWindow::dragFinished, this,
+                     [this] { snapVisualizer(); });
+}
+
+void WindowSet::setVisualizerVisible(bool visible) {
+    m_visualizerVisible = visible;
+    if (m_visualizer == nullptr) {
+        return;
+    }
+    if (visible) {
+        m_visualizer->show();
+    } else {
+        m_visualizer->hide();
+    }
+}
+
+void WindowSet::snapVisualizer() {
+    if (m_visualizer == nullptr) {
+        return;
+    }
+    const QRect rect(m_visualizer->pos(), m_visualizer->size());
+    const QPoint adjust = snapAdjustmentFor(rect, visibleClassicRects());
+    if (!adjust.isNull()) {
+        m_visualizer->move(m_visualizer->pos() + adjust);
+    }
+}
+
+std::vector<QRect> WindowSet::visibleClassicRects() const {
+    std::vector<QRect> rects;
+    for (int i = 0; i < kWindowCount; ++i) {
+        const WindowId id = idAt(i);
+        if (isShown(id)) {
+            rects.push_back(rectOf(id));
+        }
+    }
+    return rects;
+}
+
 QPoint WindowSet::snapAdjustment(WindowId moved, const QRect& r) const {
+    std::vector<QRect> siblings;
+    for (int i = 0; i < kWindowCount; ++i) {
+        const WindowId other = idAt(i);
+        if (other != moved && isShown(other)) {
+            siblings.push_back(rectOf(other));
+        }
+    }
+    return snapAdjustmentFor(r, siblings);
+}
+
+QPoint WindowSet::snapAdjustmentFor(const QRect& r, const std::vector<QRect>& siblings) const {
     int bestDx = 0;
     int bestDy = 0;
     int bestAbsX = m_snapTolerance + 1;
     int bestAbsY = m_snapTolerance + 1;
-    for (int i = 0; i < kWindowCount; ++i) {
-        const WindowId other = idAt(i);
-        if (other == moved || !isShown(other)) {
-            continue;
-        }
-        const QRect s = rectOf(other);
+    for (const QRect& s : siblings) {
         const int xTargets[4] = {s.x(), s.x() + s.width() - r.width(), s.x() - r.width(),
                                  right(s)};
         for (const int target : xTargets) {
@@ -322,6 +375,13 @@ skins::SkinLayoutState WindowSet::layout() const {
     state.mainVisible = isShown(WindowId::Main);
     state.eqVisible = isShown(WindowId::Eq);
     state.playlistVisible = isShown(WindowId::Playlist);
+    if (m_visualizer != nullptr) {
+        // Recorded only once the window is registered: a database written by a
+        // build without a visualizer must keep saying "no visualizer record"
+        // rather than gain a bogus 0,0 one.
+        state.visualizer = skins::WindowPlacement{m_visualizer->x(), m_visualizer->y()};
+        state.visualizerVisible = m_visualizerVisible;
+    }
     return state;
 }
 
@@ -340,6 +400,13 @@ void WindowSet::applyLayout(const skins::SkinLayoutState& state) {
     m_main.move(state.main.x, state.main.y);
     m_eq.move(state.equalizer.x, state.equalizer.y);
     m_playlist.move(state.playlist.x, state.playlist.y);
+
+    // The visualizer moves only when both halves exist: a database written
+    // before it (no record) or a build without it (no window) must leave it be.
+    if (m_visualizer != nullptr && state.visualizer.has_value()) {
+        m_visualizer->move(state.visualizer->x, state.visualizer->y);
+        setVisualizerVisible(state.visualizerVisible);
+    }
 
     m_applying = false;
     for (int i = 0; i < kWindowCount; ++i) {

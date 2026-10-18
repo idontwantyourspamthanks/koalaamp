@@ -79,6 +79,25 @@ public:
     EqWindow& eqWindow() { return m_eq; }
     PlaylistWindow& playlistWindow() { return m_playlist; }
 
+    // --- the visualizer (VZ-1) ----------------------------------------------
+    /// Registers the visualizer window. It is deliberately *not* one of the
+    /// classic three: it does not dock, `showAll()` does not open it, and the
+    /// group drag ignores it (`indexOf()` reports -1, so the event filter and the
+    /// dock groups never see it). What the set does own is snapping it to its
+    /// siblings and remembering where — and whether — it was open.
+    ///
+    /// Type-erased to `SkinnedWindow` so this header never needs the canvas types
+    /// and the GL-free build stays valid.
+    void setVisualizerWindow(SkinnedWindow* window);
+    SkinnedWindow* visualizerWindow() const { return m_visualizer; }
+    /// Shows/hides the visualizer and records the intent for the layout (the
+    /// window itself is usually hidden at quit, so `isVisible()` is not usable as
+    /// the record — the same reason the classic three keep intent flags).
+    void setVisualizerVisible(bool visible);
+    bool isVisualizerVisible() const { return m_visualizerVisible; }
+    /// Snaps the visualizer to the visible classic windows (its drag end).
+    void snapVisualizer();
+
     // --- snapping / docking -------------------------------------------------
     void setSnapTolerance(int px);
     int snapTolerance() const { return m_snapTolerance; }
@@ -130,12 +149,21 @@ private:
     static bool adjacent(const QRect& a, const QRect& b);
     /// Per-axis pull of `rect` toward the nearest visible sibling edges.
     QPoint snapAdjustment(WindowId moved, const QRect& rect) const;
+    /// The same search against explicit sibling rects, for a window outside the
+    /// classic three (the visualizer: every visible classic window is a sibling).
+    QPoint snapAdjustmentFor(const QRect& rect, const std::vector<QRect>& siblings) const;
+    /// Rects of the visible classic windows.
+    std::vector<QRect> visibleClassicRects() const;
     QRect rectOf(WindowId id) const;
 
     MainWindow& m_main;
     EqWindow& m_eq;
     PlaylistWindow& m_playlist;
     bool m_attached = false;
+
+    SkinnedWindow* m_visualizer = nullptr;
+    bool m_visualizerVisible = false;
+    bool m_visualizerAttached = false;
 
     int m_snapTolerance = kSnapTolerancePx;
     WindowId m_anchor = WindowId::Main;

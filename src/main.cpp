@@ -158,13 +158,14 @@ int main(int argc, char** argv) {
     if (skinSet.has_value()) {
         visualizer.setSkin(&*skinSet);
     }
-    // The clutterbar's V toggles the visualizer, and its close box hides it — the
-    // classic behaviour. The window is not in WindowSet yet (the spec's "Vis Phase
-    // 1.5"), so it neither snaps nor persists its position.
-    QObject::connect(&window, &koalaamp::ui::MainWindow::visualizerToggled, &visualizer,
-                     &QWidget::setVisible);
-    QObject::connect(&visualizer, &koalaamp::ui::VisualizerWindow::closeRequested, &visualizer,
-                     &QWidget::hide);
+    // The set owns the visualizer's slot: it snaps to its siblings and remembers
+    // where and whether it was open (spec §5.3's window set). The clutterbar's V
+    // and the close box ask the set, which is what records the intent.
+    windowSet.setVisualizerWindow(&visualizer);
+    QObject::connect(&window, &koalaamp::ui::MainWindow::visualizerToggled, &windowSet,
+                     [&windowSet](bool on) { windowSet.setVisualizerVisible(on); });
+    QObject::connect(&visualizer, &koalaamp::ui::VisualizerWindow::closeRequested, &windowSet,
+                     [&windowSet] { windowSet.setVisualizerVisible(false); });
 
     // The preset library (task 3): scanning, the watcher, and the selection. The
     // cycling *policy* is task 4's — this only makes the folder's presets available,

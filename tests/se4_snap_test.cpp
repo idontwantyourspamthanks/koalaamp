@@ -242,6 +242,58 @@ TEST_CASE("SE-6 the set opens in the classic arrangement", "[se6][arrange]") {
     CHECK(scene.set.dockGroup(WindowId::Main).size() == 3);
 }
 
+TEST_CASE("SE-4 the visualizer's slot snaps to the set and round-trips through the layout",
+          "[se4]") {
+    // The set holds the visualizer type-erased, so a bare SkinnedWindow stands in
+    // for the GL window that only exists in a build with OpenGLWidgets.
+    class StubVisualizer : public koalaamp::ui::SkinnedWindow {
+    public:
+        bool isTitleBarAt(const QPoint&) const override { return false; }
+    };
+
+    koalaamp::ui::MainWindow main;
+    koalaamp::ui::EqWindow eq;
+    koalaamp::ui::PlaylistWindow playlist;
+    koalaamp::ui::WindowSet set(main, eq, playlist);
+    StubVisualizer visualizer;
+    set.setVisualizerWindow(&visualizer);
+    CHECK(set.visualizerWindow() == &visualizer);
+
+    // Snapping pulls it flush to the player's right edge (3 px is inside Winamp's
+    // 10 px tolerance) without joining the dock groups.
+    main.move(100, 100);
+    visualizer.resize(200, 120);
+    visualizer.move(main.x() + main.width() + 3, 140);
+    set.snapVisualizer();
+    CHECK(visualizer.x() == main.x() + main.width());
+    CHECK(set.dockGroups().empty());
+
+    // A registered window is recorded; visibility is the *intent*, because Qt
+    // hides toplevels as the event loop unwinds.
+    auto state = set.layout();
+    REQUIRE(state.visualizer.has_value());
+    CHECK(state.visualizer->x == visualizer.x());
+    CHECK_FALSE(state.visualizerVisible);
+    set.setVisualizerVisible(true);
+    CHECK(set.isVisualizerVisible());
+    CHECK(set.layout().visualizerVisible);
+
+    // Restoring moves it and honours the stored visibility.
+    koalaamp::skins::SkinLayoutState stored;
+    stored.visualizer = koalaamp::skins::WindowPlacement{400, 500};
+    stored.visualizerVisible = false;
+    set.applyLayout(stored);
+    CHECK(visualizer.x() == 400);
+    CHECK(visualizer.y() == 500);
+    CHECK_FALSE(set.isVisualizerVisible());
+
+    // A layout that predates the visualizer leaves it alone.
+    visualizer.move(33, 44);
+    set.applyLayout(koalaamp::skins::SkinLayoutState{});
+    CHECK(visualizer.x() == 33);
+    CHECK(visualizer.y() == 44);
+}
+
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
     return Catch::Session().run(argc, argv);
