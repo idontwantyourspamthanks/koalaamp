@@ -54,6 +54,8 @@ protected:
     /// The fade clock starts when the overlay is really on screen: a preset
     /// announced before the window is mapped would otherwise burn its 2 s unseen.
     void showEvent(QShowEvent* event) override;
+    /// A window hidden mid-fade must not leave a 60 fps timer running.
+    void hideEvent(QHideEvent* event) override;
 
 private:
     void tick();

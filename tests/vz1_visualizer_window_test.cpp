@@ -353,6 +353,13 @@ TEST_CASE("VZ-1 fullscreen shows the render alone and restores the window", "[vz
     CHECK(window.canvas().geometry() == window.rect());
     CHECK(changes == 1);
 
+    // A window manager resizes *after* showFullScreen() returns, so the canvas has to
+    // follow every resize — otherwise fullscreen shows a window-sized render.
+    window.resize(640, 480);
+    QCoreApplication::processEvents();
+    CHECK(window.canvas().geometry() == window.rect());
+    CHECK(window.overlay().geometry() == window.rect());
+
     // ESC leaves it and the gen frame is back.
     sendKey(window, Qt::Key_Escape);
     CHECK_FALSE(window.isFullscreen());

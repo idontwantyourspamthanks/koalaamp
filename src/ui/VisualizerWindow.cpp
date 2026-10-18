@@ -12,6 +12,7 @@
 #include <QFont>
 #include <QKeyEvent>
 #include <QMouseEvent>
+#include <QResizeEvent>
 #include <QPainter>
 
 namespace koalaamp::ui {
@@ -121,7 +122,14 @@ void VisualizerWindow::setFullscreen(bool on) {
     m_fullscreen = on;
     if (on) {
         m_windowedGeometry = geometry();
+        // The windowed shape pins a fixed size; fullscreen has to be free to take
+        // the whole screen. updateShape() restores it on the way out.
+        setMinimumSize(0, 0);
+        setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX);
         showFullScreen();
+        layoutCanvas();
+        raise();
+        activateWindow();
     } else {
         showNormal();
         updateShape();  // fixed size and shape again
@@ -265,6 +273,11 @@ void VisualizerWindow::mouseReleaseEvent(QMouseEvent* event) {
         return;
     }
     SkinnedWindow::mouseReleaseEvent(event);
+}
+
+void VisualizerWindow::resizeEvent(QResizeEvent* event) {
+    SkinnedWindow::resizeEvent(event);
+    layoutCanvas();
 }
 
 void VisualizerWindow::changeEvent(QEvent* event) {

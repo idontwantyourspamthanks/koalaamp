@@ -61,6 +61,9 @@ public:
     VisualizerCanvas& canvas() { return *m_canvas; }
     const VisualizerCanvas& canvas() const { return *m_canvas; }
     interop::visualizer::IVisualizerEngine& engine() { return m_engine; }
+    /// The preset-switch overlay, raised above the canvas (task 4).
+    VisualizerOverlay& overlay() { return *m_overlay; }
+    const VisualizerOverlay& overlay() const { return *m_overlay; }
     /// False in a build without libprojectM: the window then paints the
     /// unavailable message and hides the canvas.
     bool visualizerAvailable() const;
@@ -124,6 +127,9 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override;
     void keyPressEvent(QKeyEvent* event) override;
     void changeEvent(QEvent* event) override;
+    /// Keeps the canvas and overlay in step with the window: `setFullscreen()` can
+    /// only lay out for the size it sees, and the window manager resizes later.
+    void resizeEvent(QResizeEvent* event) override;
     bool isTitleBarAt(const QPoint& point) const override;
 
 private:

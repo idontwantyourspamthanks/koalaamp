@@ -75,6 +75,12 @@ void VisualizerOverlay::showName(const std::string& name) {
     update();
 }
 
+void VisualizerOverlay::hideEvent(QHideEvent* event) {
+    QWidget::hideEvent(event);
+    m_timer.stop();
+    m_opacity = 0.0;
+}
+
 void VisualizerOverlay::showEvent(QShowEvent* event) {
     QWidget::showEvent(event);
     // Kick the fade clock only now: hiding/showing must not eat the name's time.
