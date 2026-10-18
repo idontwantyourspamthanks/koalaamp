@@ -246,50 +246,45 @@ TEST_CASE("SE-4 the visualizer's slot snaps to the set and round-trips through t
           "[se4]") {
     // The set holds the visualizer type-erased, so a bare SkinnedWindow stands in
     // for the GL window that only exists in a build with OpenGLWidgets.
-    class StubVisualizer : public koalaamp::ui::SkinnedWindow {
+    class StubVisualizer : public ui::SkinnedWindow {
     public:
         bool isTitleBarAt(const QPoint&) const override { return false; }
     };
 
-    koalaamp::ui::MainWindow main;
-    koalaamp::ui::EqWindow eq;
-    koalaamp::ui::PlaylistWindow playlist;
-    koalaamp::ui::WindowSet set(main, eq, playlist);
+    Scene scene;
     StubVisualizer visualizer;
-    set.setVisualizerWindow(&visualizer);
-    CHECK(set.visualizerWindow() == &visualizer);
+    scene.set.setVisualizerWindow(&visualizer);
+    CHECK(scene.set.visualizerWindow() == &visualizer);
 
     // Snapping pulls it flush to the player's right edge (3 px is inside Winamp's
     // 10 px tolerance) without joining the dock groups.
-    main.move(100, 100);
     visualizer.resize(200, 120);
-    visualizer.move(main.x() + main.width() + 3, 140);
-    set.snapVisualizer();
-    CHECK(visualizer.x() == main.x() + main.width());
-    CHECK(set.dockGroups().empty());
+    visualizer.move(scene.main.x() + scene.main.width() + 3, scene.main.y() + 40);
+    scene.set.snapVisualizer();
+    CHECK(visualizer.x() == scene.main.x() + scene.main.width());
+    CHECK(scene.set.dockGroups().empty());
 
     // A registered window is recorded; visibility is the *intent*, because Qt
     // hides toplevels as the event loop unwinds.
-    auto state = set.layout();
-    REQUIRE(state.visualizer.has_value());
-    CHECK(state.visualizer->x == visualizer.x());
-    CHECK_FALSE(state.visualizerVisible);
-    set.setVisualizerVisible(true);
-    CHECK(set.isVisualizerVisible());
-    CHECK(set.layout().visualizerVisible);
+    scene.set.setVisualizerVisible(true);
+    const auto recorded = scene.set.layout();
+    REQUIRE(recorded.visualizer.has_value());
+    CHECK(recorded.visualizer->x == visualizer.x());
+    CHECK(recorded.visualizer->y == visualizer.y());
+    CHECK(recorded.visualizerVisible);
 
-    // Restoring moves it and honours the stored visibility.
-    koalaamp::skins::SkinLayoutState stored;
-    stored.visualizer = koalaamp::skins::WindowPlacement{400, 500};
-    stored.visualizerVisible = false;
-    set.applyLayout(stored);
-    CHECK(visualizer.x() == 400);
-    CHECK(visualizer.y() == 500);
-    CHECK_FALSE(set.isVisualizerVisible());
+    // ...and the record restores: both the position and the visibility come back,
+    // which is the half that reads the layout2 fields.
+    visualizer.move(700, 700);
+    scene.set.setVisualizerVisible(false);
+    scene.set.applyLayout(recorded);
+    CHECK(visualizer.x() == recorded.visualizer->x);
+    CHECK(visualizer.y() == recorded.visualizer->y);
+    CHECK(scene.set.isVisualizerVisible());
 
     // A layout that predates the visualizer leaves it alone.
     visualizer.move(33, 44);
-    set.applyLayout(koalaamp::skins::SkinLayoutState{});
+    scene.set.applyLayout(koalaamp::skins::SkinLayoutState{});
     CHECK(visualizer.x() == 33);
     CHECK(visualizer.y() == 44);
 }
