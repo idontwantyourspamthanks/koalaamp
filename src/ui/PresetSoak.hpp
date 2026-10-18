@@ -84,7 +84,6 @@ private:
     std::uint64_t m_framesAtPresetStart = 0;
     std::uint64_t m_framesAtLastTick = 0;
     std::size_t m_remaining = 0;
-    std::uint64_t m_framesAtLastTickBase = 0;
     int m_holdMs = 0;
     int m_stallMs = kStallMs;
     bool m_stallExplicit = false;
