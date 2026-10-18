@@ -40,13 +40,13 @@ The production visualizer: a skin-chromed window where projectM renders the user
   folder dropped in later is picked up — and ordered/random selection with wrapping. The app takes
   `--presets DIR`, loads the first preset, and follows the selection (the canvas queues loads into
   `paintGL`, so this is safe before GL exists). Still open: the shipped starter pack (RL-1's) and the
-  metadata cache the task-4 cycling UI wants.
+  metadata cache the task-4 cycling UI wants. Suite `koalaamp_vz1_preset_tests`._
 
   On the starter pack: the community packs carry **no licence metadata at all** — a sample of 10
   cream-of-the-crop presets contains zero licence/copyright text, and the `.milk` format has no field for
   one (`docs/research/visuals.md` §6.4 already flags this as [UNVERIFIED]). "RL-1-cleared" therefore
   cannot be established by inspecting files; KoalaAmp-authored presets are clean by construction and are
-  the cheap route. Suite `koalaamp_vz1_preset_tests`._
+  the cheap route.
 - [ ] Cycling: random / ordered / locked; next/prev hotkeys + on-screen skinned control; preset name
   overlay on switch (Winamp-style, auto-fade). — _`PresetCycler` (`src/ui/PresetCycler.{hpp,cpp}`):
   ordered/random (the order is delegated to the store, which never repeats the current preset in
