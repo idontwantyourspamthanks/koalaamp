@@ -182,7 +182,12 @@ PCM float32 deinterleaved
 ## 6. Visualisations
 
 ### 6.1 Host
-- `VisualizerWindow` = `QOpenGLWidget` subclass; projectM instance created in `initializeGL`, rendered in `paintGL` with the context current (the exact pattern projectM's own Qt frontend uses). PCM pushed from `PcmTap` (≤ 33ms or per-frame).
+- `VisualizerWindow` = a `SkinnedWindow` (gen.bmp chrome) whose client area is the `QOpenGLWidget`
+  (`VisualizerCanvas`); projectM instance created in `initializeGL`, rendered in `paintGL` with the context
+  current (the exact pattern projectM's own Qt frontend uses). PCM pushed from the `PcmFanout` second reader
+  (≤ 33ms or per-frame). The window, not the GL widget, is the toplevel because FE-14 measured that a GL
+  child inside a masked frameless window renders correctly (`spikes/projectm-qt.md` §4/§10), and because the
+  engine then never needs to know about skinning.
 - Windows/X11: context sharing with the app's raster windows is standard Qt; masked-window + GL coexistence is spike FE-1 (risk: setMask vs swapchain — mitigated by hosting viz in its own unmasked toplevel if needed).
 - macOS: QOpenGLWidget on the Cocoa platform (layer-masked toplevel unaffected).
 - Preset browsing: sidecar skinned list; random/ordered cycling; hot-swap without restart; user preset folders watched.

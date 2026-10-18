@@ -9,7 +9,9 @@
 // 25 px tiles (left corner, repeated fill, right corner), 11 px / 8 px side
 // borders tiled in 29 px steps and closed by their `*_BOTTOM` variants, and a
 // 14 px bottom bar of 25 px tiles. Only the corners are fixed — every middle
-// piece repeats, which is how gen windows resize (docs/research/skins.md §1.4).
+// piece repeats, which is how gen windows resize — the 25 px / 29 px tiling steps
+// documented in docs/research/skins.md §1.4, which cites Webamp (MIT,
+// `js/constants.ts`) for exactly those constants. Attribution in LICENSES.md.
 //
 // `gen.bmp` is optional in a skin (`skins/SkinSet.cpp`) and many omit it, so the
 // fallback below paints a neutral dark frame with the skin's 5x6 font for the
