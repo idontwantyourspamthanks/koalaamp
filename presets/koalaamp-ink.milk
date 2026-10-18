@@ -1,0 +1,62 @@
+MILKDROP_PRESET_VERSION 100
+PSVERSION 100
+[preset00]
+fRating=3.000000
+fGammaAdj=1.800000
+fDecay=0.985000
+fVideoEchoZoom=0.995000
+fVideoEchoAlpha=0.600000
+nVideoEchoOrientation=3
+fWaveAlpha=0.900000
+fWaveScale=1.000000
+fWaveSmoothing=0.400000
+fWaveParam=0.000000
+nWaveMode=0
+bAdditiveWaves=1
+bWaveDots=0
+bWaveThick=1
+bModWaveAlphaByVolume=0
+bMaximizeWaveColor=1
+bTexWrap=1
+bDarkenCenter=1
+bRedBlueStereo=0
+bBrighten=0
+bDarken=0
+bSolarize=0
+bInvert=0
+fZoomExponent=1.000000
+zoom=1.000000
+rot=0.000000
+cx=0.500000
+cy=0.500000
+dx=0.000000
+dy=0.000000
+warp=0.000000
+sx=1.000000
+sy=1.000000
+wave_r=0.900000
+wave_g=0.900000
+wave_b=1.000000
+wave_x=0.500000
+wave_y=0.500000
+ob_size=0.010000
+ob_r=0.000000
+ob_g=0.000000
+ob_b=0.000000
+ob_a=1.000000
+ib_size=0.010000
+ib_r=0.250000
+ib_g=0.250000
+ib_b=0.250000
+ib_a=0.000000
+per_frame_1=decay = 0.985;
+per_frame_2=zoom = 1.0 + 0.005*bass;
+per_frame_3=rot = 0.004*sin(time*0.09);
+per_frame_4=wave_r = 0.9 - 0.6*treb;
+per_frame_5=wave_g = 0.9 - 0.6*bass;
+per_frame_6=wave_b = 1.0;
+per_frame_7=cx = 0.5 + 0.03*sin(time*0.11);
+per_frame_8=cy = 0.5 + 0.03*sin(time*0.14);
+per_frame_9=echo_alpha = 0.6;
+per_frame_10=echo_zoom = 0.995;
+per_frame_11=gamma = 1.6 + 0.3*mid_att;

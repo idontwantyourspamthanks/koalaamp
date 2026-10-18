@@ -207,9 +207,11 @@ int main(int argc, char** argv) {
     koalaamp::ui::PresetStore presetStore;
 
     // Without --presets the visualizer still needs somewhere to look, or the menu
-    // has nothing to offer. This is the XDG data folder (created on demand); the
-    // menu can point the store somewhere else, and the folder it picks is where the
-    // file dialog starts next time.
+    // has nothing to offer: the bundled starter pack comes first and the user's own
+    // folder (the XDG data folder, created on demand) second, so a fresh install has
+    // presets before the user adds any. --presets is authoritative. The menu can
+    // point the store somewhere else, and the folder it picks is where the file
+    // dialog starts next time.
     const auto defaultPresetDir = [] {
         const QByteArray xdg = qgetenv("XDG_DATA_HOME");
         const std::string home = qgetenv("HOME").toStdString();
@@ -221,9 +223,11 @@ int main(int argc, char** argv) {
         std::filesystem::create_directories(dir, ec);
         return dir;
     }();
-    presetStore.setRoots({parser.isSet(presetsOption)
-                              ? parser.value(presetsOption).toStdString()
-                              : defaultPresetDir.string()});
+    if (parser.isSet(presetsOption)) {
+        presetStore.setRoots({parser.value(presetsOption).toStdString()});
+    } else {
+        presetStore.setRoots({KOALAAMP_BUNDLED_PRESETS, defaultPresetDir.string()});
+    }
     presetStore.setWatching(true);
     if (!presetStore.empty()) {
         visualizer.canvas().requestPreset(presetStore.current());

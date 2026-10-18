@@ -22,7 +22,9 @@ add_subdirectory(ui)        # Qt Widgets — windows
 add_executable(koalaamp main.cpp)
 # SK-2: the Skins menu offers the bundled skins; the tests already compile this in.
 target_compile_definitions(koalaamp PRIVATE
-    "KOALAAMP_BUNDLED_SKINS=\"${CMAKE_SOURCE_DIR}/skins\"")
+    "KOALAAMP_BUNDLED_SKINS=\"${CMAKE_SOURCE_DIR}/skins\""
+    # VZ-1: the bundled starter presets, so a fresh install has something to show.
+    "KOALAAMP_BUNDLED_PRESETS=\"${CMAKE_SOURCE_DIR}/presets\"")
 koalaamp_enable_warnings(koalaamp)
 target_link_libraries(koalaamp PRIVATE koalaamp_ui)
 if(TARGET koalaamp_ui_playback)

@@ -39,8 +39,10 @@ The production visualizer: a skin-chromed window where projectM renders the user
   scan walked — a root that does not exist yet is watched through its nearest existing ancestor, so a
   folder dropped in later is picked up — and ordered/random selection with wrapping. The app takes
   `--presets DIR`, loads the first preset, and follows the selection (the canvas queues loads into
-  `paintGL`, so this is safe before GL exists). Still open: the shipped starter pack (RL-1's) and the
-  metadata cache the task-4 cycling UI wants. Suite `koalaamp_vz1_preset_tests`._
+  `paintGL`, so this is safe before GL exists). The shipped starter pack landed as four
+  KoalaAmp-authored presets in `presets/`, compiled into the default roots ahead of the user folder
+  (`KOALAAMP_BUNDLED_PRESETS`), so a fresh install opens on a real preset. Still open: the metadata
+  cache the task-4 cycling UI wants. Suites `koalaamp_vz1_preset_tests`, `koalaamp_vz1_viswindow_tests`._
 
   On the starter pack: the community packs carry **no licence metadata at all** — a sample of 10
   cream-of-the-crop presets contains zero licence/copyright text, and the `.milk` format has no field for
