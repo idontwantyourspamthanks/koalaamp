@@ -373,12 +373,22 @@ TEST_CASE("VZ-1 fullscreen shows the render alone and restores the window", "[vz
     CHECK_FALSE(window.isFullscreen());
     CHECK(changes == 2);
 
-    // A resize request while fullscreen still applies once restored.
+    // While fullscreen the geometry belongs to fullscreen: a scale change or a
+    // client-size request must not pin the window back to its windowed size.
     window.setFullscreen(true);
+    const QSize fullscreenSize = window.size();
+    window.setScale(2);
     window.setClientSize(QSize(300, 200));
+    CHECK(window.isFullscreen());
+    CHECK(window.size() == fullscreenSize);
+    CHECK(window.canvas().geometry() == window.rect());
+
+    // ...and both apply once it is restored.
     window.setFullscreen(false);
-    CHECK(window.size() == window.contentSize());
+    CHECK_FALSE(window.isFullscreen());
+    CHECK(window.size() == window.contentSize() * 2);
     CHECK(window.contentSize().width() >= 300);
+    window.setScale(1);
 }
 
 int main(int argc, char** argv) {

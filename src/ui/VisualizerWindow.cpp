@@ -106,6 +106,15 @@ void VisualizerWindow::setClientSize(const QSize& clientSize) {
 }
 
 void VisualizerWindow::updateShape() {
+    if (m_fullscreen) {
+        // Fullscreen owns the geometry: setWindowShape() pins a fixed size, so a
+        // skin load, a scale change or a client-size request arriving while
+        // fullscreen would pull the window back out of it. The shape is re-applied
+        // by setFullscreen(false), which calls this again.
+        layoutCanvas();
+        update();
+        return;
+    }
     // A gen window has no `region.txt` section: its frame is rectangular, so the
     // mask is cleared rather than built (FE-14's masked-toplevel result still
     // covers any skin that ever shapes one).

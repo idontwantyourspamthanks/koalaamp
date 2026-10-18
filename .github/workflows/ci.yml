@@ -96,9 +96,7 @@ jobs:
         run: cmake --build --preset ${{ matrix.preset }}
 
       - name: Test (ctest)
-        # --output-on-failure: without it a red run says only "Failed", which is
-        # how a platform-specific assertion once needed a second round trip.
-        run: ctest --preset ${{ matrix.preset }} --output-on-failure
+        run: ctest --preset ${{ matrix.preset }}
 
       # Non-blocking style check (ticket: format check is a warning, not a gate).
       - name: clang-format check (non-blocking)
