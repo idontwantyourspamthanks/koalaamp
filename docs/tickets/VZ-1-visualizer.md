@@ -80,11 +80,16 @@ The production visualizer: a skin-chromed window where projectM renders the user
   acceptance run itself — 500 presets x 10 s, zero crashes/hangs — which needs that job to actually run._
 
 ## Acceptance
-- 500-preset nightly: zero crashes/hangs. _(Answered by `nightly-soak.yml`: 500 x 10 s under
-  xvfb/llvmpipe at 1280x720, one log line per preset.)_
+- 500-preset nightly: zero crashes/hangs. — **Met** (run 39126467893, 2026-10-18): 500/500 presets
+  held, zero stalls, exit 0, 99.6 min wall. Per-preset fps under software GL at 1280x720: min 28.1,
+  p5 57.3, median 61.8, p95 62.6 — one preset below 30 (`00224-EoS + Phat - chasers 17 sentinels ghoul
+  - nz+ ihavenothingtoffal likeness`, 28.1 fps / 281 frames, i.e. heavy rather than hung; next lowest
+  53.4). `nightly-soak.yml` keeps running this nightly.
 - ≥ 55fps p95 at 1080p on GTX1050-class — **not** answered by the nightly job: software GL on a
-  shared CI runner says nothing about that hardware. Needs a measurement on real GPU hardware (FE-14's
-  figures are the spike's, not the app's).
+  shared CI runner says nothing about that hardware, and the soak's own regime (llvmpipe, 1280x720,
+  the ~175x75 gen-window canvas) is a different workload — its p5 of 57.3 fps must not be read as this
+  number. Needs a measurement on real GPU hardware (FE-14's figures are the spike's, not the app's);
+  the soak already logs per-preset fps, so a `--fullscreen` flag would make that one command.
 - Preset switch < 300ms, no context loss, name overlay shows.
 - User adds a folder of presets → appears in the browser without restart (watcher).
 - Fullscreen enters/exits cleanly on all 3 OSes; window remembers state.
