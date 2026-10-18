@@ -11,8 +11,17 @@ Winamp's main window opens a menu from its Option button, from the clutterbar's 
 - [x] Right-click on the main window emits `menuRequested` (Winamp's verb).
 - [x] `WindowSet::setScale(int)` plus a virtual `SkinnedWindow::setScale`, so one choice scales every window *including* the type-erased visualizer slot.
 - [x] Menu with `Scaling` (1x/2x/3x/4x, checkable), `Always on top` and `Quit`, rebuilt on open so the check marks are current.
-- [ ] `Skins` sub-menu: the bundled skins plus the skin database's recent list, applying a choice without a restart.
+- [x] `Skins` sub-menu: the bundled skins plus the skin database's recent list, deduplicated by
+      name, the current skin checked, applying a choice without a restart. — _`skins::listSkins()`
+      (sorted, `.wsz`/`.zip`, hidden skipped, a missing folder is just an empty list) feeds it, and
+      one `applySkin` path now serves both startup and the menu (it also hands the skin to the
+      visualizer, which the startup path had been skipping). Verified in the running app: the
+      submenu lists the four bundled skins with the current one checked, and choosing another changes
+      the window (compared over a region no menu covers)._
 - [ ] Persist the chosen scale and on-top state (settings are PC-1's; per-session until then).
+- [ ] Adopt the incoming skin's remembered layout on a switch, and persist the outgoing one first.
+      Deliberately left out of `applySkin` for now: restoring there would race the startup path's
+      `applyDefaultArrangement` fallback.
 
 ## Acceptance / Definition of Done
 - Right-clicking the main window opens the menu.
