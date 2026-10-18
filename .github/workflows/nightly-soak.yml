@@ -60,6 +60,13 @@ jobs:
       - name: Fetch the pinned preset slice
         run: bash scripts/fetch-presets.sh "${{ inputs.preset_count || '500' }}"
 
+      # Catch2's build-time discovery runs every test executable, and the Qt widget
+      # suites need a platform plugin on a headless runner. ci.yml exports this at
+      # the job level for exactly this reason; without it the *build* fails at
+      # "Error running test executable" before the soak ever starts.
+      - name: Headless Qt platform
+        run: echo "QT_QPA_PLATFORM=offscreen" >> "$GITHUB_ENV"
+
       - name: Configure
         run: cmake --preset linux-gcc
 

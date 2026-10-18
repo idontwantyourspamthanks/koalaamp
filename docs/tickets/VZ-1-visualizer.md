@@ -80,7 +80,11 @@ The production visualizer: a skin-chromed window where projectM renders the user
   acceptance run itself — 500 presets x 10 s, zero crashes/hangs — which needs that job to actually run._
 
 ## Acceptance
-- 500-preset nightly: zero crashes/hangs; ≥ 55fps p95 at 1080p on GTX1050-class.
+- 500-preset nightly: zero crashes/hangs. _(Answered by `nightly-soak.yml`: 500 x 10 s under
+  xvfb/llvmpipe at 1280x720, one log line per preset.)_
+- ≥ 55fps p95 at 1080p on GTX1050-class — **not** answered by the nightly job: software GL on a
+  shared CI runner says nothing about that hardware. Needs a measurement on real GPU hardware (FE-14's
+  figures are the spike's, not the app's).
 - Preset switch < 300ms, no context loss, name overlay shows.
 - User adds a folder of presets → appears in the browser without restart (watcher).
 - Fullscreen enters/exits cleanly on all 3 OSes; window remembers state.
