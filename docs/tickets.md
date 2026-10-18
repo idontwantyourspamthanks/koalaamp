@@ -29,6 +29,7 @@
 | PL-1 playlist formats | `tickets/PL-1-playlist-formats.md` |
 | CI-1 Windows playback compile coverage | `tickets/CI-1-windows-playback-coverage.md` |
 | SK-1 Bundled classic skins | `tickets/SK-1-bundled-skins.md` |
+| SK-2 Main-window menu | `tickets/SK-2-window-menu.md` |
 
 **Sequencing:** M0 → M1 → M2 → M3 (v1.0 ships after M3). M4+ = Phase 3. Server tickets are *ports* of the maintainer's koalapaw Android code — wire contracts are field-tested; the work is transliteration.
 

@@ -99,7 +99,7 @@ public:
 
     // --- view ---------------------------------------------------------------
     int scale() const { return m_scale; }
-    void setScale(int scale);
+    void setScale(int scale) override;
     bool isDoubleSize() const { return m_scale > 1; }
     void setDoubleSize(bool on);
     bool isShaded() const { return m_state.shade; }

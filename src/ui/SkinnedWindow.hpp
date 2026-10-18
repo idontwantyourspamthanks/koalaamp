@@ -32,6 +32,11 @@ public:
     /// True while the window is being dragged by its title bar.
     bool isDragging() const { return m_dragging; }
 
+    /// Integer content scale. The base does nothing: a window that is held
+    /// type-erased (the visualizer's slot in `WindowSet`) may not care, and the
+    /// classic windows override it.
+    virtual void setScale(int scale) { (void)scale; }
+
 signals:
     /// Emitted once when a title-bar drag ends (the snapping hook, SE-4).
     void dragFinished();

@@ -70,7 +70,7 @@ public:
 
     // --- view ---------------------------------------------------------------
     int scale() const { return m_scale; }
-    void setScale(int scale);
+    void setScale(int scale) override;
     void setShade(bool shaded);
     bool isShaded() const { return m_state.shade; }
     /// Keep-on-top for the window set (`config_aot`, SE-4); a flag change

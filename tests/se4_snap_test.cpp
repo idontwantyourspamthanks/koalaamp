@@ -287,6 +287,32 @@ TEST_CASE("SE-4 the visualizer's slot snaps to the set and round-trips through t
     CHECK(visualizer.y() == 44);
 }
 
+TEST_CASE("SE-4 the set scales every window, the visualizer slot included", "[se4]") {
+    // The slot is held type-erased, so the base's virtual is how it hears about a
+    // scale change -- without it a 2x choice would leave the visualizer at 1x.
+    class ScalingVisualizer : public ui::SkinnedWindow {
+    public:
+        bool isTitleBarAt(const QPoint&) const override { return false; }
+        void setScale(int scale) override { given = scale; }
+        int given = 0;
+    };
+
+    Scene scene;
+    ScalingVisualizer visualizer;
+    scene.set.setVisualizerWindow(&visualizer);
+
+    scene.set.setScale(3);
+    CHECK(scene.main.scale() == 3);
+    CHECK(scene.eq.scale() == 3);
+    CHECK(scene.playlist.scale() == 3);
+    CHECK(visualizer.given == 3);
+    CHECK(scene.main.size().width() == ui::MainWindow::kWidth * 3);
+
+    scene.set.setScale(1);
+    CHECK(scene.main.scale() == 1);
+    CHECK(visualizer.given == 1);
+}
+
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
     return Catch::Session().run(argc, argv);

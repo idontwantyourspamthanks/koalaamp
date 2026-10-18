@@ -238,6 +238,15 @@ bool WindowSet::docked(WindowId a, WindowId b) const {
 
 void WindowSet::setSnapTolerance(int px) { m_snapTolerance = std::max(0, px); }
 
+void WindowSet::setScale(int scale) {
+    m_main.setScale(scale);
+    m_eq.setScale(scale);
+    m_playlist.setScale(scale);
+    if (m_visualizer != nullptr) {
+        m_visualizer->setScale(scale);
+    }
+}
+
 void WindowSet::setVisualizerWindow(SkinnedWindow* window) {
     m_visualizer = window;
     if (m_visualizer == nullptr || m_visualizerAttached) {

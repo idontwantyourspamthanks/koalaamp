@@ -20,6 +20,9 @@
 #include "ui/DspEqSink.hpp"
 #include "ui/EqWindow.hpp"
 #include "ui/WindowPlatform.hpp"
+#include <QCursor>
+#include <QMenu>
+
 #include "ui/WindowSet.hpp"
 #if defined(KOALAAMP_HAS_GL_VISUALIZER)
 #include "ui/PresetCycler.hpp"
@@ -384,6 +387,32 @@ int main(int argc, char** argv) {
     // The window set owns the inter-window toggles: the main window's EQ/PL
     // buttons show/hide their windows; each secondary close button hides it.
     // Then restore this skin's remembered layout, or open the default set.
+    // SK-2: the main window's menu. Its Option button, the clutterbar's O and a
+    // right-click all ask for it. Rebuilt on open so the check marks are current.
+    const auto showMainMenu = [&window, &windowSet, &app] {
+        QMenu menu;
+
+        QMenu* scaling = menu.addMenu(QStringLiteral("Scaling"));
+        for (int factor = 1; factor <= 4; ++factor) {
+            QAction* action = scaling->addAction(QStringLiteral("%1x").arg(factor));
+            action->setCheckable(true);
+            action->setChecked(window.scale() == factor);
+            QObject::connect(action, &QAction::triggered, &window,
+                             [&windowSet, factor] { windowSet.setScale(factor); });
+        }
+
+        QAction* onTop = menu.addAction(QStringLiteral("Always on top"));
+        onTop->setCheckable(true);
+        onTop->setChecked(windowSet.keepOnTop());
+        QObject::connect(onTop, &QAction::triggered, &windowSet,
+                         [&windowSet](bool on) { windowSet.setKeepOnTop(on); });
+
+        menu.addSeparator();
+        menu.addAction(QStringLiteral("Quit"), &app, &QApplication::quit);
+        menu.exec(QCursor::pos());
+    };
+    QObject::connect(&window, &koalaamp::ui::MainWindow::menuRequested, &window, showMainMenu);
+
     windowSet.attach();
     if (parser.isSet(alwaysOnTopOption)) {
         windowSet.setKeepOnTop(true);

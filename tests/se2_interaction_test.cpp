@@ -19,6 +19,7 @@
 #include <vector>
 
 #include <QApplication>
+#include <QMouseEvent>
 #include <QImage>
 #include <QPoint>
 #include <QWheelEvent>
@@ -946,6 +947,25 @@ TEST_CASE("SE-2 interaction parity checklist", "[se2][interaction]") {
     for (const std::string& item : covered) {
         CHECK(std::find(checklist.begin(), checklist.end(), item) != checklist.end());
     }
+}
+
+TEST_CASE("SE-2 a right-click on the main window asks for the menu", "[se2][interaction]") {
+    koalaamp::ui::MainWindow window;
+    int asked = 0;
+    QObject::connect(&window, &koalaamp::ui::MainWindow::menuRequested, [&asked] { ++asked; });
+
+    const QPoint pos(60, 60);
+    QMouseEvent press(QEvent::MouseButtonPress, QPointF(pos), QPointF(window.mapToGlobal(pos)),
+                      Qt::RightButton, Qt::RightButton, Qt::NoModifier);
+    QApplication::sendEvent(&window, &press);
+    CHECK(asked == 1);
+
+    // The same gesture must not also read as a control press.
+    QMouseEvent release(QEvent::MouseButtonRelease, QPointF(pos),
+                        QPointF(window.mapToGlobal(pos)), Qt::RightButton, Qt::NoButton,
+                        Qt::NoModifier);
+    QApplication::sendEvent(&window, &release);
+    CHECK(asked == 1);
 }
 
 int main(int argc, char** argv) {

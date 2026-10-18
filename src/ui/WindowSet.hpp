@@ -79,6 +79,11 @@ public:
     EqWindow& eqWindow() { return m_eq; }
     PlaylistWindow& playlistWindow() { return m_playlist; }
 
+    // --- view ---------------------------------------------------------------
+    /// Applies an integer scale (1..4) to every window in the set, the visualizer
+    /// included: the classic windows clamp it themselves.
+    void setScale(int scale);
+
     // --- the visualizer (VZ-1) ----------------------------------------------
     /// Registers the visualizer window. It is deliberately *not* one of the
     /// classic three: it does not dock, `showAll()` does not open it, and the

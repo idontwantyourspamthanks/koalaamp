@@ -367,6 +367,12 @@ HitId MainWindow::controlAt(const QPoint& point) const {
 bool MainWindow::isTitleBarAt(const QPoint& point) const { return controlAt(point) == HitId::TitleBar; }
 
 void MainWindow::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::RightButton) {
+        // Winamp's verb: right-click anywhere opens the main menu.
+        emit menuRequested();
+        event->accept();
+        return;
+    }
     if (event->button() != Qt::LeftButton) {
         QWidget::mousePressEvent(event);
         return;
