@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <system_error>
 #include <fstream>
 #include <functional>
 #include <string>
@@ -52,6 +53,20 @@ bool contains(const std::vector<std::string>& list, const std::string& value) {
     return std::find(list.begin(), list.end(), value) != list.end();
 }
 
+/// Path equality that ignores the separator flavour. On Windows the store returns
+/// native paths ("C:\\dir\\a.milk") while a path built from QTemporaryDir's
+/// "/"-separated string spells itself with forward slashes; both name one file.
+bool samePath(const std::string& a, const std::string& b) {
+    std::error_code ec;
+    const bool same = std::filesystem::equivalent(a, b, ec);
+    return same && !ec;
+}
+
+bool containsPath(const std::vector<std::string>& list, const std::string& path) {
+    return std::any_of(list.begin(), list.end(),
+                       [&path](const std::string& entry) { return samePath(entry, path); });
+}
+
 }  // namespace
 
 TEST_CASE("VZ-1 preset files are recognised case-insensitively", "[vz1][presets]") {
@@ -82,12 +97,12 @@ TEST_CASE("VZ-1 the store scans a root recursively and ignores everything else",
     store.setRoots({root.string()});
 
     REQUIRE(store.size() == 3);
-    CHECK(contains(store.presets(), (root / "first.milk").string()));
-    CHECK(contains(store.presets(), (root / "sub" / "second.milk2").string()));
-    CHECK(contains(store.presets(), (root / "sub" / "THIRD.MILK").string()));
+    CHECK(containsPath(store.presets(), (root / "first.milk").string()));
+    CHECK(containsPath(store.presets(), (root / "sub" / "second.milk2").string()));
+    CHECK(containsPath(store.presets(), (root / "sub" / "THIRD.MILK").string()));
     CHECK(std::is_sorted(store.presets().begin(), store.presets().end()));
     // Absolute paths: the GL thread will hand them to projectM.
-    CHECK(store.presets().front().front() == '/');
+    CHECK(std::filesystem::path(store.presets().front()).is_absolute());
     // A first scan selects something: the window then has a preset to load.
     CHECK(store.current() == store.presets().front());
     CHECK(store.currentIndex() == 0);
@@ -153,15 +168,18 @@ TEST_CASE("VZ-1 the store's watcher picks up added and removed presets", "[vz1][
     // A preset dropped into the folder appears without a restart...
     writeFile(root / "two.milk");
     CHECK(waitFor([&store] { return store.size() == 2; }));
+    INFO("after adding: size=" << store.size() << " current=" << store.current()
+                               << " watching=" << store.isWatching());
     CHECK(listChanges >= 1);
     // ...and without disturbing the selection.
-    CHECK(store.current() == (root / "one.milk").string());
+    CHECK(samePath(store.current(), (root / "one.milk").string()));
 
     // Deleting the selected preset moves the selection to one that survives.
     std::filesystem::remove(root / "one.milk");
     CHECK(waitFor([&store] { return store.size() == 1; }));
+    INFO("after removing: size=" << store.size() << " current=" << store.current());
     CHECK(store.currentIndex() == 0);
-    CHECK(store.current() == (root / "two.milk").string());
+    CHECK(samePath(store.current(), (root / "two.milk").string()));
     CHECK(moved >= 1);
 
     store.setWatching(false);
