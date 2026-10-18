@@ -6,6 +6,7 @@
 #include <algorithm>
 #include <cstdint>
 #include <filesystem>
+#include <fstream>
 #include <sstream>
 #include <string>
 #include <vector>
@@ -627,4 +628,24 @@ TEST_CASE("a stray visualizer record cannot fabricate a layout", "[skins][db]") 
     koalaamp::skins::SkinDb db;
     db.load(in);
     CHECK(db.layouts().empty());
+}
+
+TEST_CASE("SK-2 skins are listed from a folder, sorted and filtered", "[skins][sk2]") {
+    const auto root = std::filesystem::temp_directory_path() / "koalaamp-list-skins-test";
+    std::error_code ec;
+    std::filesystem::remove_all(root, ec);
+    std::filesystem::create_directories(root / "sub", ec);
+    for (const char* name : {"b.wsz", "a.wsz", "notes.txt", ".hidden.wsz", "sub/c.wsz"}) {
+        std::ofstream out(root / name);
+        out << "not really a skin";
+    }
+
+    const auto found = koalaamp::skins::listSkins(root);
+    REQUIRE(found.size() == 2);
+    CHECK(found[0].filename() == "a.wsz");
+    CHECK(found[1].filename() == "b.wsz");
+    // A folder that is not there is not an error: the menu simply has less to show.
+    CHECK(koalaamp::skins::listSkins(root / "does-not-exist").empty());
+
+    std::filesystem::remove_all(root, ec);
 }

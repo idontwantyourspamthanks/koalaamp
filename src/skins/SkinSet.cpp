@@ -7,6 +7,32 @@
 #include "skins/BmpDecoder.hpp"
 
 namespace koalaamp::skins {
+
+std::vector<std::filesystem::path> listSkins(const std::filesystem::path& dir) {
+    std::vector<std::filesystem::path> found;
+    std::error_code ec;
+    if (!std::filesystem::is_directory(dir, ec)) {
+        return found;
+    }
+    for (const auto& entry : std::filesystem::directory_iterator(dir, ec)) {
+        std::error_code entryEc;
+        if (!entry.is_regular_file(entryEc)) {
+            continue;
+        }
+        const std::string name = entry.path().filename().string();
+        if (!name.empty() && name.front() == '.') {
+            continue;
+        }
+        std::string extension = entry.path().extension().string();
+        std::transform(extension.begin(), extension.end(), extension.begin(),
+                       [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+        if (extension == ".wsz" || extension == ".zip") {
+            found.push_back(entry.path());
+        }
+    }
+    std::sort(found.begin(), found.end());
+    return found;
+}
 namespace {
 
 constexpr std::size_t kMaxTextBytes = 256u * 1024u;  // per unknown text member

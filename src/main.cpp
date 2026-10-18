@@ -147,19 +147,37 @@ int main(int argc, char** argv) {
         skinPath = skinDb.current();
     }
     std::optional<koalaamp::skins::SkinSet> skinSet;
-    if (!skinPath.empty()) {
-        skinSet = koalaamp::skins::loadSkinSet(skinPath);
-        if (!skinSet.has_value()) {
-            std::fprintf(stderr, "koalaamp: cannot load skin '%s'\n", skinPath.c_str());
+    // SK-2: one skin-applying path. Startup and the Skins menu both come through
+    // here, so "load, hand it to every window, remember it" exists once. The
+    // per-skin *layout* stays the startup path's business: adopting one here would
+    // race the default arrangement that runs when no layout was remembered.
+    const auto applySkin = [&](const std::filesystem::path& path) {
+        auto loaded = koalaamp::skins::loadSkinSet(path);
+        if (!loaded.has_value()) {
+            std::fprintf(stderr, "koalaamp: cannot load skin '%s'\n", path.c_str());
+            return false;
         }
-    }
-    if (skinSet.has_value()) {
+        skinSet = std::move(loaded);
         window.setSkin(&*skinSet);
         playlist.setSkin(&*skinSet);
         equalizer.setSkin(&*skinSet);
+#if defined(KOALAAMP_HAS_GL_VISUALIZER)
+        visualizer.setSkin(&*skinSet);
+#endif
+        skinPath = path;
+        if (hasDbPath) {
+            skinDb.noteLoaded(path);
+        }
         for (const auto& warning : skinSet->warnings) {
             std::fprintf(stderr, "koalaamp: skin: %s\n", warning.c_str());
         }
+        return true;
+    };
+
+    if (!skinPath.empty()) {
+        applySkin(skinPath);
+    }
+    if (skinSet.has_value()) {
     } else {
         std::fprintf(stderr,
                      "koalaamp: no skin loaded — pass --skin <file.wsz>\n"
@@ -389,8 +407,35 @@ int main(int argc, char** argv) {
     // Then restore this skin's remembered layout, or open the default set.
     // SK-2: the main window's menu. Its Option button, the clutterbar's O and a
     // right-click all ask for it. Rebuilt on open so the check marks are current.
-    const auto showMainMenu = [&window, &windowSet, &app] {
+    // Captures by reference: it runs inside this scope, while the menu is open.
+    const auto showMainMenu = [&] {
         QMenu menu;
+
+        QMenu* skins = menu.addMenu(QStringLiteral("Skins"));
+        QStringList offered;
+        const auto addSkin = [&](const std::filesystem::path& path) {
+            const QString name = QString::fromStdString(path.stem().string());
+            if (name.isEmpty() || offered.contains(name)) {
+                return;  // the bundled folder and the recent list can name one skin
+            }
+            offered << name;
+            QAction* action = skins->addAction(name);
+            action->setCheckable(true);
+            action->setChecked(!skinPath.empty() && skinPath == path);
+            QObject::connect(action, &QAction::triggered, &window,
+                             [&applySkin, path] { applySkin(path); });
+        };
+        for (const auto& bundled : koalaamp::skins::listSkins(KOALAAMP_BUNDLED_SKINS)) {
+            addSkin(bundled);
+        }
+        for (const auto& recent : skinDb.recent()) {
+            addSkin(recent);
+        }
+        if (offered.isEmpty()) {
+            QAction* none = skins->addAction(QStringLiteral("(no skins found)"));
+            none->setEnabled(false);
+        }
+        menu.addSeparator();
 
         QMenu* scaling = menu.addMenu(QStringLiteral("Scaling"));
         for (int factor = 1; factor <= 4; ++factor) {

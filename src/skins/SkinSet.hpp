@@ -72,6 +72,11 @@ public:
 /// nullopt when the container cannot be read or has no usable `main.bmp`.
 std::optional<SkinSet> loadSkinSet(const std::filesystem::path& skin);
 
+/// Skin candidates in `dir`: regular `.wsz`/`.zip` files, case-insensitively,
+/// hidden entries skipped, sorted, not recursive. A missing folder yields an empty
+/// list rather than an error — a menu simply has fewer entries to offer.
+std::vector<std::filesystem::path> listSkins(const std::filesystem::path& dir);
+
 /// Assembles a `SkinSet` from an already-read container. Exposed so tests and
 /// the loader can exercise the fallback logic without touching the filesystem.
 std::optional<SkinSet> assembleSkinSet(const SkinContainer& container,

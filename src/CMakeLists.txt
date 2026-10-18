@@ -20,6 +20,9 @@ add_subdirectory(ui)        # Qt Widgets — windows
 # The application binary: the classic main window (SE-2), with the libvlc
 # playback core attached when that target exists.
 add_executable(koalaamp main.cpp)
+# SK-2: the Skins menu offers the bundled skins; the tests already compile this in.
+target_compile_definitions(koalaamp PRIVATE
+    "KOALAAMP_BUNDLED_SKINS=\"${CMAKE_SOURCE_DIR}/skins\"")
 koalaamp_enable_warnings(koalaamp)
 target_link_libraries(koalaamp PRIVATE koalaamp_ui)
 if(TARGET koalaamp_ui_playback)
