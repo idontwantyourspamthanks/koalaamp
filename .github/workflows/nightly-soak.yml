@@ -14,6 +14,16 @@ on:
   schedule:
     - cron: '17 3 * * *'
   workflow_dispatch:
+    inputs:
+      # Parameterised so the whole pipeline (deps -> fetch -> build -> xvfb ->
+      # soak -> artifact) can be smoke-tested with a small slice before spending
+      # two hours on the acceptance run.
+      preset_count:
+        description: 'Presets to fetch and soak'
+        default: '500'
+      hold_ms:
+        description: 'Milliseconds to hold each preset'
+        default: '10000'
 
 permissions:
   contents: read
@@ -48,7 +58,7 @@ jobs:
         run: bash scripts/vendor-deps.sh
 
       - name: Fetch the pinned preset slice
-        run: bash scripts/fetch-presets.sh 500
+        run: bash scripts/fetch-presets.sh "${{ inputs.preset_count || '500' }}"
 
       - name: Configure
         run: cmake --preset linux-gcc
@@ -70,8 +80,20 @@ jobs:
             env QT_QPA_PLATFORM=xcb \
             ./build/linux-gcc/src/koalaamp \
               --soak-presets third_party/presets/soak \
-              --soak-hold-ms 10000 \
+              --soak-hold-ms "${{ inputs.hold_ms || '10000' }}" \
               --null-audio | tee soak.log
+
+      # The log is small (one line per preset); surfacing it in the run summary
+      # means the acceptance result is readable without downloading the artifact.
+      - name: Soak summary
+        if: always()
+        run: |
+          {
+            echo "### Soak"
+            echo '```'
+            tail -n 25 soak.log 2>/dev/null || echo "(no log)"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
 
       - name: Upload the soak log
         if: always()
