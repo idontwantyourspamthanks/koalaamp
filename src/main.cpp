@@ -21,6 +21,7 @@
 #include "ui/EqWindow.hpp"
 #include "ui/WindowPlatform.hpp"
 #include <QCursor>
+#include <QFileDialog>
 #include <QMenu>
 
 #include "ui/WindowSet.hpp"
@@ -204,10 +205,26 @@ int main(int argc, char** argv) {
     // cycling *policy* is task 4's — this only makes the folder's presets available,
     // loads the first one, and follows the selection when it moves.
     koalaamp::ui::PresetStore presetStore;
-    if (parser.isSet(presetsOption)) {
-        presetStore.setRoots({parser.value(presetsOption).toStdString()});
-        presetStore.setWatching(true);
-    }
+
+    // Without --presets the visualizer still needs somewhere to look, or the menu
+    // has nothing to offer. This is the XDG data folder (created on demand); the
+    // menu can point the store somewhere else, and the folder it picks is where the
+    // file dialog starts next time.
+    const auto defaultPresetDir = [] {
+        const QByteArray xdg = qgetenv("XDG_DATA_HOME");
+        const std::string home = qgetenv("HOME").toStdString();
+        std::filesystem::path base =
+            xdg.isEmpty() ? std::filesystem::path(home) / ".local" / "share"
+                          : std::filesystem::path(xdg.toStdString());
+        std::filesystem::path dir = base / "koalaamp" / "presets";
+        std::error_code ec;
+        std::filesystem::create_directories(dir, ec);
+        return dir;
+    }();
+    presetStore.setRoots({parser.isSet(presetsOption)
+                              ? parser.value(presetsOption).toStdString()
+                              : defaultPresetDir.string()});
+    presetStore.setWatching(true);
     if (!presetStore.empty()) {
         visualizer.canvas().requestPreset(presetStore.current());
     }
@@ -412,9 +429,22 @@ int main(int argc, char** argv) {
         QMenu menu;
 
         QMenu* presets = menu.addMenu(QStringLiteral("Presets"));
+        QAction* choose = presets->addAction(QStringLiteral("Choose preset folder…"));
+        QObject::connect(choose, &QAction::triggered, &window, [&] {
+            const auto& roots = presetStore.roots();
+            const QString start =
+                roots.empty() ? QString() : QString::fromStdString(roots.front());
+            const QString dir = QFileDialog::getExistingDirectory(
+                &window, QStringLiteral("MilkDrop preset folder"), start);
+            if (!dir.isEmpty()) {
+                presetStore.setRoots({dir.toStdString()});
+                presetStore.setWatching(true);
+            }
+        });
+        presets->addSeparator();
         if (presetStore.empty()) {
             QAction* none =
-                presets->addAction(QStringLiteral("(no presets — pass --presets DIR)"));
+                presets->addAction(QStringLiteral("(empty folder — put .milk files in it)"));
             none->setEnabled(false);
         } else {
             QAction* current = presets->addAction(QString::fromStdString(
