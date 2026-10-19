@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://jellyfin.local:8096/Audio/77777777777777777777777777777777/stream?static=true",
+    "headers": [
+      [
+        "Authorization",
+        "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"<derived-device-id>\", Version=\"0.0.1\", Token=\"fixture-token-1\""
+      ],
+      [
+        "Accept",
+        "application/json"
+      ]
+    ],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "audio/flac"
+      ],
+      [
+        "Content-Length",
+        "10"
+      ]
+    ],
+    "body": "0123456789",
+    "error": ""
+  }
+}

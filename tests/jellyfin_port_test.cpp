@@ -6,6 +6,7 @@
 
 #include "servers/jellyfin/ArtworkCache.hpp"
 #include "servers/jellyfin/AuthHeaders.hpp"
+#include "servers/jellyfin/JellyfinStream.hpp"
 #include "servers/jellyfin/DeviceIdentity.hpp"
 #include "servers/jellyfin/Discovery.hpp"
 #include "servers/jellyfin/FixtureTransport.hpp"
@@ -353,6 +354,42 @@ TEST_CASE("playback reports go to the three session endpoints with their payload
     REQUIRE(headerValue(transport.requests()[1], "Authorization") != nullptr);
     CHECK(contains(*headerValue(transport.requests()[1], "Authorization"),
                    "Token=\"fixture-token-1\""));
+
+}
+
+TEST_CASE("audio streams over the static endpoint and a far seek re-requests with Range") {
+    FixtureTransport transport{std::filesystem::path(kFixtureDir)};
+
+    std::string error;
+    const auto stream = openJellyfinStream(transport, testProfile(), kBaseUrl, "fixture-token-1",
+                                           kDeviceId, "77777777777777777777777777777777", &error);
+    REQUIRE(stream != nullptr);
+    CHECK(error.empty());
+
+    char first[5] = {};
+    stream->read(first, 4);
+    CHECK(std::string(first, 4) == "0123");
+    REQUIRE(transport.requests().size() == 1);
+    CHECK(transport.requests()[0].url ==
+          kBaseUrl + "/Audio/77777777777777777777777777777777/stream?static=true");
+    // Direct play: no Range on the first request, and the token is a header only.
+    CHECK(headerValue(transport.requests()[0], "Range") == nullptr);
+    REQUIRE(headerValue(transport.requests()[0], "Authorization") != nullptr);
+    CHECK(contains(*headerValue(transport.requests()[0], "Authorization"),
+                   "Token=\"fixture-token-1\""));
+    CHECK(transport.requests()[0].url.find("api_key") == std::string::npos);
+    CHECK(transport.requests()[0].url.find("fixture-token-1") == std::string::npos);
+
+    // Past the buffered response: must re-request from the server, Range-style.
+    stream->seekg(20, std::ios::beg);
+    REQUIRE(stream->good());
+    char later[5] = {};
+    stream->read(later, 4);
+    CHECK(std::string(later, 4) == "abcd");
+    REQUIRE(transport.requests().size() == 2);
+    REQUIRE(headerValue(transport.requests()[1], "Range") != nullptr);
+    CHECK(*headerValue(transport.requests()[1], "Range") == "bytes=20-");
+    CHECK(stream->tellg() == 24);
 
 }
 
