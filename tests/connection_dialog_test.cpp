@@ -9,12 +9,14 @@
 #include "servers/ServerBook.hpp"
 #include "servers/jellyfin/FixtureTransport.hpp"
 #include "ui/ConnectionDialog.hpp"
+#include "ui/GenRenderer.hpp"
 
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <QApplication>
 #include <QLineEdit>
 #include <QListWidget>
+#include <QMouseEvent>
 #include <QPushButton>
 
 #include <filesystem>
@@ -110,6 +112,30 @@ TEST_CASE("a scheme-less server URL is treated as http") {
     REQUIRE(book.entries().size() == 1);
     CHECK(book.entries().front().baseUrl == "http://jellyfin.local:8096");
 
+    fs::remove_all(dir);
+}
+
+TEST_CASE("the gen close box closes the dialog") {
+    const auto dir = freshDir();
+    ServerBook book(dir / "servers.json");
+    FixtureTransport transport{std::filesystem::path(KOALAAMP_FIXTURE_DIR)};
+
+    ConnectionDialog dialog(transport, book, (dir / "machine-id").string());
+    dialog.show();
+    REQUIRE(dialog.isVisible());
+
+    // The close box is a gen sprite inside the title bar, so the press must not be
+    // swallowed by the drag handling either — only the release closes.
+    const QPoint centre = koalaamp::ui::genLayout(dialog.contentSize()).closeButton.center();
+    QMouseEvent press(QEvent::MouseButtonPress, centre, Qt::LeftButton, Qt::LeftButton,
+                      Qt::NoModifier);
+    QApplication::sendEvent(&dialog, &press);
+    CHECK(dialog.isVisible());
+    QMouseEvent release(QEvent::MouseButtonRelease, centre, Qt::LeftButton, Qt::NoButton,
+                        Qt::NoModifier);
+    QApplication::sendEvent(&dialog, &release);
+
+    CHECK_FALSE(dialog.isVisible());
     fs::remove_all(dir);
 }
 

@@ -12,6 +12,7 @@
 #include <QLabel>
 #include <QInputDialog>
 #include <QLineEdit>
+#include <QMouseEvent>
 #include <QListWidget>
 #include <QPainter>
 #include <QPushButton>
@@ -121,13 +122,43 @@ void ConnectionDialog::setSkin(const skins::SkinSet* skin) {
 void ConnectionDialog::paintEvent(QPaintEvent*) {
     const skins::Skin& sheets = m_skin != nullptr ? m_skin->sheets : noSheets();
     const QImage chrome = renderGenWindow(sheets, pleditIfShipped(m_skin), m_contentSize,
-                                          "CONNECTION MANAGER", isActiveWindow(), 1);
+                                          "CONNECTION MANAGER", isActiveWindow(), 1,
+                                          m_closePressed);
     QPainter painter(this);
     painter.drawImage(0, 0, chrome);
 }
 
+bool ConnectionDialog::closeHit(const QPoint& point) const {
+    return genLayout(m_contentSize).closeButton.contains(point);
+}
+
 bool ConnectionDialog::isTitleBarAt(const QPoint& point) const {
-    return genLayout(m_contentSize).title.contains(point);
+    // The close box sits inside the title bar; a press there must not start a drag.
+    return genLayout(m_contentSize).title.contains(point) && !closeHit(point);
+}
+
+void ConnectionDialog::mousePressEvent(QMouseEvent* event) {
+    if (event->button() == Qt::LeftButton && closeHit(event->pos())) {
+        m_closePressed = true;
+        update();
+        event->accept();
+        return;
+    }
+    SkinnedWindow::mousePressEvent(event);
+}
+
+void ConnectionDialog::mouseReleaseEvent(QMouseEvent* event) {
+    if (m_closePressed) {
+        const bool inside = closeHit(event->pos());
+        m_closePressed = false;
+        update();
+        if (inside) {
+            close();
+        }
+        event->accept();
+        return;
+    }
+    SkinnedWindow::mouseReleaseEvent(event);
 }
 
 void ConnectionDialog::setStatus(const QString& text) {

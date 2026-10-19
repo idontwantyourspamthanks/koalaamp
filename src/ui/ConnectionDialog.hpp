@@ -28,6 +28,7 @@
 class QLabel;
 class QLineEdit;
 class QListWidget;
+class QMouseEvent;
 class QPushButton;
 
 namespace koalaamp::ui {
@@ -57,6 +58,9 @@ signals:
 private:
     void paintEvent(QPaintEvent* event) override;
     bool isTitleBarAt(const QPoint& point) const override;
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    bool closeHit(const QPoint& point) const;
 
     void login();
     void discover();
@@ -80,6 +84,7 @@ private:
     QLabel* m_status = nullptr;
 
     QSize m_contentSize{420, 260};
+    bool m_closePressed = false;
 };
 
 } // namespace koalaamp::ui
