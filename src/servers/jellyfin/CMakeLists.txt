@@ -9,6 +9,7 @@ add_library(koalaamp_jellyfin STATIC
     HttpTransport.cpp
     FixtureTransport.cpp
     JellyfinClient.cpp
+    ArtworkCache.cpp
     Discovery.cpp)
 koalaamp_enable_warnings(koalaamp_jellyfin)
 target_include_directories(koalaamp_jellyfin

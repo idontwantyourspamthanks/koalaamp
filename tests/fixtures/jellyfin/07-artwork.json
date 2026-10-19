@@ -1,0 +1,20 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://jellyfin.local:8096/Items/22222222222222222222222222222222/Images/Primary?tag=tag-blue",
+    "headers": [
+      ["Authorization", "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"<derived-device-id>\", Version=\"0.0.1\", Token=\"fixture-token-1\""],
+      ["Accept", "application/json"]
+    ],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      ["Content-Type", "image/png"],
+      ["Cache-Control", "max-age=3600, public"]
+    ],
+    "body": "fake-png-bytes",
+    "error": ""
+  }
+}

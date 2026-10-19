@@ -11,6 +11,8 @@
 
 #include "library/ITrackSource.hpp"
 
+#include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <string>
 #include <utility>
@@ -28,12 +30,30 @@ struct HttpRequest {
 struct HttpResponse {
     long status{0};
     std::string body;
+    /// Response headers, in wire order (the final hop only when redirects were
+    /// followed). Present so callers can honour `Cache-Control`, `ETag` and
+    /// `Content-Type` — the artwork cache needs all three.
+    std::vector<std::pair<std::string, std::string>> headers;
     /// Empty on transport success. Non-empty means the request never produced a
     /// response ("canceled", "connection refused", …).
     std::string error;
 
     bool transportOk() const { return error.empty(); }
     bool httpOk() const { return transportOk() && status >= 200 && status < 300; }
+
+    /// Case-insensitive header lookup; nullptr when absent.
+    const std::string* header(std::string_view name) const {
+        for (const auto& [key, value] : headers) {
+            if (key.size() == name.size() &&
+                std::equal(key.begin(), key.end(), name.begin(), [](char a, char b) {
+                    return std::tolower(static_cast<unsigned char>(a)) ==
+                           std::tolower(static_cast<unsigned char>(b));
+                })) {
+                return &value;
+            }
+        }
+        return nullptr;
+    }
 };
 
 /// A Cancellation that is never requested — the default for synchronous calls

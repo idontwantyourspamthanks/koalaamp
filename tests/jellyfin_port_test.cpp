@@ -4,6 +4,7 @@
 // Every gateway interaction is replayed offline through the same
 // JellyfinClient code path used against a live server (docs/tickets/FE-5).
 
+#include "servers/jellyfin/ArtworkCache.hpp"
 #include "servers/jellyfin/AuthHeaders.hpp"
 #include "servers/jellyfin/DeviceIdentity.hpp"
 #include "servers/jellyfin/Discovery.hpp"
@@ -265,6 +266,48 @@ TEST_CASE("search maps /Items audio results onto Track") {
     REQUIRE(transport.requests().size() == 1);
     CHECK(contains(transport.requests().front().url, "searchTerm=pink"));
     CHECK(contains(transport.requests().front().url, "includeItemTypes=Audio"));
+}
+
+TEST_CASE("artwork caches by item+tag and honours max-age") {
+    const auto dir = std::filesystem::temp_directory_path() / "koalaamp-artwork-test";
+    std::filesystem::remove_all(dir);
+
+    FixtureTransport transport{std::filesystem::path(kFixtureDir)};
+    ArtworkCache cache(transport, testProfile(), dir);
+
+    const std::string itemId = "22222222222222222222222222222222";
+    const auto first =
+        cache.primaryImage(kBaseUrl, "fixture-token-1", kDeviceId, itemId, "tag-blue");
+    REQUIRE(first.has_value());
+    CHECK(first->filename() == "22222222222222222222222222222222-tag-blue.png");
+    {
+        std::ifstream in(*first, std::ios::binary);
+        REQUIRE(in.good());
+        const std::string bytes{std::istreambuf_iterator<char>(in),
+                                std::istreambuf_iterator<char>()};
+        CHECK(bytes == "fake-png-bytes");
+    }
+    REQUIRE(transport.requests().size() == 1);
+    CHECK(contains(transport.requests().front().url, "/Images/Primary?tag=tag-blue"));
+    REQUIRE(headerValue(transport.requests().front(), "Authorization") != nullptr);
+    CHECK(contains(*headerValue(transport.requests().front(), "Authorization"),
+                   "Token=\"fixture-token-1\""));
+
+    // Within the recorded max-age the cache answers without a request; the fixture
+    // transport has only one recording, so a second request would come back empty.
+    const auto second =
+        cache.primaryImage(kBaseUrl, "fixture-token-1", kDeviceId, itemId, "tag-blue");
+    REQUIRE(second.has_value());
+    CHECK(*second == *first);
+    CHECK(transport.requests().size() == 1);
+
+    CHECK(ArtworkCache::maxAgeSeconds("max-age=3600, public") == 3600);
+    CHECK(ArtworkCache::maxAgeSeconds("max-age=60") == 60);
+    CHECK(ArtworkCache::maxAgeSeconds("no-store") == -1);
+    CHECK(ArtworkCache::maxAgeSeconds("no-cache, max-age=60") == -1);
+    CHECK(ArtworkCache::maxAgeSeconds("") == -1);
+
+    std::filesystem::remove_all(dir);
 }
 
 TEST_CASE("an HTTP 401 maps to ItemsUnauthorized, not an exception") {

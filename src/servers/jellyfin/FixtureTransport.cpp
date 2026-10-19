@@ -62,6 +62,7 @@ std::string serializeExchange(const RecordedExchange& exchange) {
     j["request"]["headers"] = exchange.request.headers;
     j["request"]["body"] = embedPayload(exchange.request.body);
     j["response"]["status"] = exchange.response.status;
+    j["response"]["headers"] = exchange.response.headers;
     j["response"]["body"] = embedPayload(exchange.response.body);
     j["response"]["error"] = exchange.response.error;
     return j.dump(2) + "\n";
@@ -88,6 +89,14 @@ RecordedExchange parseExchange(const std::string& text) {
     exchange.response.status = res.value("status", 0L);
     if (const auto it = res.find("body"); it != res.end()) {
         exchange.response.body = flattenPayload(*it);
+    }
+    if (const auto it = res.find("headers"); it != res.end() && it->is_array()) {
+        for (const auto& pair : *it) {
+            if (pair.is_array() && pair.size() == 2 && pair[0].is_string() && pair[1].is_string()) {
+                exchange.response.headers.emplace_back(pair[0].get<std::string>(),
+                                                       pair[1].get<std::string>());
+            }
+        }
     }
     exchange.response.error = res.value("error", std::string{});
     return exchange;

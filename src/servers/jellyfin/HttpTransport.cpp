@@ -35,6 +35,38 @@ CurlTransport::CurlTransport(std::chrono::milliseconds connectTimeout,
                              std::chrono::milliseconds totalTimeout)
     : connectTimeout_(connectTimeout), totalTimeout_(totalTimeout) {}
 
+namespace {
+
+/// Response headers, final hop only: a status line starts a new block (redirect
+/// hops included), so clearing on it leaves the last response's headers.
+std::size_t onHeader(char* data, std::size_t size, std::size_t nmemb, void* userp) {
+    const std::size_t total = size * nmemb;
+    auto* headers = static_cast<std::vector<std::pair<std::string, std::string>>*>(userp);
+    const std::string line(data, total);
+    if (line.rfind("HTTP/", 0) == 0) {
+        headers->clear();
+        return total;
+    }
+    const auto colon = line.find(':');
+    if (colon == std::string::npos) {
+        return total;
+    }
+    const auto trim = [](std::string_view in) {
+        while (!in.empty() && (in.front() == ' ' || in.front() == '\t')) {
+            in.remove_prefix(1);
+        }
+        while (!in.empty() && (in.back() == '\r' || in.back() == '\n' || in.back() == ' ')) {
+            in.remove_suffix(1);
+        }
+        return std::string(in);
+    };
+    headers->emplace_back(trim(std::string_view(line).substr(0, colon)),
+                          trim(std::string_view(line).substr(colon + 1)));
+    return total;
+}
+
+} // namespace
+
 HttpResponse CurlTransport::perform(const HttpRequest& request,
                                     const library::Cancellation& cancel) {
     ensureCurlGlobal();
@@ -57,6 +89,8 @@ HttpResponse CurlTransport::perform(const HttpRequest& request,
     curl_easy_setopt(curl, CURLOPT_ERRORBUFFER, errbuf);
     curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, &writeBody);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response.body);
+    curl_easy_setopt(curl, CURLOPT_HEADERFUNCTION, &onHeader);
+    curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response.headers);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
     curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, static_cast<long>(connectTimeout_.count()));
