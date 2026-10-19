@@ -21,6 +21,8 @@
 namespace {
 
 using namespace koalaamp::servers::jellyfin;
+using koalaamp::library::SourceId;
+using koalaamp::library::Track;
 
 constexpr const char* kFixtureDir = KOALAAMP_FIXTURE_DIR;
 constexpr const char* kUnauthorizedDir = KOALAAMP_FIXTURE_UNAUTHORIZED_DIR;
@@ -190,6 +192,79 @@ TEST_CASE("musicAlbumsWindow sends the koalapaw query and maps items") {
     REQUIRE(auth != nullptr);
     REQUIRE(contains(*auth, "Token=\"fixture-token-1\""));
     REQUIRE(contains(*auth, "DeviceId=\"" + kDeviceId + "\""));
+}
+
+TEST_CASE("musicArtistsWindow is atoZWindow with the artist kind") {
+    FixtureTransport transport{std::filesystem::path(kFixtureDir)};
+    JellyfinClient client(transport, testProfile());
+
+    const auto outcome =
+        client.musicArtistsWindow(kBaseUrl, "fixture-token-1", kDeviceId, kParentId, 0, 50);
+    const auto* success = std::get_if<ItemsSuccess>(&outcome);
+    REQUIRE(success != nullptr);
+    REQUIRE(success->window.items.size() == 2);
+    CHECK(success->window.items[0].name == "John Coltrane");
+    CHECK(success->window.items[0].type == "MusicArtist");
+    CHECK(success->window.items[1].sortName == "Davis, Miles");
+
+    // The ported query: one artist kind, SortName ascending, the same header discipline.
+    REQUIRE(transport.requests().size() == 1);
+    const HttpRequest& request = transport.requests().front();
+    CHECK(contains(request.url, "includeItemTypes=MusicArtist"));
+    CHECK(contains(request.url, "sortBy=SortName"));
+    CHECK(contains(request.url, "enableUserData=true"));
+    REQUIRE(headerValue(request, "Authorization") != nullptr);
+    CHECK(contains(*headerValue(request, "Authorization"), "Token=\"fixture-token-1\""));
+}
+
+TEST_CASE("letterOffsets buckets the sorted listing and keeps the first index") {
+    FixtureTransport transport{std::filesystem::path(kFixtureDir)};
+    JellyfinClient client(transport, testProfile());
+
+    const auto outcome =
+        client.letterOffsets(kBaseUrl, "fixture-token-1", kDeviceId, kParentId, "MusicArtist");
+    const auto* success = std::get_if<OffsetsSuccess>(&outcome);
+    REQUIRE(success != nullptr);
+    // "50 Cent" opens "#", "Anderson .Paak" opens "A", "Beatles, The" opens "B"; the
+    // later blank name and "Beach House" must not steal a bucket's first index.
+    REQUIRE(success->offsets.size() == 3);
+    CHECK(success->offsets.at("#") == 0);
+    CHECK(success->offsets.at("A") == 1);
+    CHECK(success->offsets.at("B") == 2);
+
+    REQUIRE(transport.requests().size() == 1);
+    CHECK(contains(transport.requests().front().url, "limit=100000"));
+    CHECK(contains(transport.requests().front().url, "enableImages=false"));
+}
+
+TEST_CASE("search maps /Items audio results onto Track") {
+    FixtureTransport transport{std::filesystem::path(kFixtureDir)};
+    JellyfinClient client(transport, testProfile());
+
+    const auto outcome =
+        client.search(kBaseUrl, "fixture-token-1", kDeviceId, kParentId, "pink", "Audio", 50);
+    const auto* success = std::get_if<SearchSuccess>(&outcome);
+    REQUIRE(success != nullptr);
+    REQUIRE(success->tracks.size() == 3);
+
+    const Track& first = success->tracks[0];
+    CHECK(first.src == SourceId::Jellyfin);
+    CHECK(first.id == "70000000000000000000000000000001");
+    CHECK(first.title == "Pink Moon");
+    CHECK(first.artist == "Nick Drake");
+    CHECK(first.albumArtist == "Nick Drake");
+    CHECK(first.album == "Pink Moon");
+    CHECK(first.year == 1972);
+    CHECK(first.trackNo == 1);
+    CHECK(first.discNo == 1);
+    CHECK(first.durationMs == 124700); // RunTimeTicks are 100 ns units.
+
+    CHECK(success->tracks[2].artist == "Pink Floyd");
+    CHECK(success->tracks[2].durationMs == 806200);
+
+    REQUIRE(transport.requests().size() == 1);
+    CHECK(contains(transport.requests().front().url, "searchTerm=pink"));
+    CHECK(contains(transport.requests().front().url, "includeItemTypes=Audio"));
 }
 
 TEST_CASE("an HTTP 401 maps to ItemsUnauthorized, not an exception") {

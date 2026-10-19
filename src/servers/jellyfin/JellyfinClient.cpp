@@ -4,6 +4,8 @@
 #include "servers/jellyfin/JellyfinClient.hpp"
 
 #include <nlohmann/json.hpp>
+
+#include <cctype>
 #include <utility>
 
 namespace koalaamp::servers::jellyfin {
@@ -126,18 +128,17 @@ AuthOutcome JellyfinClient::authenticate(const std::string& baseUrl, const std::
     }
 }
 
-ItemsOutcome JellyfinClient::musicAlbumsWindow(const std::string& baseUrl, const std::string& token,
-                                               const std::string& deviceId,
-                                               const std::string& parentId, int startIndex,
-                                               int limit, const library::Cancellation& cancel) {
+ItemsOutcome JellyfinClient::atoZWindow(const std::string& baseUrl, const std::string& token,
+                                        const std::string& deviceId, const std::string& parentId,
+                                        const std::string& itemType, int startIndex, int limit,
+                                        const library::Cancellation& cancel) {
     HttpRequest request;
     request.method = "GET";
     std::string query;
     if (!parentId.empty()) {
         query += "parentId=" + encodeQuery(parentId) + "&";
     }
-    query += "recursive=true"
-             "&includeItemTypes=MusicAlbum"
+    query += "recursive=true&includeItemTypes=" + encodeQuery(itemType) +
              "&sortBy=SortName"
              "&sortOrder=Ascending"
              "&startIndex=" +
@@ -171,6 +172,161 @@ ItemsOutcome JellyfinClient::musicAlbumsWindow(const std::string& baseUrl, const
             }
         }
         return ItemsSuccess{std::move(window)};
+    } catch (const std::exception& e) {
+        return ItemsFailed{std::string{"Malformed items response: "} + e.what()};
+    }
+}
+
+ItemsOutcome JellyfinClient::musicAlbumsWindow(const std::string& baseUrl, const std::string& token,
+                                               const std::string& deviceId,
+                                               const std::string& parentId, int startIndex,
+                                               int limit, const library::Cancellation& cancel) {
+    return atoZWindow(baseUrl, token, deviceId, parentId, "MusicAlbum", startIndex, limit, cancel);
+}
+
+ItemsOutcome JellyfinClient::musicArtistsWindow(const std::string& baseUrl, const std::string& token,
+                                                const std::string& deviceId,
+                                                const std::string& parentId, int startIndex,
+                                                int limit, const library::Cancellation& cancel) {
+    return atoZWindow(baseUrl, token, deviceId, parentId, "MusicArtist", startIndex, limit, cancel);
+}
+
+namespace {
+
+/// koalapaw `letterBucket`: the first character, upper-cased; digits, symbols and
+/// blank names share the "#" bucket.
+std::string letterBucket(const std::string& sortName, const std::string& name) {
+    const std::string& source = sortName.empty() ? name : sortName;
+    const auto first = source.find_first_not_of(" \t");
+    if (first == std::string::npos) {
+        return "#";
+    }
+    const char c = static_cast<char>(std::toupper(static_cast<unsigned char>(source[first])));
+    return (c >= 'A' && c <= 'Z') ? std::string(1, c) : std::string{"#"};
+}
+
+} // namespace
+
+OffsetsOutcome JellyfinClient::letterOffsets(const std::string& baseUrl, const std::string& token,
+                                             const std::string& deviceId,
+                                             const std::string& parentId,
+                                             const std::string& itemType,
+                                             const library::Cancellation& cancel) {
+    HttpRequest request;
+    request.method = "GET";
+    std::string query;
+    if (!parentId.empty()) {
+        query += "parentId=" + encodeQuery(parentId) + "&";
+    }
+    // koalapaw `atoZLetterOffsets`: one page big enough for the whole listing, no images.
+    query += "recursive=true&includeItemTypes=" + encodeQuery(itemType) +
+             "&sortBy=SortName"
+             "&sortOrder=Ascending"
+             "&startIndex=0"
+             "&limit=100000"
+             "&fields=SortName"
+             "&enableImages=false";
+    request.url = baseUrlNoSlash(baseUrl) + "/Items?" + query;
+    request.headers = baseHeaders(profile_, deviceId, token);
+
+    const HttpResponse response = transport_.perform(request, cancel);
+    if (!response.transportOk()) {
+        return ItemsUnreachable{};
+    }
+    if (response.status == 401) {
+        return ItemsUnauthorized{};
+    }
+    if (!response.httpOk()) {
+        return ItemsFailed{"Server responded with HTTP " + std::to_string(response.status)};
+    }
+
+    try {
+        const json body = json::parse(response.body);
+        OffsetsSuccess success;
+        const auto it = body.find("Items");
+        if (it != body.end() && it->is_array()) {
+            int index = 0;
+            for (const auto& dto : *it) {
+                if (!dto.is_object()) {
+                    continue;
+                }
+                // koalapaw's `putIfAbsent`: the first item of a bucket wins.
+                success.offsets.emplace(letterBucket(str(dto, "SortName"), str(dto, "Name")),
+                                        index);
+                ++index;
+            }
+        }
+        return success;
+    } catch (const std::exception& e) {
+        return ItemsFailed{std::string{"Malformed items response: "} + e.what()};
+    }
+}
+
+SearchOutcome JellyfinClient::search(const std::string& baseUrl, const std::string& token,
+                                     const std::string& deviceId, const std::string& parentId,
+                                     const std::string& query,
+                                     const std::string& includeItemTypes, int limit,
+                                     const library::Cancellation& cancel) {
+    HttpRequest request;
+    request.method = "GET";
+    std::string params;
+    if (!parentId.empty()) {
+        params += "parentId=" + encodeQuery(parentId) + "&";
+    }
+    params += "searchTerm=" + encodeQuery(query) + "&recursive=true&includeItemTypes=" +
+              encodeQuery(includeItemTypes) +
+              "&sortBy=SortName"
+              "&sortOrder=Ascending"
+              "&limit=" +
+              std::to_string(limit) +
+              "&fields=SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,IndexNumber,"
+              "ParentIndexNumber";
+    request.url = baseUrlNoSlash(baseUrl) + "/Items?" + params;
+    request.headers = baseHeaders(profile_, deviceId, token);
+
+    const HttpResponse response = transport_.perform(request, cancel);
+    if (!response.transportOk()) {
+        return ItemsUnreachable{};
+    }
+    if (response.status == 401) {
+        return ItemsUnauthorized{};
+    }
+    if (!response.httpOk()) {
+        return ItemsFailed{"Server responded with HTTP " + std::to_string(response.status)};
+    }
+
+    try {
+        const json body = json::parse(response.body);
+        SearchSuccess success;
+        const auto it = body.find("Items");
+        if (it != body.end() && it->is_array()) {
+            for (const auto& dto : *it) {
+                if (!dto.is_object() || str(dto, "Id").empty()) {
+                    continue;
+                }
+                library::Track track;
+                track.src = library::SourceId::Jellyfin;
+                track.id = str(dto, "Id");
+                track.title = str(dto, "Name");
+                track.album = str(dto, "Album");
+                track.albumArtist = str(dto, "AlbumArtist");
+                if (const auto artists = dto.find("Artists");
+                    artists != dto.end() && artists->is_array() && !artists->empty() &&
+                    artists->front().is_string()) {
+                    track.artist = artists->front().get<std::string>();
+                }
+                if (track.artist.empty()) {
+                    track.artist = track.albumArtist;
+                }
+                track.year = dto.value("ProductionYear", 0);
+                track.trackNo = dto.value("IndexNumber", 0);
+                track.discNo = dto.value("ParentIndexNumber", 0);
+                // Jellyfin reports RunTimeTicks in 100 ns units.
+                track.durationMs = static_cast<std::int64_t>(dto.value("RunTimeTicks", 0LL) / 10000LL);
+                success.tracks.push_back(std::move(track));
+            }
+        }
+        return success;
     } catch (const std::exception& e) {
         return ItemsFailed{std::string{"Malformed items response: "} + e.what()};
     }

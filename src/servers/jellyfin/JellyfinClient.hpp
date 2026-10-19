@@ -14,6 +14,7 @@
 #include "servers/jellyfin/HttpTransport.hpp"
 
 #include <cstdint>
+#include <map>
 #include <optional>
 #include <string>
 #include <variant>
@@ -72,6 +73,24 @@ struct ItemsFailed {
 };
 using ItemsOutcome = std::variant<ItemsSuccess, ItemsUnauthorized, ItemsUnreachable, ItemsFailed>;
 
+/// A→Z bucket → the index of its first item in the sorted listing (koalapaw
+/// `letterOffsetsFrom`): first occurrence wins, and digits, symbols and blank names
+/// share the "#" bucket. The grid uses it to jump without re-paging from zero.
+using LetterOffsets = std::map<std::string, int>;
+
+struct OffsetsSuccess {
+    LetterOffsets offsets;
+};
+using OffsetsOutcome =
+    std::variant<OffsetsSuccess, ItemsUnauthorized, ItemsUnreachable, ItemsFailed>;
+
+/// Search results mapped onto the player's track model (koalapaw `searchItems`).
+struct SearchSuccess {
+    std::vector<library::Track> tracks;
+};
+using SearchOutcome =
+    std::variant<SearchSuccess, ItemsUnauthorized, ItemsUnreachable, ItemsFailed>;
+
 /// One Jellyfin server as seen on the wire (koalapaw `DiscoveredServer`).
 struct DiscoveredServer {
     std::string id;
@@ -99,7 +118,36 @@ public:
                                    int startIndex, int limit,
                                    const library::Cancellation& cancel = NoCancellation{});
 
+    /// One artist page: GET /Items?IncludeItemTypes=MusicArtist… — koalapaw
+    /// `musicArtistsWindow`, which is `atoZWindow` with the artist kind.
+    ItemsOutcome musicArtistsWindow(const std::string& baseUrl, const std::string& token,
+                                    const std::string& deviceId, const std::string& parentId,
+                                    int startIndex, int limit,
+                                    const library::Cancellation& cancel = NoCancellation{});
+
+    /// A→Z offsets for a whole listing: one large page sorted by SortName with images
+    /// off, then `letterOffsetsFrom` (koalapaw `musicLetterOffsets` /
+    /// `musicArtistLetterOffsets`). `itemType` is the Jellyfin kind, e.g. "MusicAlbum".
+    OffsetsOutcome letterOffsets(const std::string& baseUrl, const std::string& token,
+                                 const std::string& deviceId, const std::string& parentId,
+                                 const std::string& itemType,
+                                 const library::Cancellation& cancel = NoCancellation{});
+
+    /// Search the library (koalapaw `searchItems`): `/Items` with a `searchTerm`,
+    /// recursive, restricted to `includeItemTypes` (e.g. "Audio"), mapped onto Track.
+    SearchOutcome search(const std::string& baseUrl, const std::string& token,
+                         const std::string& deviceId, const std::string& parentId,
+                         const std::string& query, const std::string& includeItemTypes,
+                         int limit, const library::Cancellation& cancel = NoCancellation{});
+
 private:
+    /// The shared A→Z page read behind `musicAlbumsWindow`/`musicArtistsWindow`
+    /// (koalapaw `atoZWindow`): recursive, SortName ascending, one item type.
+    ItemsOutcome atoZWindow(const std::string& baseUrl, const std::string& token,
+                            const std::string& deviceId, const std::string& parentId,
+                            const std::string& itemType, int startIndex, int limit,
+                            const library::Cancellation& cancel);
+
     IHttpTransport& transport_;
     DeviceProfile profile_;
 };

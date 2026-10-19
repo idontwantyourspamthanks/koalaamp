@@ -1,0 +1,26 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://jellyfin.local:8096/Items?parentId=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee&recursive=true&includeItemTypes=MusicArtist&sortBy=SortName&sortOrder=Ascending&startIndex=0&limit=100000&fields=SortName&enableImages=false",
+    "headers": [
+      ["Authorization", "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"<derived-device-id>\", Version=\"0.0.1\", Token=\"fixture-token-1\""],
+      ["Accept", "application/json"]
+    ],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "body": {
+      "Items": [
+        {"Name": "50 Cent", "Id": "60000000000000000000000000000001", "SortName": "50 Cent", "Type": "MusicArtist", "IsFolder": true},
+        {"Name": "Anderson .Paak", "Id": "60000000000000000000000000000002", "SortName": "Anderson .Paak", "Type": "MusicArtist", "IsFolder": true},
+        {"Name": "The Beatles", "Id": "60000000000000000000000000000003", "SortName": "Beatles, The", "Type": "MusicArtist", "IsFolder": true},
+        {"Name": "", "Id": "60000000000000000000000000000004", "SortName": "", "Type": "MusicArtist", "IsFolder": true},
+        {"Name": "Beach House", "Id": "60000000000000000000000000000005", "SortName": "Beach House", "Type": "MusicArtist", "IsFolder": true}
+      ],
+      "TotalRecordCount": 5,
+      "StartIndex": 0
+    },
+    "error": ""
+  }
+}
