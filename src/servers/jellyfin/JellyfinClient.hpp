@@ -56,7 +56,12 @@ struct AuthSession {
 struct AuthSuccess {
     AuthSession session;
 };
-struct AuthInvalidCredentials {};
+struct AuthInvalidCredentials {
+    /// Jellyfin's own words when it supplies them (its 401 body carries `error`),
+    /// otherwise a short generic message. Surfaced by the connection dialog, because
+    /// "wrong username or password" is what a *different* rejection also looks like.
+    std::string message;
+};
 struct AuthUnreachable {};
 struct AuthFailed {
     std::string message;

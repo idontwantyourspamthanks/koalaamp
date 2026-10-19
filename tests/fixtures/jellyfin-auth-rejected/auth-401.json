@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "http://jellyfin.local:8096/Users/AuthenticateByName",
+    "headers": [
+      ["Authorization", "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"<derived-device-id>\", Version=\"0.0.1\""],
+      ["Accept", "application/json"],
+      ["Content-Type", "application/json"]
+    ],
+    "body": {
+      "Username": "tester",
+      "Pw": "wrong"
+    }
+  },
+  "response": {
+    "status": 401,
+    "headers": [
+      ["Content-Type", "application/json"]
+    ],
+    "body": {
+      "error": "Invalid username or password"
+    },
+    "error": ""
+  }
+}

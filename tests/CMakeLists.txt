@@ -32,6 +32,7 @@ target_link_libraries(jellyfin_port_tests PRIVATE Catch2::Catch2WithMain koalaam
 target_compile_definitions(jellyfin_port_tests PRIVATE
     KOALAAMP_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/jellyfin"
     KOALAAMP_FIXTURE_UNAUTHORIZED_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/jellyfin-unauthorized"
+    KOALAAMP_FIXTURE_AUTH_REJECTED_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/jellyfin-auth-rejected"
     KOALAAMP_SERVERS_SRC="${CMAKE_SOURCE_DIR}/src/servers")
 catch_discover_tests(jellyfin_port_tests)
 

@@ -93,6 +93,26 @@ TEST_CASE("signing in records the server and keeps the token in memory") {
     fs::remove_all(dir);
 }
 
+TEST_CASE("a scheme-less server URL is treated as http") {
+    const auto dir = freshDir();
+    ServerBook book(dir / "servers.json");
+    FixtureTransport transport{std::filesystem::path(KOALAAMP_FIXTURE_DIR)};
+
+    ConnectionDialog dialog(transport, book, (dir / "machine-id").string());
+    setField(dialog, "urlField", "jellyfin.local:8096"); // what people type
+    setField(dialog, "userField", "tester");
+    setField(dialog, "passwordField", "correct-horse");
+    click(dialog, "loginButton");
+
+    // The fixture only answers the http:// URL, so a successful login also proves the
+    // scheme was added; the stored base URL records the normalised form.
+    REQUIRE(dialog.session().has_value());
+    REQUIRE(book.entries().size() == 1);
+    CHECK(book.entries().front().baseUrl == "http://jellyfin.local:8096");
+
+    fs::remove_all(dir);
+}
+
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
     return Catch::Session().run(argc, argv);

@@ -28,6 +28,7 @@ using koalaamp::library::Track;
 constexpr const char* kFixtureDir = KOALAAMP_FIXTURE_DIR;
 constexpr const char* kUnauthorizedDir = KOALAAMP_FIXTURE_UNAUTHORIZED_DIR;
 constexpr const char* kServersSrc = KOALAAMP_SERVERS_SRC;
+constexpr const char* kAuthRejectedDir = KOALAAMP_FIXTURE_AUTH_REJECTED_DIR;
 
 const std::string kBaseUrl = "http://jellyfin.local:8096";
 const std::string kParentId = "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee";
@@ -308,6 +309,18 @@ TEST_CASE("artwork caches by item+tag and honours max-age") {
     CHECK(ArtworkCache::maxAgeSeconds("") == -1);
 
     std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("an auth 401 carries the server's own reason") {
+    FixtureTransport transport{kAuthRejectedDir};
+    JellyfinClient client(transport, testProfile());
+
+    const auto outcome = client.authenticate(kBaseUrl, "tester", "wrong", kDeviceId);
+    const auto* rejected = std::get_if<AuthInvalidCredentials>(&outcome);
+    REQUIRE(rejected != nullptr);
+    // The dialog shows this verbatim: a rejected header and a wrong password are
+    // both 401s, so the server's own words are the only honest message.
+    CHECK(rejected->message == "Invalid username or password");
 }
 
 TEST_CASE("an HTTP 401 maps to ItemsUnauthorized, not an exception") {

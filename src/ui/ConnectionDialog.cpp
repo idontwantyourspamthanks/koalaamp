@@ -10,11 +10,14 @@
 
 #include <QColor>
 #include <QLabel>
+#include <QInputDialog>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPainter>
 #include <QPushButton>
 #include <QUrl>
+
+#include <cstdio>
 
 #include <algorithm>
 #include <variant>
@@ -155,7 +158,12 @@ void ConnectionDialog::refreshList() {
 void ConnectionDialog::login() {
     using namespace koalaamp::servers::jellyfin;
 
-    const std::string baseUrl = m_url->text().trimmed().toStdString();
+    std::string baseUrl = m_url->text().trimmed().toStdString();
+    if (!baseUrl.empty() && baseUrl.find("://") == std::string::npos) {
+        // "host:8096" is what people type and what some discovery replies carry;
+        // curl needs a scheme, and without one the failure surfaces as unreachable.
+        baseUrl = "http://" + baseUrl;
+    }
     const std::string user = m_user->text().trimmed().toStdString();
     const std::string password = m_password->text().toStdString();
     if (baseUrl.empty() || user.empty()) {
@@ -191,7 +199,12 @@ void ConnectionDialog::login() {
         return;
     }
     if (std::holds_alternative<AuthInvalidCredentials>(outcome)) {
-        setStatus(QStringLiteral("Wrong user name or password"));
+        // Show the server's own reason: a rejected header and a wrong password are
+        // both 401s, and calling every one of them "wrong password" hid the difference.
+        const auto& rejected = std::get<AuthInvalidCredentials>(outcome);
+        setStatus(QString::fromStdString(rejected.message));
+        std::fprintf(stderr, "koalaamp: login rejected at %s: %s\n", baseUrl.c_str(),
+                     rejected.message.c_str());
     } else if (std::holds_alternative<AuthUnreachable>(outcome)) {
         setStatus(QStringLiteral("Server unreachable"));
     } else {
@@ -206,8 +219,39 @@ void ConnectionDialog::discover() {
         setStatus(QStringLiteral("No Jellyfin servers answered on the LAN"));
         return;
     }
-    m_url->setText(QString::fromStdString(found.front().address));
-    setStatus(QStringLiteral("%1 server(s) found").arg(static_cast<int>(found.size())));
+    if (found.size() == 1) {
+        const auto& server = found.front();
+        m_url->setText(QString::fromStdString(server.address));
+        const QString name = QString::fromStdString(server.name);
+        setStatus(name.isEmpty() ? QStringLiteral("Found one server")
+                                 : QStringLiteral("Found %1").arg(name));
+        return;
+    }
+
+    // Several answered. Picking silently by order is what made Discover look like it
+    // had done nothing; ask instead.
+    QStringList labels;
+    labels.reserve(static_cast<qsizetype>(found.size()));
+    for (const auto& server : found) {
+        const QString name = QString::fromStdString(server.name);
+        labels << QStringLiteral("%1 — %2")
+                      .arg(name.isEmpty() ? QStringLiteral("Jellyfin") : name,
+                           QString::fromStdString(server.address));
+    }
+    bool accepted = false;
+    const QString chosen = QInputDialog::getItem(this, QStringLiteral("Discover servers"),
+                                                 QStringLiteral("Pick a server to use:"), labels,
+                                                 0, false, &accepted);
+    if (!accepted) {
+        setStatus(QStringLiteral("Discovery cancelled"));
+        return;
+    }
+    const qsizetype index = labels.indexOf(chosen);
+    if (index < 0 || static_cast<std::size_t>(index) >= found.size()) {
+        return;
+    }
+    m_url->setText(QString::fromStdString(found[static_cast<std::size_t>(index)].address));
+    setStatus(QStringLiteral("Selected %1").arg(chosen));
 }
 
 void ConnectionDialog::removeSelected() {

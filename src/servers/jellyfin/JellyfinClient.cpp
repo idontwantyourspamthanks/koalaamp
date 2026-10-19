@@ -101,7 +101,23 @@ AuthOutcome JellyfinClient::authenticate(const std::string& baseUrl, const std::
         return AuthUnreachable{};
     }
     if (response.status == 401) {
-        return AuthInvalidCredentials{};
+        // Jellyfin's 401 body carries the reason; we used to drop it, which made a
+        // rejected *header* indistinguishable from a wrong password.
+        std::string message = "The server rejected the credentials";
+        if (!response.body.empty()) {
+            try {
+                const json body = json::parse(response.body);
+                const auto it = body.find("error");
+                if (it != body.end() && it->is_string()) {
+                    message = it->get<std::string>();
+                } else {
+                    message = response.body.substr(0, 200);
+                }
+            } catch (const std::exception&) {
+                message = response.body.substr(0, 200);
+            }
+        }
+        return AuthInvalidCredentials{std::move(message)};
     }
     if (!response.httpOk()) {
         return AuthFailed{"Login failed (HTTP " + std::to_string(response.status) + ")"};
