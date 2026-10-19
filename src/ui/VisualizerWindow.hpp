@@ -80,8 +80,8 @@ public:
     void setAlwaysOnTop(bool on);
     bool isAlwaysOnTop() const;
 
-    /// The window title, drawn in the skin's 5x6 font (uppercase-folded) and set
-    /// as the WM caption. Winamp gen windows show the plugin's name.
+    /// The window title, centred on the gen title bar (the sheet's own alphabet,
+    /// or the 5x6 font when the sheet has none) and set as the WM caption.
     void setTitle(const std::string& title);
     const std::string& title() const { return m_title; }
 

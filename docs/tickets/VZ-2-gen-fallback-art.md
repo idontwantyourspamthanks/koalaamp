@@ -21,24 +21,30 @@ into the gen layout makes a gen-less visualizer wear the same art as its sibling
 
 ## Findings so far
 
-- `PleditRenderer` composes the playlist frame from **raw `pledit.bmp` rects**; there is no
-  `PLEDIT_*` sprite registry entry (a grep for the name finds only the sheet constant). The rect
-  table is therefore new work, sourced from the classic reference rather than from the sprite
-  registry.
+- The `pledit.bmp` rects are already the `PLAYLIST_*` entries in `SkinSprites.hpp` (the same
+  table `PleditRenderer` blits). No second table.
 - `MAIN_TITLE_BAR[_SELECTED]` in `titlebar.bmp` is a single 275x20 sprite with the option,
-  minimize and close buttons drawn into it, so it cannot simply be clipped to a 194 px gen
-  window. `pledit.bmp`'s sliced title bar is the better source.
+  minimize and close buttons drawn into it, so it cannot simply be clipped to a gen window.
+  `pledit.bmp`'s sliced title bar is the source.
+- The playlist bottom band is 38 px of buttons. The visualizer keeps the gen layout's 14 px
+  bottom and uses the band's lower edge: the tile's plain bevel, the left corner join, and
+  the resize grip in the right corner's last columns. The title's right piece keeps both of
+  the skin's buttons; only the close box is live.
+- `text.bmp` titles drop the space-cell background (and a tight dither around it), so the
+  name sits on the bar. A cell whose colours sprawl, or a font whose ink would vanish, stays
+  opaque.
 
 ## Tasks
 
-- [ ] Rect table for the `pledit.bmp` chunks in gen-layout terms (title bar left/fill/right,
-      side borders, bottom bar), as data, not code.
-- [ ] `GenRenderer` composes the frame from it when the skin has the sheet, and keeps VZ-1's
+- [x] Rect table for the `pledit.bmp` chunks in gen-layout terms (title bar left/fill/right,
+      side borders, bottom bar), as data, not code. — the existing `PLAYLIST_*` sprites.
+- [x] `GenRenderer` composes the frame from it when the skin has the sheet, and keeps VZ-1's
       palette fallback when it has neither `gen.bmp` nor `pledit.bmp`.
-- [ ] `vz1_viswindow_tests`: a skin with `pledit.bmp` but no `gen.bmp` frames itself in that
+- [x] `vz1_viswindow_tests`: a skin with `pledit.bmp` but no `gen.bmp` frames itself in that
       sheet's pixels; a skin with neither still gets the derived palette.
-- [ ] Xvfb capture: a gen-less corpus skin's whole set (main, EQ, playlist, visualizer) in one
-      skin, all four reading as the same program.
+- [x] Render check: gen-less corpus skins (and the four bundled skins, which do ship
+      `gen.bmp`) framed and inspected. Title bar runs the full width, the name sits in the
+      middle, the skin's buttons sit at the end, and the bottom edge carries the grip.
 
 ## Out of scope
 

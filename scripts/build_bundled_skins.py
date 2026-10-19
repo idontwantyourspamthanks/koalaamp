@@ -1067,39 +1067,102 @@ def build_eq_ex(theme: Theme) -> Image.Image:
     return im
 
 
+def side_strip(w: int, h: int, base: Rgb, outer_on_left: bool) -> Image.Image:
+    """A side border that repeats vertically without a seam.
+
+    A gradient here restarts every 29 px tile and shows as bands. A flat fill
+    with a one-pixel outer edge does not.
+    """
+    im = new(w, h, base)
+    for y in range(h):
+        if outer_on_left:
+            im.putpixel((0, y), shade(base, 0.4))
+            if w > 2:
+                im.putpixel((w - 1, y), shade(base, -0.3))
+        else:
+            im.putpixel((w - 1, y), shade(base, -0.35))
+            if w > 2:
+                im.putpixel((0, y), shade(base, 0.25))
+    return im
+
+
 def build_gen(theme: Theme) -> Image.Image:
     im = new(194, 109, theme.panel_lo)
 
-    def title(selected: bool) -> Image.Image:
-        # Same colour as the bitmap font's cell background, so a gen-window
-        # title drawn in text.bmp does not pick up a box around each letter.
-        # No side bevel: the 25px fill tile has to repeat cleanly.
-        top = shade(theme.lcd, 0.18 if selected else 0.0)
-        bot = theme.lcd
-        face = new(25, 20, top)
-        for yy in range(20):
-            fill(face, 0, yy, 25, 1, mix(top, bot, yy / 19))
+    def title_face(selected: bool) -> Image.Image:
+        # One continuous bar: every 25 px piece is the same seamless tile, so
+        # the stretch, the plate and the transitions meet without a seam. The
+        # close button is stamped onto the right piece afterwards.
+        top = theme.title_top if selected else shade(theme.title_top, -0.28)
+        bot = theme.title_bot if selected else shade(theme.title_bot, -0.4)
+        face = gel_x_tile(25, 20, top, bot)
+        hline(face, 0, 19, 25, theme.accent if selected else shade(theme.accent, -0.4))
         return face
 
+    faces = {}
     for selected, y in ((True, 0), (False, 21)):
-        piece = title(selected)
-        for i, x in enumerate((0, 26, 52, 78, 104, 130)):
+        piece = title_face(selected)
+        faces[selected] = piece
+        for x in (0, 26, 52, 78, 104, 130):
             im.paste(piece, (x, y))
-        # Right cap gets a little accent so the active bar reads as a bar.
-        if selected:
-            hline(im, 0, y + 19, 155, theme.accent)
+        btn = icon_button(9, 9, theme.button_top, theme.button_bot, CLOSE, theme.button_ink)
+        im.paste(btn, (130 + 14, y + 3))
 
-    im.paste(flat_right(gel(125, 14, theme.panel_hi, theme.panel_lo)), (0, 42))
-    im.paste(flat_right(gel(125, 14, theme.panel, theme.panel_lo)), (0, 57))
-    # Tiled across the bar in 25 px steps: must not carry its own side edges.
-    im.paste(gel_x_tile(25, 14, theme.panel, theme.panel_lo), (127, 72))
-    # Tiled down the window side in 29 px steps: must not carry top/bottom edges.
-    left = gel_y_tile(11, 29, theme.panel_hi, theme.panel_lo)
-    im.paste(left, (127, 42))
-    im.paste(gel_y_tile(11, 24, theme.panel_hi, theme.panel_lo), (158, 42))
-    im.paste(gel_y_tile(8, 29, theme.panel, theme.panel_lo), (139, 42))
-    im.paste(gel(8, 24, theme.panel, theme.panel_lo), (170, 42))
-    im.paste(icon_button(9, 9, theme.button_top, theme.button_bot, CLOSE, theme.button_ink), (148, 42))
+    # Alphabet under the frame, active row then inactive. The delimiter is a
+    # colour the glyphs never use; the renderer finds letter widths from it.
+    # Glyph backgrounds are sampled from the title tile at the rows the
+    # renderer blits them onto (destination y = 4), so the letters sit in the
+    # bar instead of on a flat patch.
+    delim = (255, 0, 255)
+    letters = "abcdefghijklmnopqrstuvwxyz"
+
+    def face_bg(face: Image.Image, row: int) -> Rgb:
+        # row 0 is the pad above the 6 px glyph; rows 1..6 are the glyph.
+        return face.getpixel((12, 4 + row))
+
+    for row_y, selected, ink in (
+        (88, True, theme.title_ink),
+        (96, False, shade(theme.title_ink, -0.35)),
+    ):
+        face = faces[selected]
+        for i in range(7):
+            pixel(im, 0, row_y + i, delim)
+        pen = 1
+        for ch in letters:
+            for i in range(7):
+                fill(im, pen, row_y + i, 5, 1, face_bg(face, i))
+            # 6 px glyph in rows 1..6; row 0 stays the bar colour.
+            blit_glyph(im, FONT[ch], pen, row_y + 1, ink, None)
+            for i in range(7):
+                pixel(im, pen + 5, row_y + i, delim)
+            pen += 6
+
+    # Bottom: one bar, left end / tile / right end, so a wide window doesn't
+    # change colour halfway along. The right end carries the resize grip.
+    body_top, body_bot = theme.panel_hi, theme.panel
+    left = flat_right(gel(125, 14, body_top, body_bot))
+    right = gel(125, 14, body_top, body_bot)
+    for y in range(14):
+        right.putpixel((0, y), right.getpixel((1, y)))
+    for i in range(5):
+        pixel(right, 124 - i, 13 - i, theme.title_ink)
+        pixel(right, 123 - i, 13 - i, shade(theme.title_ink, -0.3))
+    im.paste(left, (0, 42))
+    im.paste(right, (0, 57))
+    im.paste(gel_x_tile(25, 14, body_top, body_bot), (127, 72))
+
+    im.paste(side_strip(11, 29, theme.panel_hi, True), (127, 42))
+    im.paste(side_strip(11, 24, theme.panel_hi, True), (158, 42))
+    right_side = side_strip(8, 29, theme.panel, False)
+    right_cap = side_strip(8, 24, theme.panel, False)
+    for i in range(3):
+        pixel(right_cap, 7 - i, 23 - i, theme.title_ink)
+    im.paste(right_side, (139, 42))
+    im.paste(right_cap, (170, 42))
+    im.paste(
+        icon_button(9, 9, theme.button_top, theme.button_bot, CLOSE, theme.button_ink, True),
+        (148, 42),
+    )
     return im
 
 

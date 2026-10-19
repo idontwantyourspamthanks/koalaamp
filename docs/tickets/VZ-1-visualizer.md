@@ -15,10 +15,16 @@ The production visualizer: a skin-chromed window where projectM renders the user
   `koalaamp_vz1_engine_tests` and `koalaamp_vz1_window_tests`._
 - [x] `VisualizerWindow` with the hosting mode FE-14 recorded (masked vs unmasked toplevel); skin
   chrome from `gen`/visspec-class bitmaps with designed fallback. — _`src/ui/VisualizerWindow.{hpp,cpp}`
-  on `src/ui/GenRenderer.{hpp,cpp}`: the tiled gen frame (25 px title/bottom tiles, 29 px side
-  borders, close box, title in the skin font) and a designed fallback for the many skins that omit
-  `gen.bmp`: it borrows that skin's `pledit.txt` palette, so a gen-less skin's visualizer reads as a
-  sibling of the playlist window instead of a neutral grey stranger beside it. The canvas fills the
+  on `src/ui/GenRenderer.{hpp,cpp}`: the gen frame assembled the way a classic gen window is
+  (six 25 px title pieces — corners, transitions, a centred title plate, and the stretch tile
+  that actually runs the full width — 11/8 px side borders, 125 px bottom corners with the
+  resize grip, close box at the right end). The name is the sheet's own alphabet when it has
+  one, centred, and `text.bmp` otherwise (the font's cell background is left transparent,
+  so a sheet with no alphabet doesn't draw the title inside a box). The idle close button
+  is the one drawn into the right title piece; the separate sprite only shows while the box
+  is held. A skin with no `gen.bmp` wears its `pledit.bmp` chrome (VZ-2); the `pledit.txt`
+  palette frame remains for a skin that has neither sheet. The window
+  is at least 269 px wide so the two bottom corners fit. The canvas fills the
   client rect and the engine is injected, so the UI never links the
   back end. App wiring in `src/main.cpp`: the clutterbar V toggles the window, its close box hides
   it, `--always-on-top` covers it. Hosting: a gen frame is rectangular, so this window is unmasked —
@@ -26,7 +32,7 @@ The production visualizer: a skin-chromed window where projectM renders the user
   macOS/Windows gap applies unchanged. It has since gained a slot in `WindowSet` — it snaps to its siblings
   and remembers where *and* whether it was open, while staying out of the dock groups, `showAll()` and the
   group drag (spec §5.3's "Vis Phase 1.5"; suite `koalaamp_se4_snap_tests`). Suite
-  `koalaamp_vz1_viswindow_tests` (5 cases)._
+  `koalaamp_vz1_viswindow_tests`._
 - [x] PCM wiring: PcmTap ring buffer → `projectm_pcm_add_float` (interleaved L/R) throttled to ~30Hz or
   per-frame; same post-DSP feed as the main-window spectrum. — _There is no `PcmTap` type: the seam is
   `PcmFanout` (`src/ui/PcmFanout.hpp`), and the app now installs

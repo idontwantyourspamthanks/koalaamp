@@ -27,8 +27,9 @@ const skins::Skin& noSheets() {
 }
 
 QImage chromeImage(const skins::Skin& sheets, const skins::PleditColors* pledit,
-                   const QSize& contentSize, const std::string& title, bool active, int scale) {
-    return renderGenWindow(sheets, pledit, contentSize, title, active, scale);
+                   const QSize& contentSize, const std::string& title, bool active, int scale,
+                   bool closePressed) {
+    return renderGenWindow(sheets, pledit, contentSize, title, active, scale, closePressed);
 }
 
 /// The palette the fallback frame borrows when a skin ships no `gen.bmp`: the skin's
@@ -255,7 +256,7 @@ void VisualizerWindow::paintEvent(QPaintEvent* /*event*/) {
 
     const skins::Skin& sheets = m_skin != nullptr ? m_skin->sheets : noSheets();
     painter.drawImage(0, 0, chromeImage(sheets, pleditIfShipped(m_skin), contentSize(), m_title,
-                                        isActiveWindow(), m_scale));
+                                        isActiveWindow(), m_scale, m_closePressed));
 
     if (!visualizerAvailable()) {
         drawUnavailableMessage(painter);
@@ -287,6 +288,7 @@ bool VisualizerWindow::isTitleBarAt(const QPoint& point) const {
 void VisualizerWindow::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton && toDevice(closeButtonRect()).contains(event->pos())) {
         m_closePressed = true;
+        update();
         event->accept();
         return;
     }
@@ -297,6 +299,7 @@ void VisualizerWindow::mouseReleaseEvent(QMouseEvent* event) {
     if (m_closePressed) {
         const bool inside = toDevice(closeButtonRect()).contains(event->pos());
         m_closePressed = false;
+        update();
         if (inside) {
             emit closeRequested();
         }

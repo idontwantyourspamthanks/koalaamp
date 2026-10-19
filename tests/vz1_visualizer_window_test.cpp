@@ -114,8 +114,10 @@ TEST_CASE("VZ-1 the visualizer window is a gen window hosting the app's canvas",
 
     CHECK(window.visualizerAvailable() == engineAvailable());
     // The reference gen window, whose client rect is what the canvas fills.
-    CHECK(window.contentSize() == QSize(194, 109));
-    CHECK(window.clientRect() == genLayout(QSize(194, 109)).client);
+    // Wide enough for both 125 px bottom corners (the 194 px sheet is not).
+    CHECK(window.contentSize() == genSnapSize(QSize(194, 109)));
+    CHECK(window.contentSize().width() >= 250);
+    CHECK(window.clientRect() == genLayout(window.contentSize()).client);
     CHECK(window.canvas().geometry() == window.clientRect());
     CHECK(&window.canvas().engine() == engine.get());
     // A build without libprojectM hides the canvas rather than showing a dead one.
@@ -142,16 +144,21 @@ TEST_CASE("VZ-1 the visualizer window wears the skin's gen frame", "[vz1][viswin
     window.setSkin(&*skinSet);
     CHECK_FALSE(window.usesFallbackChrome());
 
-    const QImage rendered = renderToImage(window);
     const QImage* gen = skinSet->sheets.sheet("GEN");
     REQUIRE(gen != nullptr);
-    // The title bar's left corner is the skin's own GEN_TOP_LEFT sprite, blitted
-    // at (0,0) — the title text starts further right, so this pixel is the art.
-    CHECK(rendered.pixelColor(3, 3) == gen->pixelColor(3, 3));
-    // Bar (125 px variant) then tiled fill for 125..194, so the bottom-right pixel
-    // is the fill sprite's clipped tail.
-    CHECK(rendered.pixelColor(rendered.width() - 1, rendered.height() - 1) ==
-          gen->pixelColor(127 + 18, 72 + 13));
+    // Active, so the row under test doesn't depend on whether the widget has focus.
+    const QImage framed = koalaamp::ui::renderGenWindow(skinSet->sheets, nullptr, QSize(275, 116),
+                                                       "VISUALIZER", true);
+    // The title bar's left corner is the skin's own GEN_TOP_LEFT sprite.
+    CHECK(framed.pixelColor(3, 3) == gen->pixelColor(3, 3));
+    // Just inside that corner the stretch tile runs (the bar), not the title plate.
+    CHECK(framed.pixelColor(30, 5) == gen->pixelColor(104 + 5, 5));
+    // The centred plate interrupts the bar. y=2 is above the glyphs, so this is
+    // the plate sprite itself (the piece at x=52), not the stretch tile.
+    CHECK(framed.pixelColor(framed.width() / 2, 2) == gen->pixelColor(52 + 8, 2));
+    // The bottom-right pixel is the right corner sprite's own corner, grip included.
+    CHECK(framed.pixelColor(framed.width() - 1, framed.height() - 1) ==
+          gen->pixelColor(124, 70));
 }
 
 TEST_CASE("VZ-1 a skin without gen.bmp gets the designed fallback frame", "[vz1][viswindow]") {
@@ -187,6 +194,48 @@ TEST_CASE("VZ-1 a skin without gen.bmp gets the designed fallback frame", "[vz1]
     // And the window is still a window: the close box is there.
     const QRect close = window.closeButtonRect();
     CHECK(rendered.pixelColor(close.center()) != QColor(0, 0, 0));
+}
+
+TEST_CASE("VZ-2 a gen-less skin wears its playlist chrome", "[vz1][viswindow]") {
+    const auto corpus = std::filesystem::path(KOALAAMP_CORPUS_DIR);
+    if (!std::filesystem::exists(corpus)) {
+        SKIP("corpus missing — run scripts/fetch-corpus.sh");
+    }
+    std::optional<koalaamp::skins::SkinSet> skinSet;
+    for (const auto& entry : std::filesystem::directory_iterator(corpus)) {
+        if (entry.path().extension() != ".wsz") {
+            continue;
+        }
+        auto candidate = koalaamp::skins::loadSkinSet(entry.path());
+        if (!candidate || candidate->hasSheet("GEN") || !candidate->hasSheet("PLEDIT")) {
+            continue;
+        }
+        if (!candidate->sheets.spriteRect("PLEDIT", "PLAYLIST_TOP_LEFT_SELECTED") ||
+            !candidate->sheets.spriteRect("PLEDIT", "PLAYLIST_BOTTOM_RIGHT_CORNER")) {
+            continue;
+        }
+        skinSet = std::move(candidate);
+        break;
+    }
+    REQUIRE(skinSet.has_value());
+
+    const QImage* pledit = skinSet->sheets.sheet("PLEDIT");
+    REQUIRE(pledit != nullptr);
+    const auto left = skinSet->sheets.spriteRect("PLEDIT", "PLAYLIST_TOP_LEFT_SELECTED");
+    const auto tile = skinSet->sheets.spriteRect("PLEDIT", "PLAYLIST_TOP_TILE_SELECTED");
+    const auto grip = skinSet->sheets.spriteRect("PLEDIT", "PLAYLIST_BOTTOM_RIGHT_CORNER");
+    REQUIRE(left);
+    REQUIRE(tile);
+    REQUIRE(grip);
+
+    const QImage framed = koalaamp::ui::renderGenWindow(skinSet->sheets, &skinSet->pleditColors,
+                                                       QSize(275, 116), "VISUALIZER", true);
+    // Title-bar left corner, then the stretch tile just past it.
+    CHECK(framed.pixelColor(3, 3) == pledit->pixelColor(left->x + 3, left->y + 3));
+    CHECK(framed.pixelColor(40, 5) == pledit->pixelColor(tile->x + 15, tile->y + 5));
+    // The bottom-right pixel is the playlist bottom corner's own corner.
+    CHECK(framed.pixelColor(framed.width() - 1, framed.height() - 1) ==
+          pledit->pixelColor(grip->x + grip->w - 1, grip->y + grip->h - 1));
 }
 
 TEST_CASE("VZ-1 a build without libprojectM says so instead of failing", "[vz1][viswindow]") {
@@ -254,7 +303,8 @@ TEST_CASE("VZ-1 the visualizer window drags, closes and scales like a Winamp win
     CHECK(window.contentSize().width() >= 300);
     CHECK(window.contentSize().height() >= 200);
     window.setClientSize(QSize(10, 10));
-    CHECK(window.contentSize() == QSize(194, 109));
+    CHECK(window.contentSize() == genSnapSize(QSize(10, 10)));
+    CHECK(window.contentSize().width() >= 250);
 
     window.setAlwaysOnTop(true);
     CHECK(window.isAlwaysOnTop());

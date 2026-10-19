@@ -5,17 +5,31 @@
 // surface VZ-1's visualizer window is built on.
 //
 // Geometry comes from the sprite table (`skins/SkinSprites.hpp` `kSpritesGEN`,
-// `gen.bmp` 194x109 per docs/spikes/fe3-wsz-render.md §5): a 20 px title bar of
-// 25 px tiles (left corner, repeated fill, right corner), 11 px / 8 px side
-// borders tiled in 29 px steps and closed by their `*_BOTTOM` variants, and a
-// 14 px bottom bar of 25 px tiles. Only the corners are fixed — every middle
-// piece repeats, which is how gen windows resize — the 25 px / 29 px tiling steps
-// documented in docs/research/skins.md §1.4, which cites Webamp (MIT,
-// `js/constants.ts`) for exactly those constants. Attribution in LICENSES.md.
+// `gen.bmp` 194x109 per docs/spikes/fe3-wsz-render.md §5) and the classic gen
+// window layout (winampskins.neocities.org "Gen" windows; the public skinning
+// notes at nikotheshadow.free.fr). The title bar is six 25x20 pieces, active row
+// then inactive, each pair split by a 1 px gap:
+//   left corner, left transition, title plate, right transition, stretch tile,
+//   right corner (the idle close button is drawn into that last piece).
+// The stretch tile runs the full width between the corners. The title plate
+// (tiled to the text) sits in the middle and interrupts it, with the two
+// transition pieces easing the join. Side borders are 11 px / 8 px, tiled in
+// 29 px steps and closed by their 24 px `*_BOTTOM` caps. The bottom bar is a
+// 125 px left corner, a 25 px tile, and a 125 px right corner (the resize grip).
+// The 25 px / 29 px steps are the ones docs/research/skins.md §1.4 cites from
+// Webamp (MIT, `js/constants.ts`). Attribution in LICENSES.md.
 //
-// `gen.bmp` is optional in a skin (`skins/SkinSet.cpp`) and many omit it, so the
-// fallback below paints a neutral dark frame with the skin's 5x6 font for the
-// title; the visualizer stays a usable, movable window either way.
+// The title text is the sheet's own alphabet: two 7 px rows under the frame
+// pieces (active, then inactive), variable width, split by a solid delimiter
+// colour. A sheet with no alphabet falls back to `text.bmp`, still centred,
+// with the font's cell background left transparent so the letters sit on the
+// plate instead of in a box.
+//
+// `gen.bmp` is optional (`skins/SkinSet.cpp`) and most skins omit it. Those
+// get the playlist window's own chrome (`pledit.bmp`: title corners and tile,
+// side borders, the plain lower edge of the bottom band plus its grip) so the
+// visualizer matches its siblings. A skin with neither sheet still gets the
+// palette frame below.
 //
 // Rendering rules (docs/spec.md §5.2): exact integer blits, composed at 1x and
 // integer-upscaled by `scale` (never fractional).
@@ -47,9 +61,16 @@ inline constexpr int kGenRightBorder = 8;
 /// Horizontal / vertical tiling steps of the frame.
 inline constexpr int kGenSegment = 25;
 inline constexpr int kGenSegmentHeight = 29;
-/// The close box (`GEN_CLOSE_SELECTED` is 9x9), inset from the right border.
+/// The close box. The idle button is painted into the right title piece; this
+/// rect is its hit target and where `GEN_CLOSE_SELECTED` lands while held.
+/// In that 25x20 piece the 9x9 button has 3 px above it and 2 px to its right.
 inline constexpr int kGenCloseSize = 9;
+inline constexpr int kGenCloseInsetTop = 3;
+inline constexpr int kGenCloseInsetRight = 2;
+/// Gap kept between the title text and the close box.
 inline constexpr int kGenCloseMargin = 2;
+/// Each bottom corner sprite (`GEN_BOTTOM_LEFT` / `GEN_BOTTOM_RIGHT`).
+inline constexpr int kGenBottomCorner = 125;
 
 /// Where each part of a gen window sits, in 1x skin pixels. The client rect is
 /// what a plugin (here: the GL canvas) is expected to fill.
@@ -65,19 +86,21 @@ struct GenLayout {
 GenLayout genLayout(const QSize& contentSize);
 
 /// The nearest valid gen-window size at or above `wanted`: at least the
-/// reference size and a whole number of tiling steps larger.
+/// reference size, a whole number of tiling steps larger, and wide enough for
+/// both 125 px bottom corners to sit side by side.
 QSize genSnapSize(const QSize& wanted);
 
 /// The composing frame: title bar, borders, bottom bar, close box and the
-/// client area. `active` picks the skin's selected title-bar sprites; `title` is
-/// drawn in the skin's 5x6 font (uppercase-folded) or, without it, in the
-/// fallback font. `pledit` is the skin's playlist palette, used only when the skin
-/// ships no `gen.bmp`: the frame then borrows the playlist's colours, so the window
-/// still reads as part of the skin. nullptr keeps the neutral greys. Returns a
+/// client area. `active` picks the skin's selected title-bar sprites. The title
+/// is centred: the sheet's own gen alphabet when it has one, otherwise the 5x6
+/// `text.bmp` font (uppercase-folded), otherwise the fallback font. `pledit` is
+/// the skin's playlist palette, used when the skin ships neither `gen.bmp` nor
+/// a usable `pledit.bmp`.
+/// `closePressed` overlays the held close sprite. Returns a
 /// `genSnapSize(contentSize) * scale` image.
 QImage renderGenWindow(const skins::Skin& skin, const skins::PleditColors* pledit,
                        const QSize& contentSize, const std::string& title, bool active,
-                       int scale = 1);
+                       int scale = 1, bool closePressed = false);
 
 /// True when the fallback frame would be used (the skin ships no `gen.bmp`).
 bool genUsesFallback(const skins::Skin& skin);
