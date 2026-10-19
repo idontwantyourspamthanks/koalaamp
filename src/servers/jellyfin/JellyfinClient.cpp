@@ -348,4 +348,47 @@ SearchOutcome JellyfinClient::search(const std::string& baseUrl, const std::stri
     }
 }
 
+ReportOutcome JellyfinClient::reportPlayback(const std::string& baseUrl, const std::string& token,
+                                             const std::string& deviceId, PlaybackEvent event,
+                                             const PlaybackReport& report,
+                                             const library::Cancellation& cancel) {
+    const char* path = "/Sessions/Playing";
+    if (event == PlaybackEvent::Progress) {
+        path = "/Sessions/Playing/Progress";
+    } else if (event == PlaybackEvent::Stop) {
+        path = "/Sessions/Playing/Stopped";
+    }
+
+    json body{{"ItemId", report.itemId},
+              {"PlaySessionId", report.playSessionId},
+              {"PlayMethod", report.playMethod},
+              {"PositionTicks", report.positionTicks},
+              {"IsPaused", report.paused},
+              {"IsMuted", report.muted},
+              {"CanSeek", true}};
+    body["MediaSourceId"] = report.mediaSourceId.empty() ? report.itemId : report.mediaSourceId;
+    if (!report.eventName.empty()) {
+        body["EventName"] = report.eventName;
+    }
+
+    HttpRequest request;
+    request.method = "POST";
+    request.url = baseUrlNoSlash(baseUrl) + path;
+    request.headers = baseHeaders(profile_, deviceId, token);
+    request.headers.emplace_back("Content-Type", "application/json");
+    request.body = body.dump();
+
+    const HttpResponse response = transport_.perform(request, cancel);
+    if (!response.transportOk()) {
+        return ItemsUnreachable{};
+    }
+    if (response.status == 401) {
+        return ItemsUnauthorized{};
+    }
+    if (!response.httpOk()) {
+        return ItemsFailed{"Server responded with HTTP " + std::to_string(response.status)};
+    }
+    return ReportSuccess{};
+}
+
 } // namespace koalaamp::servers::jellyfin

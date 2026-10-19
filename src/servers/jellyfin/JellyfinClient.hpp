@@ -96,6 +96,29 @@ struct SearchSuccess {
 using SearchOutcome =
     std::variant<SearchSuccess, ItemsUnauthorized, ItemsUnreachable, ItemsFailed>;
 
+/// Which playback-report endpoint a report goes to (koalapaw `PlaybackGateway`):
+/// start and periodic progress share a payload shape, stop is its own endpoint.
+enum class PlaybackEvent { Start, Progress, Stop };
+
+/// One report to the server's session dashboard. `positionTicks` is in 100 ns units
+/// (Jellyfin's unit); `playMethod` must be accurate — scrobble plugins read it, and
+/// claiming DirectPlay while transcode-serving breaks their accounting.
+struct PlaybackReport {
+    std::string itemId;
+    std::string mediaSourceId; ///< defaults to `itemId` when empty
+    std::string playSessionId; ///< one per queue session
+    std::string playMethod{"DirectPlay"}; ///< DirectPlay | DirectStream | Transcode
+    std::int64_t positionTicks{0};
+    bool paused{false};
+    bool muted{false};
+    /// Progress reports name the cause ("TimeUpdate", "Pause", "Unpause", "Seek"…).
+    std::string eventName;
+};
+
+struct ReportSuccess {};
+using ReportOutcome =
+    std::variant<ReportSuccess, ItemsUnauthorized, ItemsUnreachable, ItemsFailed>;
+
 /// One Jellyfin server as seen on the wire (koalapaw `DiscoveredServer`).
 struct DiscoveredServer {
     std::string id;
@@ -144,6 +167,14 @@ public:
                          const std::string& deviceId, const std::string& parentId,
                          const std::string& query, const std::string& includeItemTypes,
                          int limit, const library::Cancellation& cancel = NoCancellation{});
+
+    /// Report playback to the server (koalapaw `PlaybackGateway`): POST to
+    /// `/Sessions/Playing`, `/Sessions/Playing/Progress` or `/Sessions/Playing/Stopped`
+    /// per `event`. The token travels in the MediaBrowser header only.
+    ReportOutcome reportPlayback(const std::string& baseUrl, const std::string& token,
+                                 const std::string& deviceId, PlaybackEvent event,
+                                 const PlaybackReport& report,
+                                 const library::Cancellation& cancel = NoCancellation{});
 
 private:
     /// The shared A→Z page read behind `musicAlbumsWindow`/`musicArtistsWindow`

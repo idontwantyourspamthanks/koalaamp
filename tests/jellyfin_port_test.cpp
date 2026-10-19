@@ -12,6 +12,7 @@
 #include "servers/jellyfin/JellyfinClient.hpp"
 #include "servers/jellyfin/Sha256.hpp"
 
+#include <nlohmann/json.hpp>
 #include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <fstream>
@@ -309,6 +310,50 @@ TEST_CASE("artwork caches by item+tag and honours max-age") {
     CHECK(ArtworkCache::maxAgeSeconds("") == -1);
 
     std::filesystem::remove_all(dir);
+}
+
+TEST_CASE("playback reports go to the three session endpoints with their payload") {
+    FixtureTransport transport{std::filesystem::path(kFixtureDir)};
+    JellyfinClient client(transport, testProfile());
+
+    PlaybackReport report;
+    report.itemId = "70000000000000000000000000000001";
+    report.playSessionId = "session-1";
+    report.positionTicks = 1250000000; // 125 s in 100 ns units
+    report.playMethod = "DirectPlay";
+
+    CHECK(std::holds_alternative<ReportSuccess>(client.reportPlayback(
+        kBaseUrl, "fixture-token-1", kDeviceId, PlaybackEvent::Start, report)));
+
+    report.paused = true;
+    report.eventName = "Pause";
+    CHECK(std::holds_alternative<ReportSuccess>(client.reportPlayback(
+        kBaseUrl, "fixture-token-1", kDeviceId, PlaybackEvent::Progress, report)));
+
+    CHECK(std::holds_alternative<ReportSuccess>(client.reportPlayback(
+        kBaseUrl, "fixture-token-1", kDeviceId, PlaybackEvent::Stop, report)));
+
+    REQUIRE(transport.requests().size() == 3);
+    CHECK(transport.requests()[0].url == kBaseUrl + "/Sessions/Playing");
+    CHECK(transport.requests()[1].url == kBaseUrl + "/Sessions/Playing/Progress");
+    CHECK(transport.requests()[2].url == kBaseUrl + "/Sessions/Playing/Stopped");
+
+    // The payload carries what the dashboard and scrobble plugins read, and the token
+    // stays a header: no query-string auth anywhere.
+    const nlohmann::json sent = nlohmann::json::parse(transport.requests()[1].body);
+    CHECK(sent.value("ItemId", std::string{}) == report.itemId);
+    CHECK(sent.value("MediaSourceId", std::string{}) == report.itemId);
+    CHECK(sent.value("PlaySessionId", std::string{}) == "session-1");
+    CHECK(sent.value("PlayMethod", std::string{}) == "DirectPlay");
+    CHECK(sent.value("PositionTicks", 0LL) == 1250000000LL);
+    CHECK(sent.value("IsPaused", false));
+    CHECK(sent.value("EventName", std::string{}) == "Pause");
+    CHECK(sent.find("api_key") == sent.end());
+
+    REQUIRE(headerValue(transport.requests()[1], "Authorization") != nullptr);
+    CHECK(contains(*headerValue(transport.requests()[1], "Authorization"),
+                   "Token=\"fixture-token-1\""));
+
 }
 
 TEST_CASE("an auth 401 carries the server's own reason") {

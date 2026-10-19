@@ -1,0 +1,27 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "http://jellyfin.local:8096/Sessions/Playing",
+    "headers": [
+      [
+        "Authorization",
+        "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"<derived-device-id>\", Version=\"0.0.1\", Token=\"fixture-token-1\""
+      ],
+      [
+        "Accept",
+        "application/json"
+      ],
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": ""
+  },
+  "response": {
+    "status": 204,
+    "headers": [],
+    "body": "",
+    "error": ""
+  }
+}
