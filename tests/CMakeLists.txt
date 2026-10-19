@@ -35,6 +35,16 @@ target_compile_definitions(jellyfin_port_tests PRIVATE
     KOALAAMP_SERVERS_SRC="${CMAKE_SOURCE_DIR}/src/servers")
 catch_discover_tests(jellyfin_port_tests)
 
+# SV-1: the connection manager's persisted server list. Identity only — the store
+# is documented to carry no tokens or passwords, so the test pins that too.
+add_executable(server_book_tests server_book_test.cpp)
+koalaamp_enable_warnings(server_book_tests)
+target_include_directories(server_book_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/third_party/include")
+target_link_libraries(server_book_tests PRIVATE Catch2::Catch2WithMain koalaamp_servers)
+catch_discover_tests(server_book_tests)
+
 # Headless smoke test: launch the real application, prove the frameless toplevel
 # constructs and maps, then exit 0. Works on every desktop platform via Qt's
 # offscreen platform plugin.

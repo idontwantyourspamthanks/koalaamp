@@ -17,7 +17,7 @@ A C++ Jellyfin `ITrackSource` that authenticates, discovers servers, and browses
 - [x] Search: `/Items` queries with `SearchTerm`; map results to our `Track` model. — `JellyfinClient::search`: `searchTerm`, recursive, caller-chosen item types, mapped to `library::Track` (RunTimeTicks/10000 → ms; `Artists[0]`, falling back to `AlbumArtist`). Fixture-replayed.
 - [x] Artwork: `/Items/{id}/Images/Primary` fetch + disk cache (respect server cache headers). — `ArtworkCache`: files keyed by item + `ImageTags.Primary` tag (the server's own cache-busting key), one sidecar each holding the fetch time, the parsed `Cache-Control` max-age and the extension implied by `Content-Type`; reused within max-age, `no-store`/`no-cache` (and a missing header) always refetch. `HttpResponse` gained response headers for this, and the fixture format serialises them.
 - [ ] Gateway interface in C++ mirroring koalapaw's `JellyfinGateway` seam (auth state, browse, search, errors as result types — no exceptions across the seam).
-- [ ] Connection-manager UI (skinned, minimal): server list, add-by-URL, login.
+- [ ] Connection-manager UI (skinned, minimal): server list, add-by-URL, login. — Persistence landed first: `ServerBook` (`src/servers/ServerBook.{hpp,cpp}`) keeps identity only (serverId, name, baseUrl, userId, userName, deviceId) plus the active selection in an atomically written JSON file; the access token is deliberately not a field, and a test pins the serialised form against a future "just persist the token" change. The dialog itself is open.
 - [ ] Record request/response fixtures for CI (Jellyfin 10.10 + 10.12 containers).
 
 ## Acceptance
