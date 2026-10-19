@@ -410,6 +410,18 @@ if(KOALAAMP_HAS_GL_VISUALIZER)
             ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     endif()
     message(STATUS "KoalaAmp: VZ-1 visualizer window tests enabled")
+
+    # SV-1: the connection-manager dialog — signing in through the real client path
+    # (fixture transport) into a temporary book, plus the no-credential-on-disk rule.
+    add_executable(connection_dialog_tests connection_dialog_test.cpp)
+    koalaamp_enable_warnings(connection_dialog_tests)
+    target_link_libraries(connection_dialog_tests PRIVATE Catch2::Catch2WithMain koalaamp_ui
+        koalaamp_servers koalaamp_jellyfin)
+    target_compile_definitions(connection_dialog_tests PRIVATE
+        KOALAAMP_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/jellyfin")
+    catch_discover_tests(connection_dialog_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    message(STATUS "KoalaAmp: SV-1 connection-manager tests enabled")
 endif()
 
 # VZ-1 task 3: the preset library - the recursive scan, the watcher, and the

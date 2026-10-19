@@ -14,6 +14,7 @@
 //                 [--self-test]
 #include "ui/MainWindow.hpp"
 #include "ui/PlaylistWindow.hpp"
+#include "ui/ConnectionDialog.hpp"
 
 #include "audio/AlbumEqStore.hpp"
 #include "audio/DspPipeline.hpp"
@@ -429,9 +430,34 @@ int main(int argc, char** argv) {
     // SK-2: the main window's menu. Its Option button, the clutterbar's O and a
     // right-click all ask for it. Rebuilt on open so the check marks are current.
     // Captures by reference: it runs inside this scope, while the menu is open.
+#if defined(KOALAAMP_HAS_GL_VISUALIZER)
+    // SV-1: the connection manager's shared state. Both live for the session — the
+    // dialog borrows the transport — and the book is the identity store, never the
+    // session token.
+    koalaamp::servers::jellyfin::CurlTransport serverTransport;
+    const QString serverBookPath =
+        QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) +
+        QStringLiteral("/servers.json");
+    koalaamp::servers::ServerBook serverBook(serverBookPath.toStdString());
+    serverBook.load();
+#endif
+
     const auto showMainMenu = [&] {
         QMenu menu;
 
+#if defined(KOALAAMP_HAS_GL_VISUALIZER)
+        QAction* servers = menu.addAction(QStringLiteral("Servers…"));
+        QObject::connect(servers, &QAction::triggered, &window, [&] {
+            auto* dialog =
+                new koalaamp::ui::ConnectionDialog(serverTransport, serverBook, {}, &window);
+            dialog->setAttribute(Qt::WA_DeleteOnClose);
+            dialog->setSkin(skinSet ? &*skinSet : nullptr);
+            dialog->show();
+            dialog->raise();
+            dialog->activateWindow();
+        });
+        menu.addSeparator();
+#endif
         QMenu* presets = menu.addMenu(QStringLiteral("Presets"));
         QAction* choose = presets->addAction(QStringLiteral("Choose preset folder…"));
         QObject::connect(choose, &QAction::triggered, &window, [&] {
