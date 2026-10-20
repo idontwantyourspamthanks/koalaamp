@@ -36,6 +36,13 @@ write `LibraryDb::setRating`/`markPlayed`; a second connection in `main` writes
 playcount/lastplayed even when the window is closed. Scanning runs on a worker
 thread with its own LibraryDb connection (WAL), then refreshes the window.
 
+Starting a list (library, server browser or playlist) now clears the stale queue
+and prior session history, and the library rebuilds the sequence in the grid's
+visible sort order before queueing the remainder. This fixes "play one track,
+then it jumps to the start of the old global list": verified with three
+four-second WAVs where 01-One advanced to 02-TWO, and pinned by the SE-3
+interaction suite's playMedia-ordering contract.
+
 Still open for acceptance: 100k smart-view perf numbers, five-skin corpus
 screenshots, and exact variable-width font/genex widget-art fidelity (the
 current list/tree/table styling is palette-based, not per-sprite).

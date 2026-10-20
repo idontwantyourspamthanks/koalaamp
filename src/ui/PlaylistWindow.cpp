@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: MIT
 #include "ui/PlaylistWindow.hpp"
 
-#include <algorithm>
-#include <cmath>
-#include <string>
-#include <vector>
+#include "playlist/Playlist.hpp"
+#include "ui/Atf.hpp"
+#include "ui/JumpToFileDialog.hpp"
+#include "ui/PleditRenderer.hpp"
 
 #include <QApplication>
 #include <QDragEnterEvent>
@@ -16,11 +16,10 @@
 #include <QMouseEvent>
 #include <QUrl>
 #include <QWheelEvent>
-
-#include "playlist/Playlist.hpp"
-#include "ui/Atf.hpp"
-#include "ui/JumpToFileDialog.hpp"
-#include "ui/PleditRenderer.hpp"
+#include <algorithm>
+#include <cmath>
+#include <string>
+#include <vector>
 
 namespace koalaamp::ui {
 
@@ -91,9 +90,11 @@ bool isPlaylistFile(const std::string& path) {
            playlist::Format::Unknown;
 }
 
-}  // namespace
+} // namespace
 
-const std::vector<std::string>& playlistInteractionChecklist() { return checklistStorage(); }
+const std::vector<std::string>& playlistInteractionChecklist() {
+    return checklistStorage();
+}
 const std::vector<std::string>& PlaylistWindow::interactionChecklist() {
     return checklistStorage();
 }
@@ -114,8 +115,7 @@ PlaylistWindow::PlaylistWindow(QWidget* parent) : SkinnedWindow(parent) {
     m_autosaveTimer.setInterval(kAutosaveDebounceMs);
     connect(&m_autosaveTimer, &QTimer::timeout, this, [this] { saveAutosaveNow(); });
 
-    connect(this, &SkinnedWindow::shadeToggleRequested, this,
-            [this] { setShade(!m_state.shade); });
+    connect(this, &SkinnedWindow::shadeToggleRequested, this, [this] { setShade(!m_state.shade); });
 }
 
 PlaylistWindow::~PlaylistWindow() {
@@ -368,7 +368,7 @@ void PlaylistWindow::applyGeometry(const PleditGeometry& geometry) {
 void PlaylistWindow::updateShape() {
     const int width = pleditWidth(m_state);
     const int height = m_state.shade ? kPleditShadeHeight : pleditHeight(m_state);
-    clearMask();  // the playlist is always rectangular (region.txt shapes main/EQ)
+    clearMask(); // the playlist is always rectangular (region.txt shapes main/EQ)
     setFixedSize(width * m_scale, height * m_scale);
     m_canvas->setScale(m_scale);
     m_canvas->setFixedSize(width * m_scale, height * m_scale);
@@ -391,9 +391,10 @@ void PlaylistWindow::syncFromTransport() {
             const auto it = std::find_if(
                 m_state.entries.begin(), m_state.entries.end(),
                 [&](const PleditEntry& entry) { return entry.filename == media->value; });
-            m_state.currentIndex = it == m_state.entries.end()
-                                       ? -1
-                                       : static_cast<int>(std::distance(m_state.entries.begin(), it));
+            m_state.currentIndex =
+                it == m_state.entries.end()
+                    ? -1
+                    : static_cast<int>(std::distance(m_state.entries.begin(), it));
         } else {
             m_state.currentIndex = -1;
         }
@@ -417,7 +418,9 @@ void PlaylistWindow::syncFromTransport() {
     }
 }
 
-void PlaylistWindow::tick() { syncFromTransport(); }
+void PlaylistWindow::tick() {
+    syncFromTransport();
+}
 
 void PlaylistWindow::playRow(std::size_t index) {
     if (index >= m_state.entries.size() || m_transport == nullptr) {
@@ -425,6 +428,16 @@ void PlaylistWindow::playRow(std::size_t index) {
     }
     m_state.currentIndex = static_cast<int>(index);
     scrollToVisible(m_state, index);
+    // A playlist play starts a new list: drop stale queue/history, then queue
+    // the rows after this one so the next track is the visible next row.
+    clearQueue();
+    m_transport->clearSessionList();
+    // Queue the remainder first, then start the clicked row: the engine consumes
+    // the queue only at the next boundary, and "playMedia" stays the last verb
+    // the transport sees (the SE-3 parity contract).
+    for (std::size_t i = index + 1; i < m_state.entries.size(); ++i) {
+        m_transport->enqueue(mediaFor(m_state.entries[i]));
+    }
     m_transport->playMedia(mediaFor(m_state.entries[index]));
     requestRepaint();
     emit trackActivated(static_cast<int>(index));
@@ -530,13 +543,10 @@ void PlaylistWindow::openContextMenu(const QPoint& localPoint, int row) {
         menu->addSeparator();
         auto* rating = menu->addMenu(QStringLiteral("Rating"));
         rating->addAction(QStringLiteral("(stub)"))->setEnabled(false);
-        menu->addAction(QStringLiteral("Jump to file..."), this,
-                        [this] { openJumpDialog(); });
+        menu->addAction(QStringLiteral("Jump to file..."), this, [this] { openJumpDialog(); });
     } else {
-        menu->addAction(QStringLiteral("Select all"), this,
-                        [this] { selectAllRows(); });
-        menu->addAction(QStringLiteral("Jump to file..."), this,
-                        [this] { openJumpDialog(); });
+        menu->addAction(QStringLiteral("Select all"), this, [this] { selectAllRows(); });
+        menu->addAction(QStringLiteral("Jump to file..."), this, [this] { openJumpDialog(); });
     }
     menu->popup(mapToGlobal(localPoint));
 }
@@ -547,38 +557,33 @@ void PlaylistWindow::openMenuFor(PleditHitId id, const QPoint& localPoint) {
     QMenu* menu = m_menu;
 
     switch (id) {
-        case PleditHitId::MenuAdd:
-            menu->addAction(QStringLiteral("Add file(s)..."), this,
-                            [this] { emit mediaOpenRequested(); });
-            break;
-        case PleditHitId::MenuRemove:
-            menu->addAction(QStringLiteral("Remove selected"), this,
-                            [this] { removeSelected(); });
-            menu->addAction(QStringLiteral("Remove all"), this, [this] {
-                setEntries({});
-            });
-            break;
-        case PleditHitId::MenuSelection:
-            menu->addAction(QStringLiteral("Select all"), this,
-                            [this] { selectAllRows(); });
-            menu->addAction(QStringLiteral("Select none"), this, [this] {
-                clearSelection(m_state);
-                requestRepaint();
-            });
-            break;
-        case PleditHitId::MenuMisc:
-            menu->addAction(QStringLiteral("Open playlist..."), this,
-                            [this] { emit playlistOpenRequested(); });
-            menu->addAction(QStringLiteral("Save playlist..."), this,
-                            [this] { emit playlistSaveRequested(); });
-            menu->addSeparator();
-            menu->addAction(QStringLiteral("Jump to file..."), this,
-                            [this] { openJumpDialog(); });
-            menu->addAction(QStringLiteral("Load playlist into queue"), this,
-                            [this] { loadIntoQueue(); });
-            break;
-        default:
-            break;
+    case PleditHitId::MenuAdd:
+        menu->addAction(QStringLiteral("Add file(s)..."), this,
+                        [this] { emit mediaOpenRequested(); });
+        break;
+    case PleditHitId::MenuRemove:
+        menu->addAction(QStringLiteral("Remove selected"), this, [this] { removeSelected(); });
+        menu->addAction(QStringLiteral("Remove all"), this, [this] { setEntries({}); });
+        break;
+    case PleditHitId::MenuSelection:
+        menu->addAction(QStringLiteral("Select all"), this, [this] { selectAllRows(); });
+        menu->addAction(QStringLiteral("Select none"), this, [this] {
+            clearSelection(m_state);
+            requestRepaint();
+        });
+        break;
+    case PleditHitId::MenuMisc:
+        menu->addAction(QStringLiteral("Open playlist..."), this,
+                        [this] { emit playlistOpenRequested(); });
+        menu->addAction(QStringLiteral("Save playlist..."), this,
+                        [this] { emit playlistSaveRequested(); });
+        menu->addSeparator();
+        menu->addAction(QStringLiteral("Jump to file..."), this, [this] { openJumpDialog(); });
+        menu->addAction(QStringLiteral("Load playlist into queue"), this,
+                        [this] { loadIntoQueue(); });
+        break;
+    default:
+        break;
     }
     menu->popup(mapToGlobal(localPoint));
 }
@@ -632,7 +637,7 @@ void PlaylistWindow::mousePressEvent(QMouseEvent* event) {
     }
     const PleditHitId id = controlAt(event->pos());
     if (id == PleditHitId::TitleBar) {
-        SkinnedWindow::mousePressEvent(event);  // start the window drag
+        SkinnedWindow::mousePressEvent(event); // start the window drag
         return;
     }
     const int row = pleditRowAt(m_state, event->pos(), m_scale);
@@ -714,61 +719,61 @@ void PlaylistWindow::wheelEvent(QWheelEvent* event) {
 
 void PlaylistWindow::keyPressEvent(QKeyEvent* event) {
     switch (event->key()) {
-        case Qt::Key_J:
-            openJumpDialog();
-            break;
-        case Qt::Key_A:
-            if ((event->modifiers() & Qt::ControlModifier) != 0) {
-                selectAllRows();
-            } else {
-                QWidget::keyPressEvent(event);
-                return;
-            }
-            break;
-        case Qt::Key_Delete:
-            removeSelected();
-            break;
-        case Qt::Key_Up: {
-            const int row = m_state.selected.empty()
-                                ? 0
-                                : std::max(0, static_cast<int>(m_state.selected.front()) - 1);
-            selectSingle(m_state, static_cast<std::size_t>(row));
-            scrollToVisible(m_state, static_cast<std::size_t>(row));
-            m_anchor = row;
-            requestRepaint();
-            break;
-        }
-        case Qt::Key_Down: {
-            const int last = std::max(0, static_cast<int>(m_state.entries.size()) - 1);
-            const int row = m_state.selected.empty()
-                                ? 0
-                                : std::min(last, static_cast<int>(m_state.selected.front()) + 1);
-            selectSingle(m_state, static_cast<std::size_t>(row));
-            scrollToVisible(m_state, static_cast<std::size_t>(row));
-            m_anchor = row;
-            requestRepaint();
-            break;
-        }
-        case Qt::Key_Home:
-            m_state.scrollOffset = 0;
-            clampScroll(m_state);
-            requestRepaint();
-            break;
-        case Qt::Key_End:
-            m_state.scrollOffset = static_cast<int>(m_state.entries.size());
-            clampScroll(m_state);
-            requestRepaint();
-            break;
-        case Qt::Key_Return:
-        case Qt::Key_Enter:
-            playSelectedOrFirst();
-            break;
-        case Qt::Key_Escape:
-            closeMenu();
-            break;
-        default:
+    case Qt::Key_J:
+        openJumpDialog();
+        break;
+    case Qt::Key_A:
+        if ((event->modifiers() & Qt::ControlModifier) != 0) {
+            selectAllRows();
+        } else {
             QWidget::keyPressEvent(event);
             return;
+        }
+        break;
+    case Qt::Key_Delete:
+        removeSelected();
+        break;
+    case Qt::Key_Up: {
+        const int row = m_state.selected.empty()
+                            ? 0
+                            : std::max(0, static_cast<int>(m_state.selected.front()) - 1);
+        selectSingle(m_state, static_cast<std::size_t>(row));
+        scrollToVisible(m_state, static_cast<std::size_t>(row));
+        m_anchor = row;
+        requestRepaint();
+        break;
+    }
+    case Qt::Key_Down: {
+        const int last = std::max(0, static_cast<int>(m_state.entries.size()) - 1);
+        const int row = m_state.selected.empty()
+                            ? 0
+                            : std::min(last, static_cast<int>(m_state.selected.front()) + 1);
+        selectSingle(m_state, static_cast<std::size_t>(row));
+        scrollToVisible(m_state, static_cast<std::size_t>(row));
+        m_anchor = row;
+        requestRepaint();
+        break;
+    }
+    case Qt::Key_Home:
+        m_state.scrollOffset = 0;
+        clampScroll(m_state);
+        requestRepaint();
+        break;
+    case Qt::Key_End:
+        m_state.scrollOffset = static_cast<int>(m_state.entries.size());
+        clampScroll(m_state);
+        requestRepaint();
+        break;
+    case Qt::Key_Return:
+    case Qt::Key_Enter:
+        playSelectedOrFirst();
+        break;
+    case Qt::Key_Escape:
+        closeMenu();
+        break;
+    default:
+        QWidget::keyPressEvent(event);
+        return;
     }
     event->accept();
 }
@@ -882,29 +887,29 @@ void PlaylistWindow::updateHover(const QPoint& point) {
 void PlaylistWindow::pressControl(PleditHitId id, const QPoint& point) {
     m_pressed = id;
     switch (id) {
-        case PleditHitId::CloseButton:
-            m_state.closePressed = true;
-            break;
-        case PleditHitId::ShadeButton:
-            m_state.shadePressed = true;
-            break;
-        case PleditHitId::ResizeGrip:
-            m_drag = Drag::Resize;
-            m_pressGlobal = mapToGlobal(point);
-            m_resizeStartW = m_state.widthSegments;
-            m_resizeStartH = m_state.heightSegments;
-            m_state.resizeActive = true;
-            break;
-        case PleditHitId::ScrollBar:
-            m_drag = Drag::ScrollHandle;
-            m_scrollStartGlobal = mapToGlobal(point);
-            m_scrollStartOffset = m_state.scrollOffset;
-            if (!pleditScrollHandle(m_state).contains(point)) {
-                scrollFromPoint(point.y());
-            }
-            break;
-        default:
-            break;
+    case PleditHitId::CloseButton:
+        m_state.closePressed = true;
+        break;
+    case PleditHitId::ShadeButton:
+        m_state.shadePressed = true;
+        break;
+    case PleditHitId::ResizeGrip:
+        m_drag = Drag::Resize;
+        m_pressGlobal = mapToGlobal(point);
+        m_resizeStartW = m_state.widthSegments;
+        m_resizeStartH = m_state.heightSegments;
+        m_state.resizeActive = true;
+        break;
+    case PleditHitId::ScrollBar:
+        m_drag = Drag::ScrollHandle;
+        m_scrollStartGlobal = mapToGlobal(point);
+        m_scrollStartOffset = m_state.scrollOffset;
+        if (!pleditScrollHandle(m_state).contains(point)) {
+            scrollFromPoint(point.y());
+        }
+        break;
+    default:
+        break;
     }
     requestRepaint();
 }
@@ -912,27 +917,27 @@ void PlaylistWindow::pressControl(PleditHitId id, const QPoint& point) {
 void PlaylistWindow::dragControl(const QPoint& point) {
     const QPoint global = mapToGlobal(point);
     switch (m_drag) {
-        case Drag::Resize: {
-            const int dw = (global.x() - m_pressGlobal.x()) / kPleditSegmentWidth;
-            const int dh = (global.y() - m_pressGlobal.y()) / kPleditSegmentHeight;
-            setSegments(m_resizeStartW + dw, m_resizeStartH + dh);
-            break;
+    case Drag::Resize: {
+        const int dw = (global.x() - m_pressGlobal.x()) / kPleditSegmentWidth;
+        const int dh = (global.y() - m_pressGlobal.y()) / kPleditSegmentHeight;
+        setSegments(m_resizeStartW + dw, m_resizeStartH + dh);
+        break;
+    }
+    case Drag::ScrollHandle:
+        scrollFromPoint(point.y());
+        break;
+    case Drag::Rows: {
+        const int row = pleditRowAt(m_state, point, m_scale);
+        if (row >= 0 && row != m_dragRow) {
+            m_rowDragActive = true;
+            m_dropRow = row;
+            m_state.hoverIndex = row;
+            requestRepaint();
         }
-        case Drag::ScrollHandle:
-            scrollFromPoint(point.y());
-            break;
-        case Drag::Rows: {
-            const int row = pleditRowAt(m_state, point, m_scale);
-            if (row >= 0 && row != m_dragRow) {
-                m_rowDragActive = true;
-                m_dropRow = row;
-                m_state.hoverIndex = row;
-                requestRepaint();
-            }
-            break;
-        }
-        default:
-            break;
+        break;
+    }
+    default:
+        break;
     }
     (void)global;
 }
@@ -948,54 +953,54 @@ void PlaylistWindow::releaseControl(PleditHitId id, const QPoint& /*point*/) {
 
 void PlaylistWindow::activate(PleditHitId id) {
     switch (id) {
-        case PleditHitId::CloseButton:
-            emit closeRequested();
-            break;
-        case PleditHitId::ShadeButton:
-            setShade(!m_state.shade);
-            break;
-        case PleditHitId::ActionPrevious:
-            if (m_transport != nullptr) {
-                m_transport->previous();
-            }
-            break;
-        case PleditHitId::ActionPlay:
-            playSelectedOrFirst();
-            break;
-        case PleditHitId::ActionPause:
-            if (m_transport != nullptr) {
-                m_transport->togglePause();
-            }
-            break;
-        case PleditHitId::ActionStop:
-            if (m_transport != nullptr) {
-                m_transport->stop();
-            }
-            break;
-        case PleditHitId::ActionNext:
-            if (m_transport != nullptr) {
-                m_transport->next();
-            }
-            break;
-        case PleditHitId::ActionEject:
-            emit mediaOpenRequested();
-            break;
-        case PleditHitId::ScrollUp:
-            scrollBy(-kScrollRows);
-            break;
-        case PleditHitId::ScrollDown:
-            scrollBy(kScrollRows);
-            break;
-        case PleditHitId::MenuAdd:
-        case PleditHitId::MenuRemove:
-        case PleditHitId::MenuSelection:
-        case PleditHitId::MenuMisc: {
-            const int menu = pleditMenuIndex(id);
-            openMenuFor(id, pleditMenuButton(m_state, menu).bottomLeft());
-            break;
+    case PleditHitId::CloseButton:
+        emit closeRequested();
+        break;
+    case PleditHitId::ShadeButton:
+        setShade(!m_state.shade);
+        break;
+    case PleditHitId::ActionPrevious:
+        if (m_transport != nullptr) {
+            m_transport->previous();
         }
-        default:
-            break;
+        break;
+    case PleditHitId::ActionPlay:
+        playSelectedOrFirst();
+        break;
+    case PleditHitId::ActionPause:
+        if (m_transport != nullptr) {
+            m_transport->togglePause();
+        }
+        break;
+    case PleditHitId::ActionStop:
+        if (m_transport != nullptr) {
+            m_transport->stop();
+        }
+        break;
+    case PleditHitId::ActionNext:
+        if (m_transport != nullptr) {
+            m_transport->next();
+        }
+        break;
+    case PleditHitId::ActionEject:
+        emit mediaOpenRequested();
+        break;
+    case PleditHitId::ScrollUp:
+        scrollBy(-kScrollRows);
+        break;
+    case PleditHitId::ScrollDown:
+        scrollBy(kScrollRows);
+        break;
+    case PleditHitId::MenuAdd:
+    case PleditHitId::MenuRemove:
+    case PleditHitId::MenuSelection:
+    case PleditHitId::MenuMisc: {
+        const int menu = pleditMenuIndex(id);
+        openMenuFor(id, pleditMenuButton(m_state, menu).bottomLeft());
+        break;
+    }
+    default:
+        break;
     }
     syncFromTransport();
 }
@@ -1016,4 +1021,4 @@ void PlaylistWindow::scrollFromPoint(int localY) {
     requestRepaint();
 }
 
-}  // namespace koalaamp::ui
+} // namespace koalaamp::ui

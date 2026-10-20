@@ -799,6 +799,8 @@ int main(int argc, char** argv) {
                         core->enqueueNext(make(tracks[start]));
                         return;
                     }
+                    core->clearQueue();
+                    core->clearSessionList();
                     for (std::size_t i = start; i < tracks.size(); ++i) {
                         if (i == start) {
                             core->play(make(tracks[i]));
@@ -818,6 +820,8 @@ int main(int argc, char** argv) {
                     core->enqueueNext(std::move(plan.media));
                     return;
                 }
+                core->clearQueue();
+                core->clearSessionList();
                 for (std::size_t i = start; i < tracks.size(); ++i) {
                     auto plan = planner.plan(session.baseUrl, session.accessToken, session.deviceId,
                                              tracks[i], sessionId);
@@ -912,6 +916,8 @@ int main(int argc, char** argv) {
                         if (!core || tracks.empty() || start >= tracks.size()) {
                             return;
                         }
+                        core->clearQueue();
+                        core->clearSessionList();
                         for (std::size_t i = start; i < tracks.size(); ++i) {
                             koalaamp::playback::MediaRef media;
                             media.kind = koalaamp::playback::MediaRef::Kind::Path;

@@ -177,6 +177,9 @@ public:
     /// semantics: next up, without touching the current track).
     void enqueueNext(MediaRef media);
     void clearQueue();
+    /// Forget the previous play history. Repeat/shuffle then refills from the
+    /// new list instead of looping tracks from an earlier session.
+    void clearSessionList();
     std::size_t queueSize() const { return m_queueSize.load(); }
     /// Front of the queue, else the repeat/shuffle fallback candidate.
     std::optional<MediaRef> peekNext() const;

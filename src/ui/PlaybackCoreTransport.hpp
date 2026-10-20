@@ -10,12 +10,12 @@
 // DSP-insertion seam); nothing in src/playback or src/interop is touched.
 #pragma once
 
-#include <QObject>
-#include <QString>
-
 #include "playback/PlaybackCore.hpp"
 #include "ui/Transport.hpp"
 #include "ui/VisFeed.hpp"
+
+#include <QObject>
+#include <QString>
 
 namespace koalaamp::ui {
 
@@ -51,6 +51,7 @@ public:
 
     void enqueue(const playback::MediaRef& media) override;
     void clearQueue() override;
+    void clearSessionList() override;
     std::size_t queueSize() const override;
     std::optional<playback::MediaRef> peekNext() const override;
 
@@ -87,4 +88,4 @@ private:
     VisFeed& m_feed;
 };
 
-}  // namespace koalaamp::ui
+} // namespace koalaamp::ui

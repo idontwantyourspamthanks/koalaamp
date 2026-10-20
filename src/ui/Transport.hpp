@@ -8,14 +8,14 @@
 // suite asserts both the calls a click produces and the pixels it renders.
 #pragma once
 
+#include "playback/IAudioEngine.hpp"
+#include "playback/IPlaybackObserver.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
 #include <vector>
-
-#include "playback/IAudioEngine.hpp"
-#include "playback/IPlaybackObserver.hpp"
 
 namespace koalaamp::ui {
 
@@ -47,6 +47,8 @@ public:
     virtual void enqueue(const playback::MediaRef& media) = 0;
     /// Empties the queue.
     virtual void clearQueue() = 0;
+    /// Forgets the prior play history so repeat/shuffle refills the new list.
+    virtual void clearSessionList() {}
     /// Number of entries currently queued.
     virtual std::size_t queueSize() const = 0;
     /// Front of the queue, else the repeat/shuffle fallback candidate.
@@ -69,4 +71,4 @@ public:
     virtual int bitrateKbps() const { return 0; }
 };
 
-}  // namespace koalaamp::ui
+} // namespace koalaamp::ui

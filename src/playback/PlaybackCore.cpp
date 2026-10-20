@@ -963,6 +963,12 @@ void PlaybackCore::clearQueue() {
     m_queueSize.store(0);
 }
 
+void PlaybackCore::clearSessionList() {
+    std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+    m_impl->session.clear();
+    m_impl->sessionIndex = 0;
+}
+
 std::optional<MediaRef> PlaybackCore::peekNext() const {
     return m_impl->peekNextInternal();
 }

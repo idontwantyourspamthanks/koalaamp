@@ -605,12 +605,30 @@ void LibraryWindow::rateRow(int row) {
 
 void LibraryWindow::playRow(int row) {
     QTableWidgetItem* cell = m_table->item(row, 0);
-    if (cell == nullptr) {
+    if (cell == nullptr || m_table->rowCount() <= 0) {
         return;
     }
-    const int index = cell->data(trackIndexRole()).toInt();
-    if (index >= 0 && static_cast<std::size_t>(index) < m_tracks.size() && m_play) {
-        m_play(m_tracks, static_cast<std::size_t>(index));
+    // Follow the order the user sees, not the DB's storage order: the grid is
+    // sortable, so rebuild the visible sequence and locate the clicked row in it.
+    std::vector<library::Track> ordered;
+    ordered.reserve(static_cast<std::size_t>(m_table->rowCount()));
+    std::size_t start = 0;
+    for (int r = 0; r < m_table->rowCount(); ++r) {
+        const QTableWidgetItem* item = m_table->item(r, 0);
+        if (item == nullptr) {
+            continue;
+        }
+        const int index = item->data(trackIndexRole()).toInt();
+        if (index < 0 || static_cast<std::size_t>(index) >= m_tracks.size()) {
+            continue;
+        }
+        if (r == row) {
+            start = ordered.size();
+        }
+        ordered.push_back(m_tracks[static_cast<std::size_t>(index)]);
+    }
+    if (!ordered.empty() && m_play) {
+        m_play(ordered, start);
     }
 }
 
