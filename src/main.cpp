@@ -44,6 +44,7 @@
 
 #include <QApplication>
 #include <QCommandLineParser>
+#include <chrono>
 #include <QCoreApplication>
 #include <QFileDialog>
 #include <QStandardPaths>
@@ -55,6 +56,8 @@
 
 #ifdef KOALAAMP_HAS_PLAYBACK_CORE
 #include "playback/PlaybackCore.hpp"
+#include "servers/jellyfin/JellyfinClient.hpp"
+#include "servers/jellyfin/JellyfinPlaybackReporter.hpp"
 #include "ui/PlaybackCoreTransport.hpp"
 #endif
 
@@ -469,6 +472,56 @@ int main(int argc, char** argv) {
     serverBook.load();
 #endif
 
+#if defined(KOALAAMP_HAS_GL_VISUALIZER) && defined(KOALAAMP_HAS_PLAYBACK_CORE)
+    // SV-2: report the signed-in server session's playback to Jellyfin. The
+    // reporter is inert until a server media plays; the timer exists so the 10 s
+    // heartbeat does not depend on position ticks (which stop while paused).
+    struct ServerReporting {
+        koalaamp::playback::PlaybackCore* core{nullptr};
+        std::unique_ptr<koalaamp::servers::jellyfin::JellyfinClient> client;
+        std::unique_ptr<koalaamp::servers::jellyfin::JellyfinPlaybackReporter> reporter;
+
+        ServerReporting() {
+            timer.setInterval(1000);
+            QObject::connect(&timer, &QTimer::timeout, &timer, [this] {
+                if (reporter) {
+                    const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                         std::chrono::steady_clock::now().time_since_epoch())
+                                         .count();
+                    reporter->tick(now);
+                }
+            });
+        }
+        ~ServerReporting() { detach(); }
+
+        void attach(koalaamp::playback::PlaybackCore& playback,
+                    koalaamp::servers::jellyfin::IHttpTransport& http,
+                    const koalaamp::servers::ServerAuth& auth) {
+            detach();
+            koalaamp::servers::jellyfin::DeviceProfile profile;
+            profile.deviceName = koalaamp::servers::jellyfin::defaultDeviceName();
+            client = std::make_unique<koalaamp::servers::jellyfin::JellyfinClient>(http, profile);
+            reporter = std::make_unique<koalaamp::servers::jellyfin::JellyfinPlaybackReporter>(
+                *client, auth.baseUrl, auth.accessToken, auth.deviceId);
+            core = &playback;
+            core->addObserver(reporter.get());
+            timer.start();
+        }
+
+        void detach() {
+            timer.stop();
+            if (core != nullptr && reporter != nullptr) {
+                core->removeObserver(reporter.get());
+            }
+            reporter.reset();
+            client.reset();
+            core = nullptr;
+        }
+
+        QTimer timer;
+    } serverReporting;
+#endif
+
     const auto showMainMenu = [&] {
         QMenu menu;
 
@@ -479,6 +532,16 @@ int main(int argc, char** argv) {
                 new koalaamp::ui::ConnectionDialog(serverTransport, serverBook, {}, &window);
             dialog->setAttribute(Qt::WA_DeleteOnClose);
             dialog->setSkin(skinSet ? &*skinSet : nullptr);
+#if defined(KOALAAMP_HAS_PLAYBACK_CORE)
+            // Signing in (or out) attaches/detaches reporting for this session.
+            QObject::connect(dialog, &koalaamp::ui::ConnectionDialog::sessionChanged, dialog,
+                             [&, dialog] {
+                                 serverReporting.detach();
+                                 if (const auto& session = dialog->session()) {
+                                     serverReporting.attach(*core, serverTransport, *session);
+                                 }
+                             });
+#endif
             dialog->show();
             dialog->raise();
             dialog->activateWindow();
