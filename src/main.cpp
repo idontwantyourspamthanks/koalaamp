@@ -21,6 +21,7 @@
 #include "audio/RgTags.hpp"
 #include "ui/DspEqSink.hpp"
 #include "ui/EqWindow.hpp"
+#include "ui/ServerBrowserWindow.hpp"
 #include "ui/WindowPlatform.hpp"
 #include <QCursor>
 #include <QFileDialog>
@@ -47,6 +48,7 @@
 #include <chrono>
 #include <QCoreApplication>
 #include <QFileDialog>
+#include <QPointer>
 #include <QStandardPaths>
 #include <QString>
 #include <QTimer>
@@ -57,6 +59,7 @@
 #ifdef KOALAAMP_HAS_PLAYBACK_CORE
 #include "playback/PlaybackCore.hpp"
 #include "servers/jellyfin/JellyfinClient.hpp"
+#include "servers/jellyfin/JellyfinPlayback.hpp"
 #include "servers/jellyfin/JellyfinPlaybackReporter.hpp"
 #include "ui/PlaybackCoreTransport.hpp"
 #endif
@@ -470,6 +473,10 @@ int main(int argc, char** argv) {
         QStringLiteral("/servers.json");
     koalaamp::servers::ServerBook serverBook(serverBookPath.toStdString());
     serverBook.load();
+
+    // SV-5: the signed-in server, kept after the connection dialog closes (the
+    // token stays in memory). The browser and the play path read the same copy.
+    std::optional<koalaamp::servers::ServerAuth> activeServer;
 #endif
 
 #if defined(KOALAAMP_HAS_GL_VISUALIZER) && defined(KOALAAMP_HAS_PLAYBACK_CORE)
@@ -508,6 +515,11 @@ int main(int argc, char** argv) {
             timer.start();
         }
 
+        /// The id the planner must embed in a transcode URL for this session.
+        std::string playSessionId() const {
+            return reporter ? reporter->playSessionId() : std::string{};
+        }
+
         void detach() {
             timer.stop();
             if (core != nullptr && reporter != nullptr) {
@@ -520,6 +532,8 @@ int main(int argc, char** argv) {
 
         QTimer timer;
     } serverReporting;
+
+    QPointer<koalaamp::ui::ServerBrowserWindow> serverBrowser;
 #endif
 
     const auto showMainMenu = [&] {
@@ -536,9 +550,13 @@ int main(int argc, char** argv) {
             // Signing in (or out) attaches/detaches reporting for this session.
             QObject::connect(dialog, &koalaamp::ui::ConnectionDialog::sessionChanged, dialog,
                              [&, dialog] {
+                                 activeServer = dialog->session();
+                                 if (serverBrowser) {
+                                     serverBrowser->close();
+                                 }
                                  serverReporting.detach();
-                                 if (const auto& session = dialog->session()) {
-                                     serverReporting.attach(*core, serverTransport, *session);
+                                 if (activeServer) {
+                                     serverReporting.attach(*core, serverTransport, *activeServer);
                                  }
                              });
 #endif
@@ -546,6 +564,55 @@ int main(int argc, char** argv) {
             dialog->raise();
             dialog->activateWindow();
         });
+        QAction* browse = menu.addAction(QStringLiteral("Browse server…"));
+        browse->setEnabled(activeServer.has_value());
+#if defined(KOALAAMP_HAS_PLAYBACK_CORE)
+        QObject::connect(browse, &QAction::triggered, &window, [&] {
+            if (!activeServer) {
+                return;
+            }
+            if (serverBrowser) {
+                serverBrowser->show();
+                serverBrowser->raise();
+                serverBrowser->activateWindow();
+                return;
+            }
+            serverBrowser = new koalaamp::ui::ServerBrowserWindow(
+                serverTransport, *activeServer,
+                [&](const std::vector<koalaamp::library::Track>& tracks, std::size_t start,
+                    bool enqueueNext) {
+                    if (!activeServer || tracks.empty() || start >= tracks.size()) {
+                        return;
+                    }
+                    koalaamp::servers::jellyfin::DeviceProfile profile;
+                    profile.deviceName = koalaamp::servers::jellyfin::defaultDeviceName();
+                    koalaamp::servers::jellyfin::JellyfinPlayback planner{serverTransport, profile};
+                    const std::string sessionId = serverReporting.playSessionId();
+                    const auto& auth = *activeServer;
+                    if (enqueueNext) {
+                        auto plan = planner.plan(auth.baseUrl, auth.accessToken, auth.deviceId,
+                                                 tracks[start], sessionId);
+                        core->enqueueNext(std::move(plan.media));
+                        return;
+                    }
+                    for (std::size_t i = start; i < tracks.size(); ++i) {
+                        auto plan = planner.plan(auth.baseUrl, auth.accessToken, auth.deviceId,
+                                                 tracks[i], sessionId);
+                        if (i == start) {
+                            core->play(plan.media);
+                        } else {
+                            core->enqueue(std::move(plan.media));
+                        }
+                    }
+                },
+                &window);
+            serverBrowser->setAttribute(Qt::WA_DeleteOnClose);
+            serverBrowser->setSkin(skinSet ? &*skinSet : nullptr);
+            serverBrowser->show();
+            serverBrowser->raise();
+            serverBrowser->activateWindow();
+        });
+#endif
         menu.addSeparator();
 #endif
         QMenu* presets = menu.addMenu(QStringLiteral("Presets"));

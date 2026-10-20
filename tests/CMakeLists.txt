@@ -416,6 +416,18 @@ message(STATUS "KoalaAmp: VZ-1 engine seam tests enabled")
 # other widget suites (no context is created here), so the render path is verified
 # separately under xvfb-run, the way FE-14 did it. Only exists when the canvas does.
 if(KOALAAMP_HAS_GL_VISUALIZER)
+    # SV-5: the server browser window against the fixture transport.
+    add_executable(jellyfin_browser_window_tests server_browser_test.cpp)
+    koalaamp_enable_warnings(jellyfin_browser_window_tests)
+    target_link_libraries(jellyfin_browser_window_tests PRIVATE
+        Catch2::Catch2 koalaamp_ui Qt6::Test)
+    target_compile_definitions(jellyfin_browser_window_tests PRIVATE
+        KOALAAMP_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/jellyfin")
+    catch_discover_tests(jellyfin_browser_window_tests PROPERTIES
+        DISCOVERY_MODE PRE_TEST
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+        TIMEOUT 120)
+
     add_executable(koalaamp_vz1_window_tests vz1_window_test.cpp)
     koalaamp_enable_warnings(koalaamp_vz1_window_tests)
     # The test constructs the engine itself (as the app will), so it links the

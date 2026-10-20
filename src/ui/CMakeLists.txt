@@ -102,6 +102,8 @@ if(TARGET Qt6::OpenGLWidgets)
         VisualizerWindow.cpp
         ConnectionDialog.cpp
         ConnectionDialog.hpp
+        ServerBrowserWindow.cpp
+        ServerBrowserWindow.hpp
         VisualizerWindow.hpp)
     # koalaamp_interop is only for the seam header's include path: the canvas takes
     # its engine from the caller, so this module never links the rendering back end

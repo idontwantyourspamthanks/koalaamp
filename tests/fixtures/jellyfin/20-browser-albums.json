@@ -1,0 +1,58 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://jellyfin.local:8096/Items?parentId=lib-music&recursive=true&includeItemTypes=MusicAlbum&sortBy=SortName&sortOrder=Ascending&startIndex=0&limit=500&fields=SortName&enableUserData=true",
+    "headers": [
+      [
+        "Authorization",
+        "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"device-under-test\", Version=\"0.0.1\", Token=\"fixture-token-1\""
+      ],
+      [
+        "Accept",
+        "application/json"
+      ]
+    ],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": {
+      "Items": [
+        {
+          "Id": "album-1",
+          "Name": "First Album",
+          "SortName": "First Album",
+          "Type": "MusicAlbum",
+          "AlbumArtist": "Artist",
+          "Artists": [
+            "Artist"
+          ],
+          "ProductionYear": 2020,
+          "IsFolder": true,
+          "ParentId": "lib-music"
+        },
+        {
+          "Id": "album-2",
+          "Name": "Second Album",
+          "SortName": "Second Album",
+          "Type": "MusicAlbum",
+          "AlbumArtist": "Artist",
+          "Artists": [
+            "Artist"
+          ],
+          "ProductionYear": 2021,
+          "IsFolder": true,
+          "ParentId": "lib-music"
+        }
+      ],
+      "TotalRecordCount": 2
+    },
+    "error": ""
+  }
+}
