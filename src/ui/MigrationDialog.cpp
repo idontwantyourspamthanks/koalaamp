@@ -111,6 +111,11 @@ MigrationDialog::MigrationDialog(std::string databasePath, PathCallback openPlay
     m_mlPlaylists->setChecked(true);
     m_mlPlaylists->setGeometry(x, client.y() + 98, width, 24);
 
+    m_skins = new QCheckBox(QStringLiteral("Classic skins (copy .wsz files)"), this);
+    m_skins->setObjectName(QStringLiteral("winampSkins"));
+    m_skins->setChecked(true);
+    m_skins->setGeometry(x, client.y() + 126, width, 24);
+
     m_back = new QPushButton(QStringLiteral("Back"), this);
     m_back->setObjectName(QStringLiteral("winampBack"));
     m_back->setGeometry(x, client.bottom() - 40, 90, 28);
@@ -211,6 +216,7 @@ void MigrationDialog::showStep(int step) {
     m_playlist->setVisible(step == 1);
     m_presets->setVisible(step == 1);
     m_mlPlaylists->setVisible(step == 1);
+    m_skins->setVisible(step == 1);
     m_back->setVisible(step == 1);
     m_import->setVisible(step == 1);
     m_report->setVisible(step == 2);
@@ -238,6 +244,7 @@ void MigrationDialog::nextStep() {
         m_playlistPath = firstExisting(paths, {"winamp.m3u8", "winamp.m3u", "winamp.pls"});
         m_presetPath.reset();
         m_indexPath.reset();
+        m_skinsPath.reset();
         const std::filesystem::path q1 = paths.winampDir / "winamp.q1";
         std::error_code error;
         if (std::filesystem::exists(q1, error)) {
@@ -247,6 +254,9 @@ void MigrationDialog::nextStep() {
             paths.winampDir / "plugins" / "ml" / "playlists" / "playlists.xml";
         if (std::filesystem::exists(index, error)) {
             m_indexPath = index.string();
+        }
+        if (std::filesystem::is_directory(paths.skinsDir, error)) {
+            m_skinsPath = paths.skinsDir.string();
         }
         const QString detail = QStringLiteral("Found %1. Choose what to bring across.")
                                    .arg(QString::fromStdString(paths.winampDir.string()));
@@ -314,17 +324,25 @@ void MigrationDialog::runImport() {
     } else if (m_mlPlaylists->isChecked()) {
         indexLine = QStringLiteral("ML playlists: none saved");
     }
+    QString skinsLine = QStringLiteral("Skins: not selected");
+    if (m_skins->isChecked() && m_skinsPath.has_value()) {
+        const bool imported = m_importSkins != nullptr && m_importSkins(*m_skinsPath);
+        skinsLine =
+            imported ? QStringLiteral("Skins: copied") : QStringLiteral("Skins: nothing copied");
+    } else if (m_skins->isChecked()) {
+        skinsLine = QStringLiteral("Skins: none found");
+    }
 
     const QString text = QStringLiteral("%1\n"
                                         "Unmatched paths: %2\n"
                                         "Unknown fields skipped: %3\n"
-                                        "Volume: %4 · EQ: %5\n\n%6\n%7\n%8")
+                                        "Volume: %4 · EQ: %5\n\n%6\n%7\n%8\n%9")
                              .arg(ratingsLine)
                              .arg(report.unmatched)
                              .arg(report.skippedFields)
                              .arg(report.state.volume)
                              .arg(report.state.useEq ? QStringLiteral("on") : QStringLiteral("off"))
-                             .arg(playlistLine, presetLine, indexLine);
+                             .arg(playlistLine, presetLine, indexLine, skinsLine);
     m_report->setText(text);
     m_unmatchedList->clear();
     for (const std::string& path : m_unmatched) {

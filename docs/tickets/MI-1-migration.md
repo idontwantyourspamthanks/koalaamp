@@ -1,6 +1,6 @@
 # MI-1 · Winamp migration wizard
 
-- **Milestone:** M2 · **Est:** 4d · **Depends:** LI-3, AU-1, PL-1 · **Status:** in-progress — NDE, config, wizard, current + ML playlists, q1, unmatched export landed; bookmarks, recent history and skins pending
+- **Milestone:** M2 · **Est:** 4d · **Depends:** LI-3, AU-1, PL-1 · **Status:** in-progress — NDE, config, wizard, playlists, q1, skins, unmatched export landed; bookmarks and recent history pending
 
 ## Story
 The on-ramp for the exact user this product is for: someone with 15 years of Winamp state. One wizard reads their real `%APPDATA%\Winamp` — playlists, the NDE media-library database (ratings, playcounts, last-played, ReplayGain), EQ presets, bookmarks, preferences — and merges it into our library idempotently, with a report of what didn't match.
@@ -14,7 +14,7 @@ The on-ramp for the exact user this product is for: someone with 15 years of Win
 - [x] `winamp.ini`: volume, EQ state/preamp/limiter/eq_type, skin path, `config_titlefmt`, shuffle/repeat, windowshade flags.
 - [x] `winamp.q1` EQ presets (wizard routes to SE-5).
 - [ ] `winamp.bm` bookmarks.
-- [ ] Skins: `%APPDATA%\Winamp\Skins` offered for copy into our skin folder.
+- [x] Skins: `%APPDATA%\Winamp\Skins` offered; classic `.wsz` files copy into the app skin folder and the Skins menu scans it.
 - [x] Wizard UI (skinned, 3 steps): source summary → options/import → unmatched report with export.
 - [x] Idempotency: re-run upserts (no duplicate rows); the wizard re-runs safely. Last-source state in settings is still pending.
 
@@ -48,9 +48,9 @@ validation, option routing and the report offscreen.
 
 The ML `playlists.xml` index is read with PL-1's `readIndex` and each referenced
 M3U is appended through `readFile`; the current playlist and EQ presets are
-routed separately, so a failure in one does not cancel the others. Still to
-build: `winamp.bm`, `recent.dat` history, and copying `Skins/` into the app's
-skin folder. The
+routed separately, so a failure in one does not cancel the others. The Skins
+option copies `.wsz` files into `AppDataLocation/skins` and the menu scans that
+folder. Still to build: `winamp.bm` and `recent.dat` history. The
 documented field acceptance still needs a real donation fixture; the generated
 fixture covers all documented scalar types and the corruption smoke.
 

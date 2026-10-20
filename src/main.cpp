@@ -55,6 +55,7 @@
 #include <QTimer>
 #include <QUrl>
 #include <atomic>
+#include <cctype>
 #include <chrono>
 #include <cstdio>
 #include <ctime>
@@ -979,6 +980,37 @@ int main(int argc, char** argv) {
                 },
                 &window);
             dialog->setIndexImporter(importMlPlaylists);
+            dialog->setSkinImporter([](const std::string& source) {
+                const QString userSkins =
+                    QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+                    QStringLiteral("/skins");
+                std::error_code error;
+                std::filesystem::create_directories(std::filesystem::path(userSkins.toStdString()),
+                                                    error);
+                int copied = 0;
+                for (const auto& entry :
+                     std::filesystem::directory_iterator(std::filesystem::path(source), error)) {
+                    if (!entry.is_regular_file(error)) {
+                        continue;
+                    }
+                    std::string ext = entry.path().extension().string();
+                    std::transform(ext.begin(), ext.end(), ext.begin(), [](unsigned char ch) {
+                        return static_cast<char>(std::tolower(ch));
+                    });
+                    if (ext != ".wsz") {
+                        continue;
+                    }
+                    const std::filesystem::path destination =
+                        std::filesystem::path(userSkins.toStdString()) / entry.path().filename();
+                    if (!std::filesystem::exists(destination, error)) {
+                        std::filesystem::copy_file(entry.path(), destination, error);
+                        if (!error) {
+                            ++copied;
+                        }
+                    }
+                }
+                return copied > 0;
+            });
             dialog->setAttribute(Qt::WA_DeleteOnClose);
             dialog->setSkin(skinSet ? &*skinSet : nullptr);
             dialog->show();
@@ -1185,6 +1217,12 @@ int main(int argc, char** argv) {
         };
         for (const auto& bundled : koalaamp::skins::listSkins(KOALAAMP_BUNDLED_SKINS)) {
             addSkin(bundled);
+        }
+        const QString userSkinDir =
+            QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +
+            QStringLiteral("/skins");
+        for (const auto& imported : koalaamp::skins::listSkins(userSkinDir.toStdString())) {
+            addSkin(imported);
         }
         for (const auto& recent : skinDb.recent()) {
             addSkin(recent);

@@ -42,6 +42,9 @@ public:
     /// The Media Library index importer (PL-1's `playlists.xml` reader); set by
     /// the host because it appends to the live playlist window.
     void setIndexImporter(PathCallback importer) { m_importIndex = std::move(importer); }
+    /// Copies classic `.wsz` skins from the Winamp folder into the app's skin
+    /// folder (the Skins menu scans it on its next open).
+    void setSkinImporter(PathCallback importer) { m_importSkins = std::move(importer); }
 
     void setSkin(const skins::SkinSet* skin);
     QSize contentSize() const { return m_contentSize; }
@@ -64,6 +67,7 @@ private:
     PathCallback m_openPlaylist;
     PathCallback m_importPresets;
     PathCallback m_importIndex;
+    PathCallback m_importSkins;
     const skins::SkinSet* m_skin = nullptr;
     QSize m_contentSize;
 
@@ -78,6 +82,7 @@ private:
     QCheckBox* m_playlist = nullptr;
     QCheckBox* m_presets = nullptr;
     QCheckBox* m_mlPlaylists = nullptr;
+    QCheckBox* m_skins = nullptr;
     QLabel* m_status = nullptr;
     QLabel* m_report = nullptr;
     QListWidget* m_unmatchedList = nullptr;
@@ -87,6 +92,7 @@ private:
     std::optional<std::string> m_playlistPath;
     std::optional<std::string> m_presetPath;
     std::optional<std::string> m_indexPath;
+    std::optional<std::string> m_skinsPath;
     std::vector<std::string> m_unmatched;
 };
 
