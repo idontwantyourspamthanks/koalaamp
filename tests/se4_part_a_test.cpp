@@ -323,7 +323,11 @@ TEST_CASE("SE-4 the app chain reaches the core seam without native EQ", "[se4][d
 
     core.play(playback::MediaRef{playback::MediaRef::Kind::Path, wav.string()});
     const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(8);
-    while (std::chrono::steady_clock::now() < deadline && dsp.stats().processedBlocks == 0) {
+    // `processedBlocks` is incremented inside the DSP transform, before the
+    // downstream feed is called; under suite load the sample rate can therefore
+    // still be 0 when the loop stops. Wait for the feed too, not just the DSP.
+    while (std::chrono::steady_clock::now() < deadline &&
+           (dsp.stats().processedBlocks == 0 || feed.sampleRate() == 0)) {
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
     }
 

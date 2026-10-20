@@ -206,6 +206,7 @@ TEST_CASE("QuickConnect signs in from the connection dialog") {
 
     url->setText(QStringLiteral("http://jellyfin.local:8096"));
     quick->click();
+    CHECK(quick->text().contains(QStringLiteral("123456"))); // visible on the button
     CHECK(status->text().contains(QStringLiteral("123456")));
     CHECK_FALSE(dialog.session().has_value());
     CHECK_FALSE(browse->isEnabled());
