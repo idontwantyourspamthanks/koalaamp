@@ -573,6 +573,15 @@ if(KOALAAMP_HAS_GL_VISUALIZER)
     catch_discover_tests(connection_dialog_tests PROPERTIES
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
     message(STATUS "KoalaAmp: SV-1 connection-manager tests enabled")
+
+    # MI-1: the three-step import wizard's path validation and option routing.
+    add_executable(migration_dialog_tests migration_dialog_test.cpp)
+    koalaamp_enable_warnings(migration_dialog_tests)
+    target_link_libraries(migration_dialog_tests PRIVATE Catch2::Catch2WithMain koalaamp_ui
+        koalaamp_migration)
+    catch_discover_tests(migration_dialog_tests PROPERTIES
+        ENVIRONMENT "QT_QPA_PLATFORM=offscreen")
+    message(STATUS "KoalaAmp: MI-1 migration-wizard tests enabled")
 endif()
 
 # VZ-1 task 3: the preset library - the recursive scan, the watcher, and the

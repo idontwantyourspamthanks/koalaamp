@@ -102,6 +102,8 @@ if(TARGET Qt6::OpenGLWidgets)
         VisualizerOverlay.cpp
         VisualizerOverlay.hpp
         VisualizerWindow.cpp
+        MigrationDialog.cpp
+        MigrationDialog.hpp
         ConnectionDialog.cpp
         ConnectionDialog.hpp
         JellyfinBrowserSource.cpp
@@ -120,7 +122,7 @@ if(TARGET Qt6::OpenGLWidgets)
     # brings curl through its own target.
     target_link_libraries(koalaamp_ui PUBLIC Qt6::OpenGLWidgets
                           PRIVATE koalaamp_interop koalaamp_jellyfin koalaamp_servers
-                                  koalaamp_plex)
+                                  koalaamp_plex koalaamp_migration)
     target_compile_definitions(koalaamp_ui PUBLIC KOALAAMP_HAS_GL_VISUALIZER=1)
     set(KOALAAMP_HAS_GL_VISUALIZER TRUE CACHE INTERNAL "Qt OpenGLWidgets present (VZ-1)")
     message(STATUS "KoalaAmp: Qt OpenGLWidgets found - the visualizer canvas is enabled")

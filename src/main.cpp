@@ -20,6 +20,7 @@
 #include "ui/DspEqSink.hpp"
 #include "ui/EqWindow.hpp"
 #include "ui/MainWindow.hpp"
+#include "ui/MigrationDialog.hpp"
 #include "ui/PlaylistWindow.hpp"
 #include "ui/ServerBrowserWindow.hpp"
 #include "ui/WindowPlatform.hpp"
@@ -928,6 +929,22 @@ int main(int argc, char** argv) {
             libraryWindow->show();
             libraryWindow->raise();
             libraryWindow->activateWindow();
+        });
+
+        QAction* winampImport = menu.addAction(QStringLiteral("Import from Winamp…"));
+        QObject::connect(winampImport, &QAction::triggered, &window, [&] {
+            auto* dialog = new koalaamp::ui::MigrationDialog(
+                libraryDbPath.toStdString(),
+                [&playlist](const std::string& path) { return playlist.openPlaylist(path); },
+                [&equalizer](const std::string& path) {
+                    return equalizer.importPresetsFromFile(path);
+                },
+                &window);
+            dialog->setAttribute(Qt::WA_DeleteOnClose);
+            dialog->setSkin(skinSet ? &*skinSet : nullptr);
+            dialog->show();
+            dialog->raise();
+            dialog->activateWindow();
         });
 #endif
         menu.addSeparator();

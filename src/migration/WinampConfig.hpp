@@ -34,7 +34,13 @@ struct WinampPaths {
     std::filesystem::path playlistDir;
     std::filesystem::path skinsDir;
 
-    bool found() const { return !winampDir.empty(); }
+    /// A real Winamp data folder: the ini (possibly redirected) or the NDE
+    /// database must exist. An arbitrary directory is not a migration source.
+    bool found() const {
+        std::error_code error;
+        return !winampDir.empty() && (std::filesystem::exists(iniFile, error) ||
+                                      std::filesystem::exists(winampDir / "main.dat", error));
+    }
 };
 
 /// Uses `explicitDir` when supplied, otherwise probes `%APPDATA%/Winamp` and the

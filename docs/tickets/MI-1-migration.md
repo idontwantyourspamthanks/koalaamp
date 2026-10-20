@@ -1,6 +1,6 @@
 # MI-1 · Winamp migration wizard
 
-- **Milestone:** M2 · **Est:** 4d · **Depends:** LI-3, AU-1, PL-1 · **Status:** in-progress — NDE/config readers + stats mapping landed; wizard/playlists/q1/bookmarks next
+- **Milestone:** M2 · **Est:** 4d · **Depends:** LI-3, AU-1, PL-1 · **Status:** in-progress — NDE, config, wizard, current M3U + q1, unmatched export landed; ML playlist index, bookmarks, recent history and skins pending
 
 ## Story
 The on-ramp for the exact user this product is for: someone with 15 years of Winamp state. One wizard reads their real `%APPDATA%\Winamp` — playlists, the NDE media-library database (ratings, playcounts, last-played, ReplayGain), EQ presets, bookmarks, preferences — and merges it into our library idempotently, with a report of what didn't match.
@@ -10,12 +10,13 @@ The on-ramp for the exact user this product is for: someone with 15 years of Win
 - [x] NDE reader (read-only): `main.dat`/`main.idx` — NDETABLE/NDEINDEX signatures, field IDs 0-41, record/column linked-list walk, u16-length strings, type tolerance (unknown types → skip field, count it).
 - [x] Import mapping: filename (normalized path join), rating, playcount, lastplay, dateadded, RG gains/peaks, bpm, genre/comment → upsert onto scanned tracks by normalized path (case-insensitive on Windows/mac, sensitive on Linux + case-fallback pass).
 - [ ] Recent/history NDE (`recent.dat`/`recent.idx`) → play history feed (optional, default on).
-- [ ] Playlists: `plugins\ml\playlists\playlists.xml` index + the `.m3u` files it points to (PL-1 readers).
+- [ ] Playlists: `plugins\ml\playlists\playlists.xml` index + the `.m3u` files it points to (PL-1 readers); current `winamp.m3u`/`.m3u8` is wired.
 - [x] `winamp.ini`: volume, EQ state/preamp/limiter/eq_type, skin path, `config_titlefmt`, shuffle/repeat, windowshade flags.
-- [ ] `winamp.q1` EQ presets; `winamp.bm` bookmarks.
+- [x] `winamp.q1` EQ presets (wizard routes to SE-5).
+- [ ] `winamp.bm` bookmarks.
 - [ ] Skins: `%APPDATA%\Winamp\Skins` offered for copy into our skin folder.
-- [ ] Wizard UI (skinned, 3 steps): summary of found data → progress → unmatched report (paths listed, exportable).
-- [ ] Idempotency: re-run upserts (no duplicate rows); migration state stored in settings.
+- [x] Wizard UI (skinned, 3 steps): source summary → options/import → unmatched report with export.
+- [x] Idempotency: re-run upserts (no duplicate rows); the wizard re-runs safely. Last-source state in settings is still pending.
 
 ## Acceptance
 - Fixture NDE database (generated from node-nde test data + one real-donation sample) imports 100% of documented fields.
@@ -39,8 +40,16 @@ NDE→library path and returns matched/unmatched counts, unmatched paths,
 skipped-field/record counts, and the parsed `winamp.ini` state; the end-to-end
 suite re-runs it to prove idempotency.
 
-Still to build: the 3-step skinned wizard, playlist-index/M3U import,
-`winamp.q1`/`winamp.bm`, and the unmatched export.
+The 3-step wizard (`ui/MigrationDialog`) and the unmatched export are in. It
+routes the current `winamp.m3u`/`.m3u8` through the existing PL-1 reader and
+`winamp.q1` through SE-5's EQF importer; a missing/corrupt NDE database is
+reported without blocking those two. `migration_dialog_tests` covers folder
+validation, option routing and the report offscreen.
+
+Still to build: the ML `playlists.xml` index and its `.m3u` set, `winamp.bm`,
+`recent.dat` history, and copying `Skins/` into the app's skin folder. The
+documented field acceptance still needs a real donation fixture; the generated
+fixture covers all documented scalar types and the corruption smoke.
 
 ## Out of scope
 - Writing back to Winamp's files (one-way, always — we never touch a real Winamp install's data destructively).
