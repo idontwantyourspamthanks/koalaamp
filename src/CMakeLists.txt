@@ -14,6 +14,7 @@ add_subdirectory(playback)  # IAudioEngine, PlaybackCore (FE-4)
 add_subdirectory(audio)     # AU-1 DSP pipeline (ReplayGain, EQ, preamp, limiter)
 add_subdirectory(playlist)  # PL-1 playlist formats + autosave (Qt-free)
 add_subdirectory(servers)   # IServerSource (Jellyfin/Plex)
+add_subdirectory(scrobble)  # SC-1: client-side Last.fm/ListenBrainz scrobbling (Qt-free)
 add_subdirectory(skins)     # ISkinLoader (WSZ)
 add_subdirectory(ui)        # Qt Widgets — windows
 

@@ -104,6 +104,18 @@ target_include_directories(platform_secret_tests PRIVATE "${CMAKE_SOURCE_DIR}/sr
 target_link_libraries(platform_secret_tests PRIVATE Catch2::Catch2 koalaamp_servers Qt6::Core)
 catch_discover_tests(platform_secret_tests PROPERTIES TIMEOUT 40)
 
+# SC-1: client-side scrobbling. Known-answer MD5/api_sig, Last.fm request/response
+# shapes, ListenBrainz payloads/headers, the policy matrix, and the persisted
+# offline queue. Every request goes through a fake transport; no network.
+add_executable(koalaamp_scrobble_tests scrobble_test.cpp)
+koalaamp_enable_warnings(koalaamp_scrobble_tests)
+target_include_directories(koalaamp_scrobble_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/third_party/include")
+target_link_libraries(koalaamp_scrobble_tests PRIVATE
+    Catch2::Catch2WithMain koalaamp_scrobble)
+catch_discover_tests(koalaamp_scrobble_tests)
+
 # Headless smoke test: launch the real application, prove the frameless toplevel
 # constructs and maps, then exit 0. Works on every desktop platform via Qt's
 # offscreen platform plugin.

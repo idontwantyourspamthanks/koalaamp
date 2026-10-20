@@ -1,6 +1,6 @@
 # SC-1 · Scrobbling
 
-- **Milestone:** M3 · **Est:** 3d · **Depends:** SV-2, AU-2 · **Status:** unstarted
+- **Milestone:** M3 · **Est:** 3d · **Depends:** SV-2, AU-2 · **Status:** in progress — module complete, app wiring pending
 
 ## Story
 Report listens to Last.fm and/or ListenBrainz from the client, with an anti-double-scrobble
@@ -8,18 +8,28 @@ switch for users also running the server-side plugins. Server-side `/Sessions/Pl
 reporting already shipped (SV-2); this is the independent scrobble path.
 
 ## Tasks
-- [ ] Last.fm desktop auth: API-key + shared-secret signature (MD5 of sorted params),
+- [x] Last.fm desktop auth: API-key + shared-secret signature (MD5 of sorted params),
       `auth.getToken` → browser confirm → `auth.getSession` → session key.
-- [ ] Last.fm submission: `track.updateNowPlaying` on start, `track.scrobble` batched
+- [x] Last.fm submission: `track.updateNowPlaying` on start, `track.scrobble` batched
       (artist/title/album/albumArtist/duration/trackNumber/timestamp), retry queue.
-- [ ] ListenBrainz: token auth (`Authorization: Token`), `playing_now` + `single` listens
+- [x] ListenBrainz: token auth (`Authorization: Token`), `playing_now` + `single` listens
       with `recording_mbid`/`artist_mbids`/`release_mbid` when available.
-- [ ] Scrobble policy: threshold (default 50% or 4 min), one listen per play, no
+- [x] Scrobble policy: threshold (default 50% or 4 min), one listen per play, no
       re-scrobble after seek/restart; offline queue persisted and flushed.
 - [ ] Anti-double-scrobble mode: per-server setting `Relay | Client | Off` (server
       plugin already scrobbles when set to Relay); UI copy explains the duplication.
-- [ ] Transport seam + fixtures: Last.fm and ListenBrainz request/response replay,
+- [x] Transport seam + fixtures: Last.fm and ListenBrainz request/response replay,
       signature verification, offline retry, policy matrix.
+
+## Implementation notes
+Module `src/scrobble/` (Qt-free): `Md5`, `LastFmClient` (api_sig, auth token/session,
+now-playing, batched scrobble), `ListenBrainzClient` (Token header, playing_now/single,
+MBIDs), `ScrobbleQueue` (atomic JSON, dedup keys, retry counts), `ScrobbleCoordinator`
+(threshold/once-per-play/seek+restart dedup/modes), `SecretStore` seam, and a transport
+seam with a libcurl adapter. Tests: `koalaamp_scrobble_tests`, 24 cases / 235 assertions.
+Deferred: production wiring in `main.cpp`/UI (the module takes explicit calls), the
+per-server Relay/Client/Off settings UI, browser launch for desktop auth, and the live
+sandbox run.
 
 ## Acceptance
 - Sandbox Last.fm: auth, now-playing, scrobble accepted; ListenBrainz token submit
