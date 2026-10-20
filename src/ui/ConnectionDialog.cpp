@@ -61,10 +61,11 @@ QString displayHost(const std::string& baseUrl) {
 
 ConnectionDialog::ConnectionDialog(servers::jellyfin::IHttpTransport& transport,
                                    servers::ServerBook& book, std::string machineIdPath,
-                                   QWidget* parent)
+                                   QWidget* parent, servers::SecretStore* secrets)
     : SkinnedWindow(parent),
       m_transport(transport),
       m_book(book),
+      m_secrets(secrets),
       m_machineId(servers::jellyfin::MachineIdStore(std::move(machineIdPath))) {
     m_contentSize = genSnapSize(QSize(420, 300));
     setFixedSize(m_contentSize);
@@ -267,6 +268,28 @@ void ConnectionDialog::fillFromSelection() {
         m_url->setText(QString::fromStdString(entry.baseUrl));
         m_user->setText(QString::fromStdString(entry.userName));
         m_password->clear();
+        if (m_secrets != nullptr) {
+            if (const auto token =
+                    m_secrets->load(servers::sessionSecretKey(entry.serverId, entry.baseUrl));
+                token && !token->empty()) {
+                const bool changed = !m_session || m_session->accessToken != *token ||
+                                     m_session->serverId != entry.serverId;
+                m_session = servers::ServerAuth{entry.baseUrl, entry.userId, *token, entry.deviceId,
+                                                entry.serverId};
+                m_browse->setEnabled(true);
+                setStatus(QStringLiteral("Signed in as %1")
+                              .arg(QString::fromStdString(entry.userName)));
+                if (changed) {
+                    emit sessionChanged();
+                }
+                return;
+            }
+            if (m_session) {
+                m_session.reset();
+                m_browse->setEnabled(false);
+                emit sessionChanged();
+            }
+        }
         m_password->setFocus();
         setStatus(QStringLiteral("Enter the password for %1")
                       .arg(QString::fromStdString(entry.userName)));
@@ -277,10 +300,15 @@ void ConnectionDialog::fillFromSelection() {
 void ConnectionDialog::finishLogin(const std::string& baseUrl,
                                    const servers::jellyfin::AuthSession& session,
                                    const std::string& deviceId) {
-    m_session = servers::ServerAuth{baseUrl, session.userId, session.accessToken, deviceId};
+    const std::string serverId = session.serverId.empty() ? baseUrl : session.serverId;
+    m_session = servers::ServerAuth{baseUrl, session.userId, session.accessToken, deviceId, serverId};
+    bool keyringSaved = true;
+    if (m_secrets != nullptr) {
+        keyringSaved = servers::rememberSession(*m_secrets, *m_session);
+    }
 
     servers::ServerEntry entry;
-    entry.serverId = session.serverId.empty() ? baseUrl : session.serverId;
+    entry.serverId = serverId;
     entry.name = displayHost(baseUrl).toStdString();
     entry.baseUrl = baseUrl;
     entry.userId = session.userId;
@@ -293,9 +321,14 @@ void ConnectionDialog::finishLogin(const std::string& baseUrl,
     m_password->clear();
     m_browse->setEnabled(true);
     m_browse->setFocus(); // Enter opens the library right after signing in
-    setStatus(saved ? QStringLiteral("Signed in as %1 — saved")
-                          .arg(QString::fromStdString(session.userName))
-                    : QStringLiteral("Signed in, but the server list could not be saved"));
+    if (m_secrets != nullptr && !keyringSaved) {
+        setStatus(QStringLiteral("Signed in as %1 — the keyring did not store this sign-in")
+                      .arg(QString::fromStdString(session.userName)));
+    } else {
+        setStatus(saved ? QStringLiteral("Signed in as %1 — saved")
+                              .arg(QString::fromStdString(session.userName))
+                        : QStringLiteral("Signed in, but the server list could not be saved"));
+    }
     emit sessionChanged();
 }
 
@@ -515,9 +548,19 @@ void ConnectionDialog::removeSelected() {
         return;
     }
     const std::string serverId = item->data(Qt::UserRole).toString().toStdString();
+    std::string baseUrl;
+    for (const auto& entry : m_book.entries()) {
+        if (entry.serverId == serverId) {
+            baseUrl = entry.baseUrl;
+            break;
+        }
+    }
     if (!m_book.remove(serverId)) {
         setStatus(QStringLiteral("That server is no longer in the list"));
         return;
+    }
+    if (m_secrets != nullptr) {
+        servers::forgetSession(*m_secrets, serverId, baseUrl);
     }
     m_book.save();
     m_session.reset();

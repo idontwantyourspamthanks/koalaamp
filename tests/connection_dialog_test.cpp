@@ -6,6 +6,7 @@
 // pins the dialog's wiring, which is where a credential could accidentally leak to
 // disk.
 
+#include "servers/SecretStore.hpp"
 #include "servers/ServerBook.hpp"
 #include "servers/jellyfin/FixtureTransport.hpp"
 #include "ui/ConnectionDialog.hpp"
@@ -27,7 +28,9 @@
 namespace {
 
 namespace fs = std::filesystem;
+using koalaamp::servers::MemorySecretStore;
 using koalaamp::servers::ServerBook;
+using koalaamp::servers::sessionSecretKey;
 using koalaamp::servers::jellyfin::FixtureTransport;
 using koalaamp::ui::ConnectionDialog;
 
@@ -136,6 +139,48 @@ TEST_CASE("the gen close box closes the dialog") {
     QApplication::sendEvent(&dialog, &release);
 
     CHECK_FALSE(dialog.isVisible());
+    fs::remove_all(dir);
+}
+
+TEST_CASE("a sign-in is restored from the secret store on the next dialog") {
+    const auto dir = freshDir();
+    ServerBook book(dir / "servers.json");
+    FixtureTransport transport{std::filesystem::path(KOALAAMP_FIXTURE_DIR)};
+    MemorySecretStore secrets;
+
+    {
+        ConnectionDialog dialog(transport, book, (dir / "machine-id").string(), nullptr, &secrets);
+        setField(dialog, "urlField", "http://jellyfin.local:8096");
+        setField(dialog, "userField", "tester");
+        setField(dialog, "passwordField", "correct-horse");
+        click(dialog, "loginButton");
+        REQUIRE(dialog.session().has_value());
+    }
+
+    const auto* active = book.active();
+    REQUIRE(active != nullptr);
+    const std::string serverId = active->serverId;
+    const std::string baseUrl = active->baseUrl;
+    const auto saved = secrets.load(sessionSecretKey(serverId, baseUrl));
+    REQUIRE(saved.has_value());
+    CHECK(*saved == "fixture-token-1");
+
+    std::ifstream in(dir / "servers.json");
+    const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+    CHECK(text.find("fixture-token-1") == std::string::npos);
+
+    ConnectionDialog again(transport, book, (dir / "machine-id").string(), nullptr, &secrets);
+    REQUIRE(again.session().has_value());
+    CHECK(again.session()->accessToken == "fixture-token-1");
+    CHECK(again.session()->serverId == serverId);
+    auto* browse = again.findChild<QPushButton*>(QStringLiteral("browseButton"));
+    REQUIRE(browse != nullptr);
+    CHECK(browse->isEnabled());
+
+    click(again, "removeButton");
+    CHECK_FALSE(again.session().has_value());
+    CHECK_FALSE(secrets.load(sessionSecretKey(serverId, baseUrl)).has_value());
+
     fs::remove_all(dir);
 }
 

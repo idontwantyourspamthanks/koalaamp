@@ -3,9 +3,9 @@
 //
 // The connection manager needs somewhere to put "these are the servers I know and
 // this is the account I signed in with", and nothing more: the access token is a
-// session secret and never touches this store (AGENTS.md forbids committed secrets;
-// the token is re-acquired by the manager and refreshed on 401). The store keeps
-// identity only, so a leaked `servers.json` leaks no credentials.
+// session secret and never touches this store (a leaked `servers.json` leaks no
+// credentials). The token lives in the OS keychain (see SecretStore); a 401 or a
+// removed server drops that entry.
 //
 // One JSON file, written atomically (temp + rename) so a crash mid-save leaves the
 // previous book intact. Missing file = empty book; malformed file = empty book plus

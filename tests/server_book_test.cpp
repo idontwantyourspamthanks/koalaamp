@@ -4,6 +4,7 @@
 // Identity only: the store must never grow a credential field, so the last case
 // pins the serialised form rather than trusting the struct.
 
+#include "servers/SecretStore.hpp"
 #include "servers/ServerBook.hpp"
 
 #include <catch2/catch_test_macros.hpp>
@@ -14,8 +15,13 @@
 
 namespace {
 namespace fs = std::filesystem;
+using koalaamp::servers::MemorySecretStore;
+using koalaamp::servers::ServerAuth;
 using koalaamp::servers::ServerBook;
 using koalaamp::servers::ServerEntry;
+using koalaamp::servers::forgetSession;
+using koalaamp::servers::restoreSession;
+using koalaamp::servers::sessionSecretKey;
 
 fs::path freshDir() {
     const auto dir = fs::temp_directory_path() / "koalaamp-server-book-test";
@@ -123,6 +129,36 @@ TEST_CASE("the store never writes credentials") {
     CHECK(text.find("Token") == std::string::npos);
     CHECK(text.find("password") == std::string::npos);
     CHECK(text.find("\"Pw\"") == std::string::npos);
+
+    fs::remove_all(dir);
+}
+
+TEST_CASE("a keychain token restores the active server and a forget drops it") {
+    const auto dir = freshDir();
+    ServerBook book(dir / "servers.json");
+    book.upsert(entry("s1", "Living room", "http://jellyfin.local:8096", "tester"));
+    REQUIRE(book.save());
+
+    MemorySecretStore secrets;
+    CHECK_FALSE(restoreSession(book, secrets).has_value());
+
+    const std::string key = sessionSecretKey("s1", "http://jellyfin.local:8096");
+    REQUIRE(secrets.store(key, "token-from-quick-connect"));
+    const auto restored = restoreSession(book, secrets);
+    REQUIRE(restored.has_value());
+    CHECK(restored->accessToken == "token-from-quick-connect");
+    CHECK(restored->serverId == "s1");
+    CHECK(restored->userId == "tester");
+    CHECK(restored->deviceId == "device-tester");
+    CHECK(restored->baseUrl == "http://jellyfin.local:8096");
+
+    // The book on disk still has no credential after the token exists.
+    std::ifstream in(dir / "servers.json");
+    const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
+    CHECK(text.find("token-from-quick-connect") == std::string::npos);
+
+    forgetSession(secrets, "s1", restored->baseUrl);
+    CHECK_FALSE(restoreSession(book, secrets).has_value());
 
     fs::remove_all(dir);
 }

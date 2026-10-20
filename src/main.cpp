@@ -21,6 +21,7 @@
 #include "audio/RgTags.hpp"
 #include "ui/DspEqSink.hpp"
 #include "ui/EqWindow.hpp"
+#include "servers/SecretStore.hpp"
 #include "ui/ServerBrowserWindow.hpp"
 #include "ui/WindowPlatform.hpp"
 #include <QCursor>
@@ -464,19 +465,24 @@ int main(int argc, char** argv) {
     // right-click all ask for it. Rebuilt on open so the check marks are current.
     // Captures by reference: it runs inside this scope, while the menu is open.
 #if defined(KOALAAMP_HAS_GL_VISUALIZER)
-    // SV-1: the connection manager's shared state. Both live for the session — the
-    // dialog borrows the transport — and the book is the identity store, never the
-    // session token.
+    // SV-1: the connection manager's shared state. The book is identity only; the
+    // access token lives in the OS keychain and is restored into activeServer.
     koalaamp::servers::jellyfin::CurlTransport serverTransport;
     const QString serverBookPath =
         QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) +
         QStringLiteral("/servers.json");
     koalaamp::servers::ServerBook serverBook(serverBookPath.toStdString());
     serverBook.load();
+    const auto secretStore = koalaamp::servers::makePlatformSecretStore();
 
-    // SV-5: the signed-in server, kept after the connection dialog closes (the
-    // token stays in memory). The browser and the play path read the same copy.
-    std::optional<koalaamp::servers::ServerAuth> activeServer;
+    // SV-5 / SV-6: the signed-in server. A keychain hit means Browse works before
+    // the connection dialog is opened; a miss leaves the saved server for re-login.
+    std::optional<koalaamp::servers::ServerAuth> activeServer =
+        koalaamp::servers::restoreSession(serverBook, *secretStore);
+    if (activeServer && serverBook.active() != nullptr) {
+        std::fprintf(stderr, "koalaamp: restored Jellyfin session for %s\n",
+                     serverBook.active()->userName.c_str());
+    }
 #endif
 
 #if defined(KOALAAMP_HAS_GL_VISUALIZER) && defined(KOALAAMP_HAS_PLAYBACK_CORE)
@@ -533,6 +539,10 @@ int main(int argc, char** argv) {
         QTimer timer;
     } serverReporting;
 
+    if (activeServer) {
+        serverReporting.attach(*core, serverTransport, *activeServer);
+    }
+
     QPointer<koalaamp::ui::ServerBrowserWindow> serverBrowser;
 
     const auto openServerBrowser = [&] {
@@ -583,6 +593,10 @@ int main(int argc, char** argv) {
                              if (serverBrowser) {
                                  serverBrowser->close();
                              }
+                             if (activeServer) {
+                                 koalaamp::servers::forgetSession(*secretStore, activeServer->serverId,
+                                                                  activeServer->baseUrl);
+                             }
                              activeServer.reset();
                              serverReporting.detach();
                          });
@@ -596,12 +610,11 @@ int main(int argc, char** argv) {
         QMenu menu;
 
 #if defined(KOALAAMP_HAS_GL_VISUALIZER)
-        // One entry point for the connection manager; Browse reuses it when no
-        // session is active, so a restart (tokens are memory-only) never leaves
-        // the user staring at a dead menu item.
+        // One entry point for the connection manager. Browse opens the library when
+        // a keychain session was restored, and this dialog when it was not.
         const auto launchServersDialog = [&] {
-            auto* dialog =
-                new koalaamp::ui::ConnectionDialog(serverTransport, serverBook, {}, &window);
+            auto* dialog = new koalaamp::ui::ConnectionDialog(serverTransport, serverBook, {},
+                                                              &window, secretStore.get());
             dialog->setAttribute(Qt::WA_DeleteOnClose);
             dialog->setSkin(skinSet ? &*skinSet : nullptr);
 #if defined(KOALAAMP_HAS_PLAYBACK_CORE)

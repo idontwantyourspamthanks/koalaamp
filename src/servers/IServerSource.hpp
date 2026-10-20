@@ -10,13 +10,16 @@
 
 namespace koalaamp::servers {
 
-/// Server connection state. The token is held in memory only and never
-/// persisted to the repository (see AGENTS.md).
+/// Server connection state. The access token is not written to the server book
+/// or the repository. A SecretStore may keep it in the OS keychain between runs.
 struct ServerAuth {
     std::string baseUrl;
     std::string userId;
     std::string accessToken;
     std::string deviceId;
+    /// Jellyfin `ServerId` when the server sent one. Empty for callers that only
+    /// have a base URL; the keychain key falls back to `baseUrl` in that case.
+    std::string serverId;
 };
 
 /// A remote track source: browse, search, stream and rate against a server.

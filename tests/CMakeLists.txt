@@ -88,6 +88,13 @@ target_include_directories(server_book_tests PRIVATE
 target_link_libraries(server_book_tests PRIVATE Catch2::Catch2WithMain koalaamp_servers)
 catch_discover_tests(server_book_tests)
 
+# SV-6: OS keyring round-trip. Skips when no credential daemon is running.
+add_executable(platform_secret_tests platform_secret_test.cpp)
+koalaamp_enable_warnings(platform_secret_tests)
+target_include_directories(platform_secret_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(platform_secret_tests PRIVATE Catch2::Catch2 koalaamp_servers Qt6::Core)
+catch_discover_tests(platform_secret_tests PROPERTIES TIMEOUT 40)
+
 # Headless smoke test: launch the real application, prove the frameless toplevel
 # constructs and maps, then exit 0. Works on every desktop platform via Qt's
 # offscreen platform plugin.

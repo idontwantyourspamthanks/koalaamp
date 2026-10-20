@@ -27,6 +27,7 @@
 | SV-2 Jellyfin playback | `tickets/SV-2-jellyfin-playback.md` |
 | SV-4 Plex playback | `tickets/SV-4-plex-playback.md` |
 | SV-5 Jellyfin browser | `tickets/SV-5-jellyfin-browser.md` |
+| SV-6 session keychain | `tickets/SV-6-session-keychain.md` |
 | PL-1 playlist formats | `tickets/PL-1-playlist-formats.md` |
 | CI-1 Windows playback compile coverage | `tickets/CI-1-windows-playback-coverage.md` |
 | SK-1 Bundled classic skins | `tickets/SK-1-bundled-skins.md` |
@@ -181,6 +182,11 @@
 - **Tasks:** direct play Part URLs + Range; client-profile headers; `/:/timeline`; `/:/rate`; `/:/scrobble`; version-gate + graceful errors.
 - **Acceptance:** E2E: play with seek; timeline reflects in PMS; 4-star rating visible in Plex web; regression suite pinned to fixture version.
 - **Depends:** SV-3, AU-1
+
+### SV-6 · Remember the Jellyfin session in the OS keychain — *1d*
+- **Tasks:** store the access token in Windows Credential Manager, the macOS login keychain, or Linux Secret Service (KWallet fallback). Restore it on launch. Drop it on 401 or Remove. `servers.json` stays identity-only.
+- **Acceptance:** dialog + book tests restore a token that is absent from the book file; the OS keyring test round-trips or skips when no daemon is running.
+- **Depends:** SV-1, SV-5
 
 ### SC-1 · Scrobbling — *3d*
 - **Tasks:** Last.fm desktop auth; now-playing + batched scrobbles; ListenBrainz submit with MBIDs; anti-double-scrobble mode setting.
