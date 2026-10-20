@@ -2,12 +2,12 @@
 // LI-1/LI-2 — scanner, incremental stamps, watcher, SQLite/FTS5 store.
 
 #include "library/LibraryDb.hpp"
+#include "library/Query.hpp"
 #include "library/Scanner.hpp"
-
-#include <catch2/catch_test_macros.hpp>
 
 #include <algorithm>
 #include <atomic>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <cmath>
 #include <filesystem>
@@ -237,15 +237,143 @@ TEST_CASE("100k rows stay within the search latency budget") {
         const std::string text = "Track " + std::to_string(90000 + q * 100);
         const auto started = std::chrono::steady_clock::now();
         const std::vector<Track> hits = db.search(text, 50);
-        millis.push_back(std::chrono::duration<double, std::milli>(
-                             std::chrono::steady_clock::now() - started)
-                             .count());
+        millis.push_back(
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started)
+                .count());
         CHECK_FALSE(hits.empty());
     }
     std::sort(millis.begin(), millis.end());
     const double p95 = millis[static_cast<std::size_t>(millis.size() * 0.95)];
     CHECK(p95 < 100.0);
 
+    std::error_code error;
+    fs::remove_all(dir, error);
+}
+
+TEST_CASE("smart-view grammar parses fields, operators and relative dates") {
+    using koalaamp::library::parseQuery;
+    using koalaamp::library::QueryParam;
+    constexpr std::int64_t kNow = 1'800'000'000;
+
+    {
+        const auto result = parseQuery(R"(artist has "Fixture" && rating > 3)", kNow);
+        REQUIRE(result.query.has_value());
+        CHECK(result.query->where.find("LIKE") != std::string::npos);
+        REQUIRE(result.query->params.size() == 2);
+        CHECK(result.query->params[0].text == "%Fixture%");
+        CHECK(result.query->params[1].integer == 3);
+    }
+    {
+        const auto result = parseQuery(R"(genre = "Rock" || (year <= 2000 && !ISEMPTY))", kNow);
+        CHECK_FALSE(result.query.has_value()); // ISEMPTY needs its field
+        CHECK(!result.error.empty());
+    }
+    {
+        const auto result = parseQuery(R"(genre = "Rock" || (year <= 2000 && rating > 1))", kNow);
+        REQUIRE(result.query.has_value());
+        CHECK(result.query->where.find(" OR ") != std::string::npos);
+        CHECK(result.query->where.find(" AND ") != std::string::npos);
+    }
+    {
+        const auto result = parseQuery("lastplay > [1 week ago]", kNow);
+        REQUIRE(result.query.has_value());
+        REQUIRE(result.query->params.size() == 1);
+        CHECK(result.query->params[0].integer == kNow - 7 * 24 * 60 * 60);
+    }
+    {
+        const auto result = parseQuery("title begins \"Test\"", kNow);
+        REQUIRE(result.query.has_value());
+        REQUIRE(result.query->params.size() == 1);
+        CHECK(result.query->params[0].text == "Test%");
+    }
+    {
+        const auto result = parseQuery("album ends \"Album\"", kNow);
+        REQUIRE(result.query.has_value());
+        REQUIRE(result.query->params.size() == 1);
+        CHECK(result.query->params[0].text == "%Album");
+    }
+    {
+        const auto result = parseQuery("album nothas \"Live\"", kNow);
+        REQUIRE(result.query.has_value());
+        CHECK(result.query->where.find("NOT LIKE") != std::string::npos);
+    }
+    {
+        const auto result = parseQuery(R"(1 && genre = "Rock")", kNow);
+        REQUIRE(result.query.has_value());
+        CHECK(result.query->where.find("1 AND") != std::string::npos);
+    }
+    {
+        const auto result = parseQuery("length > 200", kNow);
+        REQUIRE(result.query.has_value());
+        REQUIRE(result.query->params.size() == 1);
+        CHECK(result.query->params[0].integer == 200000); // seconds -> ms
+    }
+    {
+        const auto result = parseQuery("artist isempty", kNow);
+        REQUIRE(result.query.has_value());
+        CHECK(result.query->where.find("IS NULL") != std::string::npos);
+    }
+    {
+        const auto result = parseQuery("bogus = 1", kNow);
+        CHECK_FALSE(result.query.has_value());
+        CHECK(!result.error.empty());
+    }
+    {
+        const auto result = parseQuery("artist =", kNow);
+        CHECK_FALSE(result.query.has_value());
+    }
+    {
+        const auto result = parseQuery("artist = \"unterminated", kNow);
+        CHECK_FALSE(result.query.has_value());
+    }
+    {
+        const auto result = parseQuery("artist = \"A\" junk", kNow);
+        CHECK_FALSE(result.query.has_value());
+    }
+}
+
+TEST_CASE("library queries, ratings and play counts flow through SQLite") {
+    const std::vector<ScannedTrack> scanned = scanFixtures();
+    const fs::path dir = tempDir("koalaamp-li3-query");
+    {
+        LibraryDb db{dir / "library.db"};
+        REQUIRE(db.open());
+        REQUIRE(db.begin());
+        for (const ScannedTrack& track : scanned) {
+            REQUIRE(db.upsert(track));
+        }
+        REQUIRE(db.commit());
+
+        const auto byArtist = parseQuery(R"(artist has "Fixture")");
+        REQUIRE(byArtist.query.has_value());
+        const std::vector<Track> rows = db.query(*byArtist.query);
+        CHECK(rows.size() == 3);
+
+        const auto rated = parseQuery("rating >= 1");
+        REQUIRE(rated.query.has_value());
+        CHECK(db.query(*rated.query).empty());
+
+        const auto fixture = std::find_if(rows.begin(), rows.end(), [](const Track& track) {
+            return track.title == "Test Tone";
+        });
+        REQUIRE(fixture != rows.end());
+        REQUIRE(db.setRating(fixture->path, 4));
+        const std::vector<Track> ratedNow = db.query(*rated.query);
+        REQUIRE(ratedNow.size() == 1);
+        CHECK(ratedNow[0].rating == 4);
+
+        REQUIRE(db.markPlayed(fixture->path, 1'800'000'000));
+        const std::vector<Track> played = db.query(*rated.query);
+        REQUIRE(played.size() == 1);
+        CHECK(played[0].playCount == 1);
+        CHECK(played[0].lastPlayed == 1'800'000'000);
+
+        const std::vector<std::string> genres = db.genres();
+        CHECK(std::find(genres.begin(), genres.end(), "Test") != genres.end());
+        CHECK_FALSE(db.years().empty());
+        CHECK(db.albumsForArtist("Fixture Artist").size() == 2);
+        CHECK(db.artistTracks("Fixture Artist").size() == 3);
+    }
     std::error_code error;
     fs::remove_all(dir, error);
 }

@@ -6,6 +6,8 @@
 add_library(koalaamp_library STATIC
     LibraryDb.cpp
     LibraryDb.hpp
+    Query.cpp
+    Query.hpp
     Scanner.cpp
     Scanner.hpp)
 koalaamp_enable_warnings(koalaamp_library)

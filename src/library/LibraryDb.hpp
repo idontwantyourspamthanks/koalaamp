@@ -7,6 +7,7 @@
 
 #pragma once
 
+#include "library/Query.hpp"
 #include "library/Scanner.hpp"
 
 #include <cstddef>
@@ -57,7 +58,21 @@ public:
 
     std::vector<AlbumRow> albums(int limit = 0);
     std::vector<ArtistRow> artists(int limit = 0);
+    std::vector<AlbumRow> albumsForArtist(std::string_view artist, int limit = 0);
     std::vector<Track> albumTracks(std::string_view album, std::string_view albumArtist);
+    std::vector<Track> artistTracks(std::string_view artist, int limit = 0);
+    std::vector<Track> allTracks(int limit = 0);
+
+    /// Smart-view query. An empty `order` uses artist/album/disc/track order.
+    std::vector<Track> query(const ParsedQuery& query, int limit = 0, std::string_view order = {});
+
+    std::vector<std::string> genres();
+    std::vector<int> years();
+
+    /// Writes the user's 0..5 star rating. Returns false when the path is absent.
+    bool setRating(std::string_view path, int stars);
+    /// Increments playcount and stamps lastplayed. Returns false when absent.
+    bool markPlayed(std::string_view path, std::int64_t unixSeconds);
 
     /// Batch a scan: begin/commit around many `upsert` calls.
     bool begin();

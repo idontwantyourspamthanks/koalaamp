@@ -56,6 +56,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdio>
+#include <ctime>
 #include <filesystem>
 #include <memory>
 #include <optional>
@@ -64,6 +65,7 @@
 #include <vector>
 
 #ifdef KOALAAMP_HAS_PLAYBACK_CORE
+#include "library/LibraryDb.hpp"
 #include "library/Scanner.hpp"
 #include "playback/PlaybackCore.hpp"
 #include "scrobble/CurlTransport.hpp"
@@ -77,6 +79,7 @@
 #include "servers/plex/PlexMediaSource.hpp"
 #include "servers/plex/PlexTimeline.hpp"
 #include "ui/JellyfinBrowserSource.hpp"
+#include "ui/LibraryWindow.hpp"
 #include "ui/PlaybackCoreTransport.hpp"
 #include "ui/PlexBrowserSource.hpp"
 #endif
@@ -540,6 +543,9 @@ int main(int argc, char** argv) {
         QStringLiteral("/servers.json");
     koalaamp::servers::ServerBook serverBook(serverBookPath.toStdString());
     serverBook.load();
+    const QString libraryDbPath =
+        QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) +
+        QStringLiteral("/library.db");
     const auto secretStore = koalaamp::servers::makePlatformSecretStore();
 
     // SV-5 / SV-6: the signed-in server. A keychain hit means Browse works before
@@ -717,6 +723,36 @@ int main(int argc, char** argv) {
             return std::nullopt;
         }};
 
+    // LI-3: the local library window and its playback counters. The window owns
+    // a read connection; this observer has a second connection so playcount and
+    // lastplayed are written even when the window is closed.
+    struct LibraryPlaybackStats final : koalaamp::playback::IPlaybackObserver {
+        koalaamp::playback::PlaybackCore* core{nullptr};
+        koalaamp::library::LibraryDb db;
+        std::string currentPath;
+
+        LibraryPlaybackStats(koalaamp::playback::PlaybackCore& playback, std::string path)
+            : core(&playback), db(std::move(path)) {
+            db.open();
+            core->addObserver(this);
+        }
+        ~LibraryPlaybackStats() override {
+            if (core != nullptr) {
+                core->removeObserver(this);
+            }
+        }
+        void onTrackChanged(const koalaamp::playback::MediaRef& media) override {
+            currentPath = media.kind == koalaamp::playback::MediaRef::Kind::Path ? media.value
+                                                                                 : std::string{};
+        }
+        void onEndReached(const koalaamp::playback::MediaRef&) override {
+            if (!currentPath.empty()) {
+                db.markPlayed(currentPath, static_cast<std::int64_t>(std::time(nullptr)));
+            }
+        }
+    } libraryStats{*core, libraryDbPath.toStdString()};
+
+    QPointer<koalaamp::ui::LibraryWindow> libraryWindow;
     QPointer<koalaamp::ui::ServerBrowserWindow> serverBrowser;
     std::unique_ptr<koalaamp::ui::IServerBrowserSource> browserSource;
 
@@ -865,6 +901,37 @@ int main(int argc, char** argv) {
         });
 #else
         browse->setEnabled(false);
+#endif
+#if defined(KOALAAMP_HAS_PLAYBACK_CORE)
+        QAction* library = menu.addAction(QStringLiteral("Media Library…"));
+        QObject::connect(library, &QAction::triggered, &window, [&] {
+            if (!libraryWindow) {
+                libraryWindow = new koalaamp::ui::LibraryWindow(
+                    libraryDbPath.toStdString(),
+                    [&](const std::vector<koalaamp::library::Track>& tracks, std::size_t start) {
+                        if (!core || tracks.empty() || start >= tracks.size()) {
+                            return;
+                        }
+                        for (std::size_t i = start; i < tracks.size(); ++i) {
+                            koalaamp::playback::MediaRef media;
+                            media.kind = koalaamp::playback::MediaRef::Kind::Path;
+                            media.value = tracks[i].path;
+                            media.track = tracks[i];
+                            if (i == start) {
+                                core->play(media);
+                            } else {
+                                core->enqueue(std::move(media));
+                            }
+                        }
+                    },
+                    &window);
+                libraryWindow->setAttribute(Qt::WA_DeleteOnClose);
+                libraryWindow->setSkin(skinSet ? &*skinSet : nullptr);
+            }
+            libraryWindow->show();
+            libraryWindow->raise();
+            libraryWindow->activateWindow();
+        });
 #endif
         menu.addSeparator();
 #if defined(KOALAAMP_HAS_PLAYBACK_CORE)

@@ -23,6 +23,8 @@ add_library(koalaamp_ui STATIC
     GoldenStates.hpp
     JumpToFileDialog.cpp
     JumpToFileDialog.hpp
+    LibraryWindow.cpp
+    LibraryWindow.hpp
     MainWindow.cpp
     MainWindow.hpp
     MediaName.cpp

@@ -38,6 +38,9 @@ struct Track {
     int trackNo{0};
     int discNo{0};
     int rating{0};
+    int playCount{0};
+    std::int64_t lastPlayed{0}; ///< Unix seconds; 0 = never
+    std::int64_t dateAdded{0};  ///< Unix seconds
     std::int64_t durationMs{0};
     /// Container/codec hint from a server item ("flac", "mp3", "aac", …), used
     /// by SV-2's direct-vs-transcode decision. Empty when unknown.

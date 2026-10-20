@@ -3,10 +3,10 @@
 
 #include "library/LibraryDb.hpp"
 
-#include <sqlite3.h>
-
+#include <algorithm>
 #include <cctype>
 #include <ctime>
+#include <sqlite3.h>
 #include <utility>
 
 namespace koalaamp::library {
@@ -90,6 +90,17 @@ ON CONFLICT(path) DO UPDATE SET
     rg_album_peak=excluded.rg_album_peak, art_cache_path=excluded.art_cache_path
 )sql";
 
+constexpr const char* kTrackColumns =
+    "path, title, artist, album, album_artist, genre, year, trackno, discno, "
+    "duration_ms, bitrate, rating, playcount, lastplayed, dateadded";
+
+// The FTS join exposes the same column names on both sides; qualify the track
+// columns so "title" cannot be ambiguous.
+constexpr const char* kJoinedTrackColumns =
+    "t.path, t.title, t.artist, t.album, t.album_artist, t.genre, t.year, "
+    "t.trackno, t.discno, t.duration_ms, t.bitrate, t.rating, t.playcount, "
+    "t.lastplayed, t.dateadded";
+
 void bindText(sqlite3_stmt* statement, int index, const std::string& value) {
     sqlite3_bind_text(statement, index, value.c_str(), static_cast<int>(value.size()),
                       SQLITE_TRANSIENT);
@@ -115,6 +126,10 @@ Track rowToTrack(sqlite3_stmt* statement) {
     track.discNo = sqlite3_column_int(statement, 8);
     track.durationMs = sqlite3_column_int64(statement, 9);
     track.bitrate = sqlite3_column_int64(statement, 10);
+    track.rating = sqlite3_column_int(statement, 11);
+    track.playCount = sqlite3_column_int(statement, 12);
+    track.lastPlayed = sqlite3_column_int64(statement, 13);
+    track.dateAdded = sqlite3_column_int64(statement, 14);
     return track;
 }
 
@@ -161,8 +176,8 @@ bool LibraryDb::open() {
     if (!file_.parent_path().empty()) {
         std::filesystem::create_directories(file_.parent_path(), error);
     }
-    if (sqlite3_open_v2(file_.string().c_str(), &db_,
-                        SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE, nullptr) != SQLITE_OK) {
+    if (sqlite3_open_v2(file_.string().c_str(), &db_, SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE,
+                        nullptr) != SQLITE_OK) {
         setError("open");
         close();
         return false;
@@ -191,8 +206,8 @@ void LibraryDb::close() {
 }
 
 void LibraryDb::setError(const char* context) {
-    lastError_ = std::string(context) + ": " +
-                 (db_ != nullptr ? sqlite3_errmsg(db_) : "no database");
+    lastError_ =
+        std::string(context) + ": " + (db_ != nullptr ? sqlite3_errmsg(db_) : "no database");
 }
 
 bool LibraryDb::exec(const char* sql) {
@@ -356,12 +371,10 @@ std::vector<Track> LibraryDb::search(std::string_view text, int limit) {
         return tracks;
     }
     sqlite3_stmt* statement = nullptr;
-    const char* sql =
-        "SELECT t.path, t.title, t.artist, t.album, t.album_artist, t.genre, t.year, "
-        "t.trackno, t.discno, t.duration_ms, t.bitrate "
-        "FROM tracks_fts f JOIN tracks t ON t.id = f.rowid "
-        "WHERE tracks_fts MATCH ? ORDER BY rank LIMIT ?";
-    if (sqlite3_prepare_v2(db_, sql, -1, &statement, nullptr) != SQLITE_OK) {
+    const std::string sql = std::string("SELECT ") + kJoinedTrackColumns +
+                            " FROM tracks_fts f JOIN tracks t ON t.id = f.rowid "
+                            "WHERE tracks_fts MATCH ? ORDER BY rank LIMIT ?";
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &statement, nullptr) != SQLITE_OK) {
         setError("search");
         return tracks;
     }
@@ -407,9 +420,8 @@ std::vector<ArtistRow> LibraryDb::artists(int limit) {
     if (db_ == nullptr) {
         return rows;
     }
-    std::string sql =
-        "SELECT artist, COUNT(*) FROM tracks WHERE artist <> '' "
-        "GROUP BY artist ORDER BY artist COLLATE NOCASE";
+    std::string sql = "SELECT artist, COUNT(*) FROM tracks WHERE artist <> '' "
+                      "GROUP BY artist ORDER BY artist COLLATE NOCASE";
     if (limit > 0) {
         sql += " LIMIT ?";
     }
@@ -433,19 +445,17 @@ std::vector<Track> LibraryDb::albumTracks(std::string_view album, std::string_vi
     if (db_ == nullptr) {
         return tracks;
     }
-    const char* sql =
-        "SELECT path, title, artist, album, album_artist, genre, year, trackno, discno, "
-        "duration_ms, bitrate FROM tracks WHERE album = ? AND album_artist = ? "
-        // Albums without disc tags (discno 0) are single-disc: sort them with
-        // disc 1 instead of ahead of every disc.
-        "ORDER BY CASE WHEN discno > 0 THEN discno ELSE 1 END, trackno, path";
+    const std::string sql = std::string("SELECT ") + kTrackColumns +
+                            " FROM tracks WHERE album = ? AND album_artist = ? "
+                            // Albums without disc tags (discno 0) are single-disc: sort them with
+                            // disc 1 instead of ahead of every disc.
+                            "ORDER BY CASE WHEN discno > 0 THEN discno ELSE 1 END, trackno, path";
     sqlite3_stmt* statement = nullptr;
-    if (sqlite3_prepare_v2(db_, sql, -1, &statement, nullptr) != SQLITE_OK) {
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &statement, nullptr) != SQLITE_OK) {
         setError("albumTracks");
         return tracks;
     }
-    sqlite3_bind_text(statement, 1, album.data(), static_cast<int>(album.size()),
-                      SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 1, album.data(), static_cast<int>(album.size()), SQLITE_TRANSIENT);
     sqlite3_bind_text(statement, 2, albumArtist.data(), static_cast<int>(albumArtist.size()),
                       SQLITE_TRANSIENT);
     while (sqlite3_step(statement) == SQLITE_ROW) {
@@ -453,6 +463,173 @@ std::vector<Track> LibraryDb::albumTracks(std::string_view album, std::string_vi
     }
     sqlite3_finalize(statement);
     return tracks;
+}
+
+std::vector<AlbumRow> LibraryDb::albumsForArtist(std::string_view artist, int limit) {
+    std::vector<AlbumRow> rows;
+    if (db_ == nullptr) {
+        return rows;
+    }
+    std::string sql = "SELECT album, album_artist, MAX(year), COUNT(*) FROM tracks "
+                      "WHERE (artist = ? COLLATE NOCASE OR album_artist = ? COLLATE NOCASE) "
+                      "AND album <> '' GROUP BY album, album_artist ORDER BY album COLLATE NOCASE";
+    if (limit > 0) {
+        sql += " LIMIT ?";
+    }
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &statement, nullptr) != SQLITE_OK) {
+        setError("albumsForArtist");
+        return rows;
+    }
+    sqlite3_bind_text(statement, 1, artist.data(), static_cast<int>(artist.size()),
+                      SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 2, artist.data(), static_cast<int>(artist.size()),
+                      SQLITE_TRANSIENT);
+    if (limit > 0) {
+        sqlite3_bind_int(statement, 3, limit);
+    }
+    while (sqlite3_step(statement) == SQLITE_ROW) {
+        rows.push_back(AlbumRow{columnText(statement, 0), columnText(statement, 1),
+                                sqlite3_column_int(statement, 2),
+                                sqlite3_column_int(statement, 3)});
+    }
+    sqlite3_finalize(statement);
+    return rows;
+}
+
+std::vector<Track> LibraryDb::artistTracks(std::string_view artist, int limit) {
+    ParsedQuery query;
+    query.where = "(artist = ? COLLATE NOCASE OR album_artist = ? COLLATE NOCASE)";
+    query.params.push_back(QueryParam{QueryParam::Type::Text, std::string(artist), 0});
+    query.params.push_back(QueryParam{QueryParam::Type::Text, std::string(artist), 0});
+    return this->query(query, limit);
+}
+
+std::vector<Track> LibraryDb::allTracks(int limit) {
+    ParsedQuery query;
+    query.where = "1";
+    return this->query(query, limit);
+}
+
+std::vector<Track> LibraryDb::query(const ParsedQuery& parsed, int limit, std::string_view order) {
+    std::vector<Track> tracks;
+    if (db_ == nullptr) {
+        return tracks;
+    }
+    const char* orderBy = "artist COLLATE NOCASE, album COLLATE NOCASE, "
+                          "CASE WHEN discno > 0 THEN discno ELSE 1 END, trackno, title";
+    if (order == "recent") {
+        orderBy = "dateadded DESC, artist COLLATE NOCASE, title";
+    } else if (order == "played") {
+        orderBy = "playcount DESC, lastplayed DESC, artist COLLATE NOCASE, title";
+    } else if (order == "rating") {
+        orderBy = "rating DESC, artist COLLATE NOCASE, title";
+    } else if (order == "title") {
+        orderBy = "title COLLATE NOCASE, artist COLLATE NOCASE";
+    } else if (!order.empty() && order != "default") {
+        orderBy = "artist COLLATE NOCASE, album COLLATE NOCASE, trackno";
+    }
+    std::string sql = std::string("SELECT ") + kTrackColumns + " FROM tracks WHERE " +
+                      (parsed.where.empty() ? "1" : parsed.where) + " ORDER BY " + orderBy;
+    if (limit > 0) {
+        sql += " LIMIT ?";
+    }
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &statement, nullptr) != SQLITE_OK) {
+        setError("query");
+        return tracks;
+    }
+    int index = 1;
+    for (const QueryParam& param : parsed.params) {
+        if (param.type == QueryParam::Type::Text) {
+            bindText(statement, index++, param.text);
+        } else {
+            sqlite3_bind_int64(statement, index++, param.integer);
+        }
+    }
+    if (limit > 0) {
+        sqlite3_bind_int(statement, index, limit);
+    }
+    while (sqlite3_step(statement) == SQLITE_ROW) {
+        tracks.push_back(rowToTrack(statement));
+    }
+    sqlite3_finalize(statement);
+    return tracks;
+}
+
+std::vector<std::string> LibraryDb::genres() {
+    std::vector<std::string> values;
+    if (db_ == nullptr) {
+        return values;
+    }
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(
+            db_,
+            "SELECT DISTINCT genre FROM tracks WHERE genre <> '' ORDER BY genre COLLATE NOCASE", -1,
+            &statement, nullptr) != SQLITE_OK) {
+        setError("genres");
+        return values;
+    }
+    while (sqlite3_step(statement) == SQLITE_ROW) {
+        values.push_back(columnText(statement, 0));
+    }
+    sqlite3_finalize(statement);
+    return values;
+}
+
+std::vector<int> LibraryDb::years() {
+    std::vector<int> values;
+    if (db_ == nullptr) {
+        return values;
+    }
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(db_,
+                           "SELECT DISTINCT year FROM tracks WHERE year > 0 ORDER BY year DESC", -1,
+                           &statement, nullptr) != SQLITE_OK) {
+        setError("years");
+        return values;
+    }
+    while (sqlite3_step(statement) == SQLITE_ROW) {
+        values.push_back(sqlite3_column_int(statement, 0));
+    }
+    sqlite3_finalize(statement);
+    return values;
+}
+
+bool LibraryDb::setRating(std::string_view path, int stars) {
+    if (db_ == nullptr) {
+        return false;
+    }
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(db_, "UPDATE tracks SET rating = ? WHERE path = ?", -1, &statement,
+                           nullptr) != SQLITE_OK) {
+        setError("setRating");
+        return false;
+    }
+    sqlite3_bind_int(statement, 1, std::clamp(stars, 0, 5));
+    sqlite3_bind_text(statement, 2, path.data(), static_cast<int>(path.size()), SQLITE_TRANSIENT);
+    const bool ok = sqlite3_step(statement) == SQLITE_DONE && sqlite3_changes(db_) > 0;
+    sqlite3_finalize(statement);
+    return ok;
+}
+
+bool LibraryDb::markPlayed(std::string_view path, std::int64_t unixSeconds) {
+    if (db_ == nullptr) {
+        return false;
+    }
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(db_,
+                           "UPDATE tracks SET playcount = playcount + 1, lastplayed = ? "
+                           "WHERE path = ?",
+                           -1, &statement, nullptr) != SQLITE_OK) {
+        setError("markPlayed");
+        return false;
+    }
+    sqlite3_bind_int64(statement, 1, unixSeconds);
+    sqlite3_bind_text(statement, 2, path.data(), static_cast<int>(path.size()), SQLITE_TRANSIENT);
+    const bool ok = sqlite3_step(statement) == SQLITE_DONE && sqlite3_changes(db_) > 0;
+    sqlite3_finalize(statement);
+    return ok;
 }
 
 bool LibraryDb::begin() {
