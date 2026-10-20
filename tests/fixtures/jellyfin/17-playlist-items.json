@@ -1,0 +1,56 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://jellyfin.local:8096/Playlists/pl-1/Items?userId=user-1&fields=SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,IndexNumber,ParentIndexNumber,Container,NormalizationGain",
+    "headers": [
+      [
+        "Authorization",
+        "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"device-under-test\", Version=\"0.0.1\", Token=\"fixture-token-1\""
+      ],
+      [
+        "Accept",
+        "application/json"
+      ]
+    ],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": {
+      "Items": [
+        {
+          "Id": "pt-1",
+          "Name": "Highway",
+          "Album": "Road Trip",
+          "AlbumArtist": "Artist",
+          "Artists": [
+            "Artist"
+          ],
+          "IndexNumber": 1,
+          "RunTimeTicks": 2000000000,
+          "Container": "mp3"
+        },
+        {
+          "Id": "pt-2",
+          "Name": "Sunset",
+          "Album": "Road Trip",
+          "AlbumArtist": "Artist",
+          "Artists": [
+            "Artist"
+          ],
+          "IndexNumber": 2,
+          "RunTimeTicks": 2200000000,
+          "Container": "mp3"
+        }
+      ],
+      "TotalRecordCount": 2
+    },
+    "error": ""
+  }
+}

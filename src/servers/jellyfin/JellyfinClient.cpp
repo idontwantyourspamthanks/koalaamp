@@ -77,6 +77,45 @@ MediaItem toMediaItem(const json& dto) {
     return item;
 }
 
+/// One `/Items` DTO -> the player's track model. Search, album contents and
+/// playlist items all share this mapping so a track looks the same wherever it
+/// came from.
+library::Track trackFromDto(const json& dto) {
+    library::Track track;
+    track.src = library::SourceId::Jellyfin;
+    track.id = str(dto, "Id");
+    track.title = str(dto, "Name");
+    track.album = str(dto, "Album");
+    track.albumArtist = str(dto, "AlbumArtist");
+    if (const auto artists = dto.find("Artists");
+        artists != dto.end() && artists->is_array() && !artists->empty() &&
+        artists->front().is_string()) {
+        track.artist = artists->front().get<std::string>();
+    }
+    if (track.artist.empty()) {
+        track.artist = track.albumArtist;
+    }
+    track.year = dto.value("ProductionYear", 0);
+    track.trackNo = dto.value("IndexNumber", 0);
+    track.discNo = dto.value("ParentIndexNumber", 0);
+    // Jellyfin reports RunTimeTicks in 100 ns units.
+    track.durationMs = static_cast<std::int64_t>(dto.value("RunTimeTicks", 0LL) / 10000LL);
+    track.codec = str(dto, "Container");
+    if (const auto bitrate = dto.find("Bitrate");
+        bitrate != dto.end() && bitrate->is_number_integer()) {
+        track.bitrate = bitrate->get<std::int64_t>();
+    }
+    // One normalization gain per item (computed from the file's ReplayGain tag
+    // server-side); album mode falls back to it.
+    if (const auto gain = dto.find("NormalizationGain");
+        gain != dto.end() && gain->is_number()) {
+        library::Rg rg;
+        rg.trackGain = gain->get<double>();
+        track.rg = rg;
+    }
+    return track;
+}
+
 } // namespace
 
 JellyfinClient::JellyfinClient(IHttpTransport& transport, DeviceProfile profile)
@@ -320,39 +359,7 @@ SearchOutcome JellyfinClient::search(const std::string& baseUrl, const std::stri
                 if (!dto.is_object() || str(dto, "Id").empty()) {
                     continue;
                 }
-                library::Track track;
-                track.src = library::SourceId::Jellyfin;
-                track.id = str(dto, "Id");
-                track.title = str(dto, "Name");
-                track.album = str(dto, "Album");
-                track.albumArtist = str(dto, "AlbumArtist");
-                if (const auto artists = dto.find("Artists");
-                    artists != dto.end() && artists->is_array() && !artists->empty() &&
-                    artists->front().is_string()) {
-                    track.artist = artists->front().get<std::string>();
-                }
-                if (track.artist.empty()) {
-                    track.artist = track.albumArtist;
-                }
-                track.year = dto.value("ProductionYear", 0);
-                track.trackNo = dto.value("IndexNumber", 0);
-                track.discNo = dto.value("ParentIndexNumber", 0);
-                // Jellyfin reports RunTimeTicks in 100 ns units.
-                track.durationMs = static_cast<std::int64_t>(dto.value("RunTimeTicks", 0LL) / 10000LL);
-                track.codec = str(dto, "Container");
-                if (const auto bitrate = dto.find("Bitrate");
-                    bitrate != dto.end() && bitrate->is_number_integer()) {
-                    track.bitrate = bitrate->get<std::int64_t>();
-                }
-                // One normalization gain per item (computed from the file's
-                // ReplayGain tag server-side); album mode falls back to it.
-                if (const auto gain = dto.find("NormalizationGain");
-                    gain != dto.end() && gain->is_number()) {
-                    library::Rg rg;
-                    rg.trackGain = gain->get<double>();
-                    track.rg = rg;
-                }
-                success.tracks.push_back(std::move(track));
+                success.tracks.push_back(trackFromDto(dto));
             }
         }
         return success;
@@ -391,6 +398,196 @@ ReportOutcome JellyfinClient::reportPlayback(const std::string& baseUrl, const s
     request.headers = baseHeaders(profile_, deviceId, token);
     request.headers.emplace_back("Content-Type", "application/json");
     request.body = body.dump();
+
+    const HttpResponse response = transport_.perform(request, cancel);
+    if (!response.transportOk()) {
+        return ItemsUnreachable{};
+    }
+    if (response.status == 401) {
+        return ItemsUnauthorized{};
+    }
+    if (!response.httpOk()) {
+        return ItemsFailed{"Server responded with HTTP " + std::to_string(response.status)};
+    }
+    return ReportSuccess{};
+}
+
+LibrariesOutcome JellyfinClient::musicLibraries(const std::string& baseUrl,
+                                                const std::string& token,
+                                                const std::string& deviceId,
+                                                const std::string& userId,
+                                                const library::Cancellation& cancel) {
+    HttpRequest request;
+    request.method = "GET";
+    request.url = baseUrlNoSlash(baseUrl) + "/Users/" + encodeQuery(userId) + "/Views";
+    request.headers = baseHeaders(profile_, deviceId, token);
+
+    const HttpResponse response = transport_.perform(request, cancel);
+    if (!response.transportOk()) {
+        return ItemsUnreachable{};
+    }
+    if (response.status == 401) {
+        return ItemsUnauthorized{};
+    }
+    if (!response.httpOk()) {
+        return ItemsFailed{"Server responded with HTTP " + std::to_string(response.status)};
+    }
+
+    try {
+        const json body = json::parse(response.body);
+        LibrariesSuccess success;
+        const auto it = body.find("Items");
+        if (it != body.end() && it->is_array()) {
+            for (const auto& dto : *it) {
+                if (!dto.is_object()) {
+                    continue;
+                }
+                success.libraries.push_back(
+                    MusicLibrary{str(dto, "Id"), str(dto, "Name"), str(dto, "CollectionType")});
+            }
+        }
+        return success;
+    } catch (const std::exception& e) {
+        return ItemsFailed{std::string{"Malformed views response: "} + e.what()};
+    }
+}
+
+TracksOutcome JellyfinClient::albumTracks(const std::string& baseUrl, const std::string& token,
+                                          const std::string& deviceId, const std::string& albumId,
+                                          const library::Cancellation& cancel) {
+    HttpRequest request;
+    request.method = "GET";
+    const std::string params =
+        "parentId=" + encodeQuery(albumId) +
+        "&recursive=true&includeItemTypes=Audio"
+        "&sortBy=ParentIndexNumber,IndexNumber&sortOrder=Ascending"
+        "&fields=SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,IndexNumber,"
+        "ParentIndexNumber,Container,NormalizationGain";
+    request.url = baseUrlNoSlash(baseUrl) + "/Items?" + params;
+    request.headers = baseHeaders(profile_, deviceId, token);
+
+    const HttpResponse response = transport_.perform(request, cancel);
+    if (!response.transportOk()) {
+        return ItemsUnreachable{};
+    }
+    if (response.status == 401) {
+        return ItemsUnauthorized{};
+    }
+    if (!response.httpOk()) {
+        return ItemsFailed{"Server responded with HTTP " + std::to_string(response.status)};
+    }
+
+    try {
+        const json body = json::parse(response.body);
+        TracksSuccess success;
+        const auto it = body.find("Items");
+        if (it != body.end() && it->is_array()) {
+            for (const auto& dto : *it) {
+                if (!dto.is_object() || str(dto, "Id").empty()) {
+                    continue;
+                }
+                success.tracks.push_back(trackFromDto(dto));
+            }
+        }
+        return success;
+    } catch (const std::exception& e) {
+        return ItemsFailed{std::string{"Malformed album response: "} + e.what()};
+    }
+}
+
+NamedItemsOutcome JellyfinClient::playlists(const std::string& baseUrl, const std::string& token,
+                                            const std::string& deviceId,
+                                            const library::Cancellation& cancel) {
+    HttpRequest request;
+    request.method = "GET";
+    request.url = baseUrlNoSlash(baseUrl) +
+                  "/Items?includeItemTypes=Playlist&recursive=true&sortBy=SortName"
+                  "&sortOrder=Ascending&fields=SortName";
+    request.headers = baseHeaders(profile_, deviceId, token);
+
+    const HttpResponse response = transport_.perform(request, cancel);
+    if (!response.transportOk()) {
+        return ItemsUnreachable{};
+    }
+    if (response.status == 401) {
+        return ItemsUnauthorized{};
+    }
+    if (!response.httpOk()) {
+        return ItemsFailed{"Server responded with HTTP " + std::to_string(response.status)};
+    }
+
+    try {
+        const json body = json::parse(response.body);
+        NamedItemsSuccess success;
+        const auto it = body.find("Items");
+        if (it != body.end() && it->is_array()) {
+            for (const auto& dto : *it) {
+                if (!dto.is_object()) {
+                    continue;
+                }
+                success.items.push_back(NamedItem{str(dto, "Id"), str(dto, "Name")});
+            }
+        }
+        return success;
+    } catch (const std::exception& e) {
+        return ItemsFailed{std::string{"Malformed playlists response: "} + e.what()};
+    }
+}
+
+TracksOutcome JellyfinClient::playlistItems(const std::string& baseUrl, const std::string& token,
+                                            const std::string& deviceId,
+                                            const std::string& playlistId,
+                                            const std::string& userId,
+                                            const library::Cancellation& cancel) {
+    HttpRequest request;
+    request.method = "GET";
+    request.url = baseUrlNoSlash(baseUrl) + "/Playlists/" + encodeQuery(playlistId) +
+                  "/Items?userId=" + encodeQuery(userId) +
+                  "&fields=SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,"
+                  "IndexNumber,ParentIndexNumber,Container,NormalizationGain";
+    request.headers = baseHeaders(profile_, deviceId, token);
+
+    const HttpResponse response = transport_.perform(request, cancel);
+    if (!response.transportOk()) {
+        return ItemsUnreachable{};
+    }
+    if (response.status == 401) {
+        return ItemsUnauthorized{};
+    }
+    if (!response.httpOk()) {
+        return ItemsFailed{"Server responded with HTTP " + std::to_string(response.status)};
+    }
+
+    try {
+        const json body = json::parse(response.body);
+        TracksSuccess success;
+        const auto it = body.find("Items");
+        if (it != body.end() && it->is_array()) {
+            for (const auto& dto : *it) {
+                if (!dto.is_object() || str(dto, "Id").empty()) {
+                    continue;
+                }
+                success.tracks.push_back(trackFromDto(dto));
+            }
+        }
+        return success;
+    } catch (const std::exception& e) {
+        return ItemsFailed{std::string{"Malformed playlist response: "} + e.what()};
+    }
+}
+
+ReportOutcome JellyfinClient::setRating(const std::string& baseUrl, const std::string& token,
+                                        const std::string& deviceId, const std::string& userId,
+                                        const std::string& itemId, int stars,
+                                        const library::Cancellation& cancel) {
+    const int clamped = stars < 0 ? 0 : (stars > 5 ? 5 : stars);
+    HttpRequest request;
+    request.method = "POST";
+    request.url = baseUrlNoSlash(baseUrl) + "/Users/" + encodeQuery(userId) + "/Items/" +
+                  encodeQuery(itemId) + "/UserData";
+    request.headers = baseHeaders(profile_, deviceId, token);
+    request.headers.emplace_back("Content-Type", "application/json");
+    request.body = json{{"Rating", static_cast<double>(clamped) * 2.0}}.dump();
 
     const HttpResponse response = transport_.perform(request, cancel);
     if (!response.transportOk()) {

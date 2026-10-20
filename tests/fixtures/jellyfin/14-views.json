@@ -1,0 +1,44 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://jellyfin.local:8096/Users/user-1/Views",
+    "headers": [
+      [
+        "Authorization",
+        "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"device-under-test\", Version=\"0.0.1\", Token=\"fixture-token-1\""
+      ],
+      [
+        "Accept",
+        "application/json"
+      ]
+    ],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": {
+      "Items": [
+        {
+          "Id": "lib-music",
+          "Name": "Music",
+          "CollectionType": "music",
+          "Type": "CollectionFolder"
+        },
+        {
+          "Id": "lib-movies",
+          "Name": "Movies",
+          "CollectionType": "movies",
+          "Type": "CollectionFolder"
+        }
+      ],
+      "TotalRecordCount": 2
+    },
+    "error": ""
+  }
+}

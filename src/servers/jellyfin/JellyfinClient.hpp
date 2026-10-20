@@ -96,6 +96,37 @@ struct SearchSuccess {
 using SearchOutcome =
     std::variant<SearchSuccess, ItemsUnauthorized, ItemsUnreachable, ItemsFailed>;
 
+/// One server library view (`GET /Users/{userId}/Views`). The browser filters
+/// on `collectionType == "music"`; other views (movies, TV) are ignored.
+struct MusicLibrary {
+    std::string id;
+    std::string name;
+    std::string collectionType;
+};
+struct LibrariesSuccess {
+    std::vector<MusicLibrary> libraries;
+};
+using LibrariesOutcome =
+    std::variant<LibrariesSuccess, ItemsUnauthorized, ItemsUnreachable, ItemsFailed>;
+
+/// A named non-track item (a playlist, for now — SV-5 keeps playlists read-only).
+struct NamedItem {
+    std::string id;
+    std::string name;
+};
+struct NamedItemsSuccess {
+    std::vector<NamedItem> items;
+};
+using NamedItemsOutcome =
+    std::variant<NamedItemsSuccess, ItemsUnauthorized, ItemsUnreachable, ItemsFailed>;
+
+/// Track listings (album contents, playlist items) mapped like search results.
+struct TracksSuccess {
+    std::vector<library::Track> tracks;
+};
+using TracksOutcome =
+    std::variant<TracksSuccess, ItemsUnauthorized, ItemsUnreachable, ItemsFailed>;
+
 /// Which playback-report endpoint a report goes to (koalapaw `PlaybackGateway`):
 /// start and periodic progress share a payload shape, stop is its own endpoint.
 enum class PlaybackEvent { Start, Progress, Stop };
@@ -169,6 +200,27 @@ public:
                          const std::string& query, const std::string& includeItemTypes,
                          int limit, const library::Cancellation& cancel = NoCancellation{});
 
+    /// Music libraries visible to the user (`GET /Users/{userId}/Views`).
+    LibrariesOutcome musicLibraries(const std::string& baseUrl, const std::string& token,
+                                    const std::string& deviceId, const std::string& userId,
+                                    const library::Cancellation& cancel = NoCancellation{});
+
+    /// Album contents in disc/track order (`ParentId` + `Audio`, recursive).
+    TracksOutcome albumTracks(const std::string& baseUrl, const std::string& token,
+                              const std::string& deviceId, const std::string& albumId,
+                              const library::Cancellation& cancel = NoCancellation{});
+
+    /// Playlists visible to the user (`IncludeItemTypes=Playlist`). Read-only.
+    NamedItemsOutcome playlists(const std::string& baseUrl, const std::string& token,
+                                const std::string& deviceId,
+                                const library::Cancellation& cancel = NoCancellation{});
+
+    /// Playlist contents in playlist order (`GET /Playlists/{id}/Items`).
+    TracksOutcome playlistItems(const std::string& baseUrl, const std::string& token,
+                                const std::string& deviceId, const std::string& playlistId,
+                                const std::string& userId,
+                                const library::Cancellation& cancel = NoCancellation{});
+
     /// Report playback to the server (koalapaw `PlaybackGateway`): POST to
     /// `/Sessions/Playing`, `/Sessions/Playing/Progress` or `/Sessions/Playing/Stopped`
     /// per `event`. The token travels in the MediaBrowser header only.
@@ -176,6 +228,13 @@ public:
                                  const std::string& deviceId, PlaybackEvent event,
                                  const PlaybackReport& report,
                                  const library::Cancellation& cancel = NoCancellation{});
+
+    /// Set a user rating (`stars` 0..5, sent as Jellyfin's 0..10 scale) through
+    /// `POST /Users/{userId}/Items/{itemId}/UserData`.
+    ReportOutcome setRating(const std::string& baseUrl, const std::string& token,
+                            const std::string& deviceId, const std::string& userId,
+                            const std::string& itemId, int stars,
+                            const library::Cancellation& cancel = NoCancellation{});
 
 private:
     /// The shared A→Z page read behind `musicAlbumsWindow`/`musicArtistsWindow`

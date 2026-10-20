@@ -1,0 +1,42 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://jellyfin.local:8096/Items?includeItemTypes=Playlist&recursive=true&sortBy=SortName&sortOrder=Ascending&fields=SortName",
+    "headers": [
+      [
+        "Authorization",
+        "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"device-under-test\", Version=\"0.0.1\", Token=\"fixture-token-1\""
+      ],
+      [
+        "Accept",
+        "application/json"
+      ]
+    ],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": {
+      "Items": [
+        {
+          "Id": "pl-1",
+          "Name": "Road Trip",
+          "Type": "Playlist"
+        },
+        {
+          "Id": "pl-2",
+          "Name": "Focus",
+          "Type": "Playlist"
+        }
+      ],
+      "TotalRecordCount": 2
+    },
+    "error": ""
+  }
+}

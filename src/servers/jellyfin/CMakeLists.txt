@@ -17,6 +17,7 @@ add_library(koalaamp_jellyfin STATIC
     WebSocket.cpp
     JellyfinRemote.cpp
     JellyfinRemotePlayback.cpp
+    JellyfinSource.cpp
     Discovery.cpp)
 koalaamp_enable_warnings(koalaamp_jellyfin)
 target_include_directories(koalaamp_jellyfin

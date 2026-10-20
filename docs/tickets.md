@@ -26,6 +26,7 @@
 | SV-1 Jellyfin port | `tickets/SV-1-jellyfin-port.md` |
 | SV-2 Jellyfin playback | `tickets/SV-2-jellyfin-playback.md` |
 | SV-4 Plex playback | `tickets/SV-4-plex-playback.md` |
+| SV-5 Jellyfin browser | `tickets/SV-5-jellyfin-browser.md` |
 | PL-1 playlist formats | `tickets/PL-1-playlist-formats.md` |
 | CI-1 Windows playback compile coverage | `tickets/CI-1-windows-playback-coverage.md` |
 | SK-1 Bundled classic skins | `tickets/SK-1-bundled-skins.md` |

@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "http://jellyfin.local:8096/Users/user-1/Items/item-1/UserData",
+    "headers": [
+      [
+        "Authorization",
+        "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"device-under-test\", Version=\"0.0.1\", Token=\"fixture-token-1\""
+      ],
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Accept",
+        "application/json"
+      ]
+    ],
+    "body": ""
+  },
+  "response": {
+    "status": 204,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": null,
+    "error": ""
+  }
+}

@@ -1,0 +1,62 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://jellyfin.local:8096/Items?parentId=album-1&recursive=true&includeItemTypes=Audio&sortBy=ParentIndexNumber,IndexNumber&sortOrder=Ascending&fields=SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,IndexNumber,ParentIndexNumber,Container,NormalizationGain",
+    "headers": [
+      [
+        "Authorization",
+        "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"device-under-test\", Version=\"0.0.1\", Token=\"fixture-token-1\""
+      ],
+      [
+        "Accept",
+        "application/json"
+      ]
+    ],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": {
+      "Items": [
+        {
+          "Id": "track-1",
+          "Name": "First",
+          "Album": "Album",
+          "AlbumArtist": "Artist",
+          "Artists": [
+            "Artist"
+          ],
+          "ProductionYear": 2020,
+          "IndexNumber": 1,
+          "ParentIndexNumber": 1,
+          "RunTimeTicks": 1800000000,
+          "Container": "flac",
+          "NormalizationGain": -5.0
+        },
+        {
+          "Id": "track-2",
+          "Name": "Second",
+          "Album": "Album",
+          "AlbumArtist": "Artist",
+          "Artists": [
+            "Artist"
+          ],
+          "ProductionYear": 2020,
+          "IndexNumber": 2,
+          "ParentIndexNumber": 1,
+          "RunTimeTicks": 2100000000,
+          "Container": "flac",
+          "NormalizationGain": -4.0
+        }
+      ],
+      "TotalRecordCount": 2
+    },
+    "error": ""
+  }
+}

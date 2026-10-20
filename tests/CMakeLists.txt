@@ -57,6 +57,17 @@ target_link_libraries(jellyfin_remote_tests PRIVATE
     Catch2::Catch2WithMain koalaamp_jellyfin)
 catch_discover_tests(jellyfin_remote_tests)
 
+# SV-5: server browse gateway (libraries/albums/playlists/rating/source).
+add_executable(jellyfin_browse_tests jellyfin_browse_test.cpp)
+koalaamp_enable_warnings(jellyfin_browse_tests)
+target_include_directories(jellyfin_browse_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(jellyfin_browse_tests PRIVATE
+    Catch2::Catch2WithMain koalaamp_jellyfin)
+target_compile_definitions(jellyfin_browse_tests PRIVATE
+    KOALAAMP_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/jellyfin")
+catch_discover_tests(jellyfin_browse_tests)
+
 # SV-1: the connection manager's persisted server list. Identity only — the store
 # is documented to carry no tokens or passwords, so the test pins that too.
 add_executable(server_book_tests server_book_test.cpp)
