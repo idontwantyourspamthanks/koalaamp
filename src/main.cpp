@@ -799,15 +799,12 @@ int main(int argc, char** argv) {
                         core->enqueueNext(make(tracks[start]));
                         return;
                     }
-                    core->clearQueue();
-                    core->clearSessionList();
+                    std::vector<koalaamp::playback::MediaRef> list;
+                    list.reserve(tracks.size() - start);
                     for (std::size_t i = start; i < tracks.size(); ++i) {
-                        if (i == start) {
-                            core->play(make(tracks[i]));
-                        } else {
-                            core->enqueue(make(tracks[i]));
-                        }
+                        list.push_back(make(tracks[i]));
                     }
+                    core->playList(std::move(list), 0);
                     return;
                 }
                 koalaamp::servers::jellyfin::DeviceProfile profile;
@@ -820,17 +817,14 @@ int main(int argc, char** argv) {
                     core->enqueueNext(std::move(plan.media));
                     return;
                 }
-                core->clearQueue();
-                core->clearSessionList();
+                std::vector<koalaamp::playback::MediaRef> list;
+                list.reserve(tracks.size() - start);
                 for (std::size_t i = start; i < tracks.size(); ++i) {
                     auto plan = planner.plan(session.baseUrl, session.accessToken, session.deviceId,
                                              tracks[i], sessionId);
-                    if (i == start) {
-                        core->play(plan.media);
-                    } else {
-                        core->enqueue(std::move(plan.media));
-                    }
+                    list.push_back(std::move(plan.media));
                 }
+                core->playList(std::move(list), 0);
             },
             &window);
         serverBrowser->setAttribute(Qt::WA_DeleteOnClose);
@@ -916,19 +910,16 @@ int main(int argc, char** argv) {
                         if (!core || tracks.empty() || start >= tracks.size()) {
                             return;
                         }
-                        core->clearQueue();
-                        core->clearSessionList();
+                        std::vector<koalaamp::playback::MediaRef> list;
+                        list.reserve(tracks.size() - start);
                         for (std::size_t i = start; i < tracks.size(); ++i) {
                             koalaamp::playback::MediaRef media;
                             media.kind = koalaamp::playback::MediaRef::Kind::Path;
                             media.value = tracks[i].path;
                             media.track = tracks[i];
-                            if (i == start) {
-                                core->play(media);
-                            } else {
-                                core->enqueue(std::move(media));
-                            }
+                            list.push_back(std::move(media));
                         }
+                        core->playList(std::move(list), 0);
                     },
                     &window);
                 libraryWindow->setAttribute(Qt::WA_DeleteOnClose);

@@ -70,12 +70,13 @@ void PlaybackCoreTransport::enqueue(const playback::MediaRef& media) {
     m_core.enqueue(media);
 }
 
-void PlaybackCoreTransport::clearQueue() {
-    m_core.clearQueue();
+void PlaybackCoreTransport::playList(const std::vector<playback::MediaRef>& list,
+                                     std::size_t start) {
+    m_core.playList(list, start);
 }
 
-void PlaybackCoreTransport::clearSessionList() {
-    m_core.clearSessionList();
+void PlaybackCoreTransport::clearQueue() {
+    m_core.clearQueue();
 }
 
 std::size_t PlaybackCoreTransport::queueSize() const {

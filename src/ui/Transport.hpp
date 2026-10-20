@@ -45,10 +45,20 @@ public:
     /// Appends a medium to the queue; the queue is consumed before the
     /// session-list/repeat/shuffle refill.
     virtual void enqueue(const playback::MediaRef& media) = 0;
+    /// Starts a whole list at `start`, replacing the queue and session history.
+    /// The default is a sequence for fakes; the real transport forwards atomically.
+    virtual void playList(const std::vector<playback::MediaRef>& list, std::size_t start) {
+        if (list.empty() || start >= list.size()) {
+            return;
+        }
+        clearQueue();
+        for (std::size_t i = start + 1; i < list.size(); ++i) {
+            enqueue(list[i]);
+        }
+        playMedia(list[start]);
+    }
     /// Empties the queue.
     virtual void clearQueue() = 0;
-    /// Forgets the prior play history so repeat/shuffle refills the new list.
-    virtual void clearSessionList() {}
     /// Number of entries currently queued.
     virtual std::size_t queueSize() const = 0;
     /// Front of the queue, else the repeat/shuffle fallback candidate.

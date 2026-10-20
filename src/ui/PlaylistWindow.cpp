@@ -431,14 +431,12 @@ void PlaylistWindow::playRow(std::size_t index) {
     // A playlist play starts a new list: drop stale queue/history, then queue
     // the rows after this one so the next track is the visible next row.
     clearQueue();
-    m_transport->clearSessionList();
-    // Queue the remainder first, then start the clicked row: the engine consumes
-    // the queue only at the next boundary, and "playMedia" stays the last verb
-    // the transport sees (the SE-3 parity contract).
-    for (std::size_t i = index + 1; i < m_state.entries.size(); ++i) {
-        m_transport->enqueue(mediaFor(m_state.entries[i]));
+    std::vector<playback::MediaRef> list;
+    list.reserve(m_state.entries.size());
+    for (const PleditEntry& entry : m_state.entries) {
+        list.push_back(mediaFor(entry));
     }
-    m_transport->playMedia(mediaFor(m_state.entries[index]));
+    m_transport->playList(list, index);
     requestRepaint();
     emit trackActivated(static_cast<int>(index));
 }

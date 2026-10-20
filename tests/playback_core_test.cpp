@@ -50,10 +50,9 @@
 
 #include "playback/PlaybackCore.hpp"
 
-#include <catch2/catch_test_macros.hpp>
-
 #include <algorithm>
 #include <atomic>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <cmath>
 #include <cstdint>
@@ -162,7 +161,7 @@ bool encode(const fs::path& wav, const fs::path& out, const std::string& codecAr
 
 PlaybackConfig nullOutputConfig(std::int64_t prefetchLeadMs = 10000) {
     PlaybackConfig config;
-    config.output = PlaybackConfig::Output::Null; // headless, deterministic
+    config.output = PlaybackConfig::Output::Null;      // headless, deterministic
     config.ring = PlaybackConfig::RingRegime::Compact; // the ticket's default
     config.prefetchLeadMs = prefetchLeadMs;
     return config;
@@ -286,7 +285,7 @@ std::size_t residentKib() {
 /// per-change leaks, unlike RSS which also moves with third-party thread/stack
 /// caches.
 std::size_t heapInUseBytes() {
-#if defined(__linux__) && defined(__GLIBC__) && \
+#if defined(__linux__) && defined(__GLIBC__) &&                                                    \
     (__GLIBC__ > 2 || (__GLIBC__ == 2 && __GLIBC_MINOR__ >= 33))
     const struct mallinfo2 info = mallinfo2();
     return static_cast<std::size_t>(info.uordblks);
@@ -294,7 +293,6 @@ std::size_t heapInUseBytes() {
     return 0;
 #endif
 }
-
 
 constexpr std::size_t kKib = 1024;
 constexpr std::size_t kMiB = kKib * kKib;
@@ -399,8 +397,7 @@ TEST_CASE("PlaybackCore: seek lands and PCM keeps flowing", "[fe4][core][seek]")
 
     // The seek re-decodes from the target (the tap sees fresh frames) and the
     // position resumes advancing from there.
-    REQUIRE(waitFor(
-        [&] { return core.metrics().framesDecoded > decodedBefore; }, 5s));
+    REQUIRE(waitFor([&] { return core.metrics().framesDecoded > decodedBefore; }, 5s));
     const std::int64_t landed = core.positionMs();
     REQUIRE(waitFor([&] { return core.positionMs() > landed + 100; }, 5s));
     CHECK(observer.positionChanges.load() > 1);
@@ -481,6 +478,32 @@ TEST_CASE("PlaybackCore: EndReached with an empty queue stops", "[fe4][core][end
     CHECK(core.queueSize() == 0);
     CHECK(core.positionMs() == 0);
     CHECK(observer.errors.load() == 0);
+}
+
+TEST_CASE("PlaybackCore: playList follows the list without skipping", "[fe4][core][end][queue]") {
+    FixtureDir fixtures;
+    const fs::path a = writeSineWav(fixtures.file("a.wav"), 440.0, 48000, 2, 0.6);
+    const fs::path b = writeSineWav(fixtures.file("b.wav"), 550.0, 48000, 2, 8.0);
+    const fs::path c = writeSineWav(fixtures.file("c.wav"), 660.0, 48000, 2, 8.0);
+
+    RecordingObserver observer;
+    PlaybackCore core(nullOutputConfig());
+    core.addObserver(&observer);
+
+    core.playList({MediaRef{MediaRef::Kind::Path, a.string()},
+                   MediaRef{MediaRef::Kind::Path, b.string()},
+                   MediaRef{MediaRef::Kind::Path, c.string()}},
+                  0);
+    REQUIRE(waitFor(
+        [&] {
+            return observer.trackChanges.load() >= 2 && core.currentMedia().has_value() &&
+                   core.currentMedia()->value == b.string();
+        },
+        8s));
+    CHECK(core.queueSize() == 1);
+    REQUIRE(core.peekNext().has_value());
+    CHECK(core.peekNext()->value == c.string());
+    CHECK(observer.lastEnded == a.string());
 }
 
 TEST_CASE("PlaybackCore: EndReached advances exactly one queue step", "[fe4][core][end][queue]") {
@@ -726,8 +749,7 @@ TEST_CASE("PlaybackCore: ring regime selects the latency profile", "[fe4][core][
 //  static + runtime guards (spec §2.1/§2.2 Qt-free, §3.1 EQ rule)
 // ===========================================================================
 
-TEST_CASE("src/playback is Qt-free and never uses libvlc native EQ (spec 2.2/3.1)",
-          "[fe4][core]") {
+TEST_CASE("src/playback is Qt-free and never uses libvlc native EQ (spec 2.2/3.1)", "[fe4][core]") {
     const fs::path dir = KOALAAMP_PLAYBACK_SRC;
     REQUIRE(fs::exists(dir));
 
@@ -768,8 +790,7 @@ TEST_CASE("src/playback is Qt-free and never uses libvlc native EQ (spec 2.2/3.1
     CHECK(offenders.empty());
 }
 
-TEST_CASE("PlaybackCore never enables libvlc native EQ (spec 3.1 EQ rule)",
-          "[fe4][core][eq]") {
+TEST_CASE("PlaybackCore never enables libvlc native EQ (spec 3.1 EQ rule)", "[fe4][core][eq]") {
     FixtureDir fixtures;
     const fs::path wav = writeSineWav(fixtures.file("tone.wav"), 1000.0, 48000, 2, 4.0);
 
@@ -869,9 +890,8 @@ TEST_CASE("PlaybackCore: 200 track changes are leak-free (ASAN soak)", "[fe4][co
     REQUIRE(waitFor([&] { return core.state() == PlaybackState::Stopped; }, 3s));
 
     const auto metrics = core.metrics();
-    INFO("track changes=" << observer.trackChanges.load()
-                          << " decodedFrames=" << metrics.framesDecoded
-                          << " eventsDropped=" << metrics.eventsDropped);
+    INFO("track changes=" << observer.trackChanges.load() << " decodedFrames="
+                          << metrics.framesDecoded << " eventsDropped=" << metrics.eventsDropped);
     CHECK(observer.trackChanges.load() == kWhole);
     CHECK(metrics.eventsDropped == 0); // the event mailbox never overflowed
     CHECK(observer.errors.load() == 0);
@@ -883,14 +903,15 @@ TEST_CASE("PlaybackCore: 200 track changes are leak-free (ASAN soak)", "[fe4][co
             (static_cast<long>(heapAfter) - static_cast<long>(heapBefore)) / 1024;
         long maxStepKiB = 0;
         for (std::size_t i = 1; i < rssSamples.size(); ++i) {
-            const long step = static_cast<long>(rssSamples[i]) - static_cast<long>(rssSamples[i - 1]);
+            const long step =
+                static_cast<long>(rssSamples[i]) - static_cast<long>(rssSamples[i - 1]);
             maxStepKiB = std::max(maxStepKiB, step);
         }
-        INFO("RSS: cold=" << rssCold * kKib / kMiB << " MiB, after warm-up=" << rssBefore * kKib / kMiB
-                          << " MiB, after " << kWhole << " changes=" << rssAfter * kKib / kMiB
-                          << " MiB (delta " << rssDeltaKiB << " KiB over the last "
-                          << (kWhole - kWarmup) << " changes; largest 10-change step "
-                          << maxStepKiB << " KiB)");
+        INFO("RSS: cold=" << rssCold * kKib / kMiB
+                          << " MiB, after warm-up=" << rssBefore * kKib / kMiB << " MiB, after "
+                          << kWhole << " changes=" << rssAfter * kKib / kMiB << " MiB (delta "
+                          << rssDeltaKiB << " KiB over the last " << (kWhole - kWarmup)
+                          << " changes; largest 10-change step " << maxStepKiB << " KiB)");
         INFO("heap in use: " << heapBefore / kKib << " → " << heapAfter / kKib << " KiB (delta "
                              << heapDeltaKiB << " KiB)");
         // Per-change leak check: the allocator's live heap (which includes

@@ -56,6 +56,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace koalaamp::playback {
 
@@ -122,11 +123,11 @@ struct PlaybackMetrics {
     /// Deepest ring occupancy seen = libvlc's decode-ahead for the media played
     /// so far, in frames. The gapless budget is `ringFrames - this`.
     std::uint64_t decodeAheadFrames{0};
-    std::uint64_t eventsDropped{0};    ///< libvlc events lost to a full mailbox
-    std::uint64_t ringFrames{0};     ///< ring capacity in frames
-    double pcmRms{0.0};              ///< tap RMS of the float PCM (post-gain)
-    std::string outputBackend;       ///< miniaudio backend name ("Null"/"ALSA"/…), "" if none
-    bool nativeEqEnabled{false};     ///< must stay false on this path (spec §3.1)
+    std::uint64_t eventsDropped{0}; ///< libvlc events lost to a full mailbox
+    std::uint64_t ringFrames{0};    ///< ring capacity in frames
+    double pcmRms{0.0};             ///< tap RMS of the float PCM (post-gain)
+    std::string outputBackend;      ///< miniaudio backend name ("Null"/"ALSA"/…), "" if none
+    bool nativeEqEnabled{false};    ///< must stay false on this path (spec §3.1)
     PlaybackState state{PlaybackState::Stopped};
     std::int64_t positionMs{0};
     std::int64_t lengthMs{0};
@@ -148,6 +149,11 @@ public:
     /// Play `media` now: it becomes the current track and is appended to the
     /// session list (the repeat-all/shuffle fallback order).
     void play(const MediaRef& media) override;
+    /// Start a whole list atomically: clears the old queue/history, queues every
+    /// medium after `startIndex`, and starts that index. Use this instead of
+    /// clearQueue()+play()+enqueue() so an old track ending cannot consume the
+    /// new list's first queued row.
+    void playList(std::vector<MediaRef> list, std::size_t startIndex);
     void pause() override;
     void stop() override;
     void seekMs(std::int64_t ms) override;
@@ -177,9 +183,6 @@ public:
     /// semantics: next up, without touching the current track).
     void enqueueNext(MediaRef media);
     void clearQueue();
-    /// Forget the previous play history. Repeat/shuffle then refills from the
-    /// new list instead of looping tracks from an earlier session.
-    void clearSessionList();
     std::size_t queueSize() const { return m_queueSize.load(); }
     /// Front of the queue, else the repeat/shuffle fallback candidate.
     std::optional<MediaRef> peekNext() const;

@@ -50,8 +50,8 @@ public:
     void setRepeatMode(playback::RepeatMode mode) override;
 
     void enqueue(const playback::MediaRef& media) override;
+    void playList(const std::vector<playback::MediaRef>& list, std::size_t start) override;
     void clearQueue() override;
-    void clearSessionList() override;
     std::size_t queueSize() const override;
     std::optional<playback::MediaRef> peekNext() const override;
 

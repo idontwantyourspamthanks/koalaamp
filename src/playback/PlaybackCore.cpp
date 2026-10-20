@@ -113,6 +113,7 @@ private:
 struct Command {
     enum class Type {
         Play,
+        PlayList,
         Pause,
         Resume,
         Stop,
@@ -126,6 +127,8 @@ struct Command {
     explicit Command(Type commandType) : type(commandType) {}
     Type type;
     MediaRef media;
+    std::vector<MediaRef> list;
+    std::size_t listIndex{0};
     std::int64_t i64{0};
     int i{0};
     PlaybackCore::PrefetchHook hook;
@@ -154,9 +157,9 @@ struct PlaybackCore::Impl {
     // --- engine (created on first play, torn down in ~PlaybackCore) ---------
     std::unique_ptr<VlcPcmTap> tap;
     std::unique_ptr<MiniAudioSink> sink;
-    bool enginePrimed{false};    // tap has had its first (open) media
-    bool enginePlaying{false};   // dispatch thread only
-    PcmCb pcmCb;                 // DSP seam; applied to the tap at creation
+    bool enginePrimed{false};  // tap has had its first (open) media
+    bool enginePlaying{false}; // dispatch thread only
+    PcmCb pcmCb;               // DSP seam; applied to the tap at creation
     // PCM-seam quiesce handshake (AU-2). The tap's callback runs on libvlc's
     // audio-output thread and is handed the tap's own scratch buffer, so a
     // callback that is in flight while the tap is torn down would touch freed
@@ -175,12 +178,12 @@ struct PlaybackCore::Impl {
     std::vector<MediaRef> session; // play order: repeat-all/previous fallback
     std::size_t sessionIndex{0};
     std::atomic<bool> trackPrefetched{false};
-    bool ended{false};           // dispatch thread: EndReached seen for this media
-    bool handoverPending{false}; // dispatch thread: the boundary is armed (AU-2)
+    bool ended{false};                   // dispatch thread: EndReached seen for this media
+    bool handoverPending{false};         // dispatch thread: the boundary is armed (AU-2)
     std::optional<MediaRef> pendingNext; // dispatch thread: parked at arm, published at swap
-    PrefetchHook prefetchHook;   // dispatch thread only (set via command)
+    PrefetchHook prefetchHook;           // dispatch thread only (set via command)
     TrackPrepareHook prepareHook;
-    std::uint64_t handovers{0};  // gapless boundaries taken (dispatch thread)
+    std::uint64_t handovers{0};      // gapless boundaries taken (dispatch thread)
     std::uint64_t peakFillFrames{0}; // deepest ring fill = libvlc's decode-ahead (AU-2)
     double lastBoundaryTailMs{0.0};  // published per boundary (tick thread only)
     mutable std::uint32_t rngState{0x2545f491u};
@@ -209,7 +212,8 @@ struct PlaybackCore::Impl {
         wakeup.notify_one();
     }
 
-    template <typename Fn> void forEachObserver(Fn&& fn) {
+    template <typename Fn>
+    void forEachObserver(Fn&& fn) {
         std::array<IPlaybackObserver*, 64> snapshot{};
         std::size_t n = 0;
         {
@@ -234,9 +238,8 @@ struct PlaybackCore::Impl {
     void run() {
         std::unique_lock<std::mutex> lock(cmdMutex);
         while (!shutdown) {
-            wakeup.wait_for(lock, kTick, [this] {
-                return shutdown || !commands.empty() || !mailbox.empty();
-            });
+            wakeup.wait_for(lock, kTick,
+                            [this] { return shutdown || !commands.empty() || !mailbox.empty(); });
             if (shutdown) {
                 break;
             }
@@ -261,6 +264,9 @@ struct PlaybackCore::Impl {
         switch (command.type) {
         case Command::Type::Play:
             activate(command.media, HistAction::Append, 0);
+            break;
+        case Command::Type::PlayList:
+            activateList(command.list, command.listIndex);
             break;
         case Command::Type::Pause:
             if (tap && self.m_state.load() == PlaybackState::Playing) {
@@ -387,8 +393,7 @@ struct PlaybackCore::Impl {
         // Learn the engine's decode-ahead depth (AU-2): the deepest fill it
         // reaches is the burst the *next* activation will hand over, and the
         // boundary rule needs that number to reserve room for it.
-        peakFillFrames = std::max<std::uint64_t>(peakFillFrames,
-                                                 tap->ring().fill() / kChannels);
+        peakFillFrames = std::max<std::uint64_t>(peakFillFrames, tap->ring().fill() / kChannels);
         const std::int64_t posRaw = tap->timeMs();
         const std::int64_t lenRaw = tap->lengthMs();
         const std::int64_t pos = posRaw < 0 ? 0 : posRaw;
@@ -426,8 +431,8 @@ struct PlaybackCore::Impl {
         // spare room"), so before the first measurement the boundary keeps only
         // the floor. After that it keeps the measured slack.
         const std::uint64_t budget = capacity > peakFillFrames ? capacity - peakFillFrames : 0;
-        const std::uint64_t requested =
-            static_cast<std::uint64_t>(config.gaplessTailMs * static_cast<double>(kSampleRate) / 1000.0);
+        const std::uint64_t requested = static_cast<std::uint64_t>(
+            config.gaplessTailMs * static_cast<double>(kSampleRate) / 1000.0);
         const std::uint64_t tail = std::min(requested, std::max(budget, floorFrames));
         if (tap->ring().fill() / kChannels > tail) {
             return;
@@ -671,6 +676,24 @@ struct PlaybackCore::Impl {
         }
     }
 
+    bool activateList(const std::vector<MediaRef>& list, std::size_t start) {
+        if (list.empty() || start >= list.size()) {
+            return false;
+        }
+        {
+            std::lock_guard<std::mutex> lock(stateMutex);
+            session.clear();
+            sessionIndex = 0;
+            queue.clear();
+            for (std::size_t i = start + 1; i < list.size(); ++i) {
+                queue.push_back(list[i]);
+            }
+            self.m_queueSize.store(queue.size());
+            pendingNext.reset();
+        }
+        return activate(list[start], HistAction::Append, 0);
+    }
+
     bool activate(const MediaRef& media, HistAction hist, std::size_t at) {
         {
             std::lock_guard<std::mutex> lock(stateMutex);
@@ -841,8 +864,7 @@ struct PlaybackCore::Impl {
 
 // ===========================  public surface  =============================
 
-PlaybackCore::PlaybackCore(PlaybackConfig config)
-    : m_impl(std::make_unique<Impl>(*this, config)) {
+PlaybackCore::PlaybackCore(PlaybackConfig config) : m_impl(std::make_unique<Impl>(*this, config)) {
     Impl* impl = m_impl.get();
     impl->dispatch = std::thread([impl] { impl->run(); });
 }
@@ -888,6 +910,16 @@ void PlaybackCore::setPcmCallback(PcmCb cb) {
 void PlaybackCore::play(const MediaRef& media) {
     Command command{Command::Type::Play};
     command.media = media;
+    m_impl->request(std::move(command));
+}
+
+void PlaybackCore::playList(std::vector<MediaRef> list, std::size_t startIndex) {
+    if (list.empty() || startIndex >= list.size()) {
+        return;
+    }
+    Command command{Command::Type::PlayList};
+    command.list = std::move(list);
+    command.listIndex = startIndex;
     m_impl->request(std::move(command));
 }
 
@@ -963,12 +995,6 @@ void PlaybackCore::clearQueue() {
     m_queueSize.store(0);
 }
 
-void PlaybackCore::clearSessionList() {
-    std::lock_guard<std::mutex> lock(m_impl->stateMutex);
-    m_impl->session.clear();
-    m_impl->sessionIndex = 0;
-}
-
 std::optional<MediaRef> PlaybackCore::peekNext() const {
     return m_impl->peekNextInternal();
 }
@@ -1025,7 +1051,8 @@ PlaybackMetrics PlaybackCore::metrics() const {
         out.pcmRms = m_impl->tap->rmsLevel();
         out.framesDropped = m_impl->tap->stats().framesDropped.load(std::memory_order_relaxed);
         out.framesDiscarded = m_impl->tap->ring().discarded() / kChannels;
-        out.silenceFrames = m_impl->sink ? m_impl->sink->stats().silenceFrames.load(std::memory_order_relaxed) : 0;
+        out.silenceFrames =
+            m_impl->sink ? m_impl->sink->stats().silenceFrames.load(std::memory_order_relaxed) : 0;
         out.gaplessHandovers = m_impl->handovers;
         out.lastBoundaryTailMs = m_impl->lastBoundaryTailMs;
         out.decodeAheadFrames = m_impl->peakFillFrames;
