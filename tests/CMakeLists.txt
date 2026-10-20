@@ -36,6 +36,16 @@ target_compile_definitions(jellyfin_port_tests PRIVATE
     KOALAAMP_SERVERS_SRC="${CMAKE_SOURCE_DIR}/src/servers")
 catch_discover_tests(jellyfin_port_tests)
 
+# QuickConnect's Initiate is a POST with no body. libcurl reads that body from
+# stdin unless the transport sets a zero length, and the transfer timeout does
+# not interrupt the read — the dialog stays on "QuickConnect…" for as long as
+# the terminal is open. Loopback only; the failure path exits rather than hangs.
+add_executable(http_transport_tests http_transport_test.cpp)
+koalaamp_enable_warnings(http_transport_tests)
+target_include_directories(http_transport_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(http_transport_tests PRIVATE Catch2::Catch2WithMain koalaamp_jellyfin)
+catch_discover_tests(http_transport_tests PROPERTIES TIMEOUT 20)
+
 # SV-2: direct-vs-transcode planning + /Sessions/Playing* player wiring.
 add_executable(jellyfin_playback_tests jellyfin_playback_test.cpp)
 koalaamp_enable_warnings(jellyfin_playback_tests)

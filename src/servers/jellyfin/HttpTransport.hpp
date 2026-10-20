@@ -27,7 +27,8 @@ struct HttpRequest {
     std::string body;
     /// Per-request timeout overrides; zero means the transport's default.
     /// QuickConnect uses tighter bounds so a dropped connection cannot leave the
-    /// dialog's button stuck on "QuickConnect…".
+    /// dialog's button stuck on "QuickConnect…". A bodyless POST still has to
+    /// set a zero `Content-Length` — a timeout does not unblock a stdin read.
     std::chrono::milliseconds connectTimeout{0};
     std::chrono::milliseconds totalTimeout{0};
 };

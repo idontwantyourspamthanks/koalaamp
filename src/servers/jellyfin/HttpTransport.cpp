@@ -109,8 +109,14 @@ HttpResponse CurlTransport::perform(const HttpRequest& request,
     } else if (!request.method.empty() && request.method != "GET") {
         curl_easy_setopt(curl, CURLOPT_CUSTOMREQUEST, request.method.c_str());
     }
-    if (!request.body.empty()) {
-        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, request.body.data());
+    // Always publish a length for POST, including zero. Without a posted
+    // buffer libcurl reads the body from stdin (`Transfer-Encoding: chunked`
+    // and `Expect: 100-continue`), and CURLOPT_TIMEOUT does not interrupt that
+    // read. QuickConnect/Initiate is a bodyless POST, so from a terminal the
+    // call never returns and the button stays on "QuickConnect…".
+    if (request.method == "POST" || !request.body.empty()) {
+        const char* fields = request.body.empty() ? "" : request.body.data();
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, fields);
         curl_easy_setopt(curl, CURLOPT_POSTFIELDSIZE_LARGE,
                          static_cast<curl_off_t>(request.body.size()));
     }
