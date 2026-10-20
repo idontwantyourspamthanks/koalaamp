@@ -441,6 +441,12 @@ message(STATUS "KoalaAmp: SE-4 Part A window-set tests enabled")
 
 # SE-4 Part B: the snap/dock manager, keep-on-top and layout persistence.
 # Scripted offscreen drags against the real widgets.
+# MI-1: read-only Winamp NDE parser (generated fixtures + corruption smoke).
+add_executable(migration_tests migration_test.cpp)
+koalaamp_enable_warnings(migration_tests)
+target_link_libraries(migration_tests PRIVATE Catch2::Catch2WithMain koalaamp_migration)
+catch_discover_tests(migration_tests)
+
 # LI-3: offscreen library-window render smoke across the corpus.
 add_executable(koalaamp_li3_window_tests li3_window_test.cpp)
 koalaamp_enable_warnings(koalaamp_li3_window_tests)

@@ -1,17 +1,17 @@
 # MI-1 · Winamp migration wizard
 
-- **Milestone:** M2 · **Est:** 4d · **Depends:** LI-3, AU-1, PL-1 · **Status:** unstarted
+- **Milestone:** M2 · **Est:** 4d · **Depends:** LI-3, AU-1, PL-1 · **Status:** in-progress — NDE/config readers + stats mapping landed; wizard/playlists/q1/bookmarks next
 
 ## Story
 The on-ramp for the exact user this product is for: someone with 15 years of Winamp state. One wizard reads their real `%APPDATA%\Winamp` — playlists, the NDE media-library database (ratings, playcounts, last-played, ReplayGain), EQ presets, bookmarks, preferences — and merges it into our library idempotently, with a report of what didn't match.
 
 ## Tasks
-- [ ] Detection: `%APPDATA%\Winamp` (honor `paths.ini` redirection: `inidir`, `inifile`, `m3udir`); "no Winamp found" → friendly empty state.
-- [ ] NDE reader (read-only): `main.dat`/`main.idx` — NDETABLE/NDEINDEX signatures, field IDs 0-41, record/column linked-list walk, u16-length strings, type tolerance (unknown types → skip field, count it).
-- [ ] Import mapping: filename (normalized path join), rating, playcount, lastplay, dateadded, RG gains/peaks, bpm, genre/comment → upsert onto scanned tracks by normalized path (case-insensitive on Windows/mac, sensitive on Linux + case-fallback pass).
+- [x] Detection: `%APPDATA%\Winamp` (honor `paths.ini` redirection: `inidir`, `inifile`, `m3udir`); "no Winamp found" → friendly empty state.
+- [x] NDE reader (read-only): `main.dat`/`main.idx` — NDETABLE/NDEINDEX signatures, field IDs 0-41, record/column linked-list walk, u16-length strings, type tolerance (unknown types → skip field, count it).
+- [x] Import mapping: filename (normalized path join), rating, playcount, lastplay, dateadded, RG gains/peaks, bpm, genre/comment → upsert onto scanned tracks by normalized path (case-insensitive on Windows/mac, sensitive on Linux + case-fallback pass).
 - [ ] Recent/history NDE (`recent.dat`/`recent.idx`) → play history feed (optional, default on).
 - [ ] Playlists: `plugins\ml\playlists\playlists.xml` index + the `.m3u` files it points to (PL-1 readers).
-- [ ] `winamp.ini`: volume, EQ state/preamp/limiter/eq_type, skin path, `config_titlefmt`, shuffle/repeat, windowshade flags.
+- [x] `winamp.ini`: volume, EQ state/preamp/limiter/eq_type, skin path, `config_titlefmt`, shuffle/repeat, windowshade flags.
 - [ ] `winamp.q1` EQ presets; `winamp.bm` bookmarks.
 - [ ] Skins: `%APPDATA%\Winamp\Skins` offered for copy into our skin folder.
 - [ ] Wizard UI (skinned, 3 steps): summary of found data → progress → unmatched report (paths listed, exportable).
@@ -23,6 +23,24 @@ The on-ramp for the exact user this product is for: someone with 15 years of Win
 - Unmatched rate < 5% on the clean sample; every unmatched path appears in the report.
 - `winamp.q1` presets appear in SE-5's preset panel; `winamp.bm` bookmarks load.
 - ASAN clean over the NDE reader running the fuzz corpus (truncated/malformed `.dat`/`.idx`).
+
+## Implementation notes (2026-10-20)
+`migration/NDE` is a read-only `NDETABLE`/`NDEINDEX` parser: signature checks,
+index-bounded record walk, field-chain cycle guard, all documented scalar types,
+u16-length strings, and unknown/newer types skipped and counted. `migration/WinampConfig`
+reads `paths.ini` redirection and the `winamp.ini` player-state keys; detection
+probes `%APPDATA%/Winamp` and the Wine profile and accepts an explicit folder for
+the wizard/tests. `LibraryDb::applyMigration` writes rating/playcount/lastplay/
+dateadded/RG/bpm/genre/comment/album-artist/year/track/disc/duration/bitrate by
+path, with a case-insensitive fallback pass, and is idempotent. Suites
+`migration_tests` (generated NDE + corruption smoke + config) and
+`library_tests` (apply-twice). `migration/Migration` now runs the full
+NDE→library path and returns matched/unmatched counts, unmatched paths,
+skipped-field/record counts, and the parsed `winamp.ini` state; the end-to-end
+suite re-runs it to prove idempotency.
+
+Still to build: the 3-step skinned wizard, playlist-index/M3U import,
+`winamp.q1`/`winamp.bm`, and the unmatched export.
 
 ## Out of scope
 - Writing back to Winamp's files (one-way, always — we never touch a real Winamp install's data destructively).

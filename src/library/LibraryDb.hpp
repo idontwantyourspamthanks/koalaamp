@@ -34,6 +34,26 @@ struct ArtistRow {
     int trackCount{0};
 };
 
+/// Winamp migration fields (MI-1). Numeric fields at their sentinel mean "leave
+/// the existing value alone"; ratings 0..5 and playcount 0 are authoritative.
+struct MigrationStats {
+    int rating{-1};
+    int playCount{-1};
+    std::int64_t lastPlayed{-1};
+    std::int64_t dateAdded{-1};
+    double albumGain{0.0};
+    double trackGain{0.0};
+    int bpm{-1};
+    int year{-1};
+    int trackNo{-1};
+    int discNo{-1};
+    std::string genre;
+    std::string comment;
+    std::string albumArtist;
+    std::int64_t durationMs{-1};
+    std::int64_t bitrate{-1};
+};
+
 class LibraryDb {
 public:
     explicit LibraryDb(std::filesystem::path file);
@@ -73,6 +93,11 @@ public:
     bool setRating(std::string_view path, int stars);
     /// Increments playcount and stamps lastplayed. Returns false when absent.
     bool markPlayed(std::string_view path, std::int64_t unixSeconds);
+
+    /// Applies Winamp NDE values by path (case-insensitive fallback). Idempotent:
+    /// repeating the same migration leaves the row identical. Returns false when
+    /// no library row matches.
+    bool applyMigration(std::string_view path, const MigrationStats& stats);
 
     /// Batch a scan: begin/commit around many `upsert` calls.
     bool begin();

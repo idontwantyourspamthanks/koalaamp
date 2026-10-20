@@ -92,14 +92,14 @@ ON CONFLICT(path) DO UPDATE SET
 
 constexpr const char* kTrackColumns =
     "path, title, artist, album, album_artist, genre, year, trackno, discno, "
-    "duration_ms, bitrate, rating, playcount, lastplayed, dateadded";
+    "duration_ms, bitrate, rating, playcount, lastplayed, dateadded, comment, bpm";
 
 // The FTS join exposes the same column names on both sides; qualify the track
 // columns so "title" cannot be ambiguous.
 constexpr const char* kJoinedTrackColumns =
     "t.path, t.title, t.artist, t.album, t.album_artist, t.genre, t.year, "
     "t.trackno, t.discno, t.duration_ms, t.bitrate, t.rating, t.playcount, "
-    "t.lastplayed, t.dateadded";
+    "t.lastplayed, t.dateadded, t.comment, t.bpm";
 
 void bindText(sqlite3_stmt* statement, int index, const std::string& value) {
     sqlite3_bind_text(statement, index, value.c_str(), static_cast<int>(value.size()),
@@ -130,6 +130,8 @@ Track rowToTrack(sqlite3_stmt* statement) {
     track.playCount = sqlite3_column_int(statement, 12);
     track.lastPlayed = sqlite3_column_int64(statement, 13);
     track.dateAdded = sqlite3_column_int64(statement, 14);
+    track.comment = columnText(statement, 15);
+    track.bpm = sqlite3_column_int(statement, 16);
     return track;
 }
 
@@ -630,6 +632,129 @@ bool LibraryDb::markPlayed(std::string_view path, std::int64_t unixSeconds) {
     const bool ok = sqlite3_step(statement) == SQLITE_DONE && sqlite3_changes(db_) > 0;
     sqlite3_finalize(statement);
     return ok;
+}
+
+bool LibraryDb::applyMigration(std::string_view path, const MigrationStats& stats) {
+    if (db_ == nullptr) {
+        return false;
+    }
+    std::string sets;
+    std::vector<std::string> texts;
+    std::vector<std::int64_t> numbers;
+    const auto addNumber = [&](const char* column, std::int64_t value, bool present) {
+        if (!present) {
+            return;
+        }
+        if (!sets.empty()) {
+            sets += ", ";
+        }
+        sets += std::string(column) + " = ?";
+        numbers.push_back(value);
+    };
+    const auto addText = [&](const char* column, const std::string& value) {
+        if (value.empty()) {
+            return;
+        }
+        if (!sets.empty()) {
+            sets += ", ";
+        }
+        sets += std::string(column) + " = ?";
+        texts.push_back(value);
+    };
+    addNumber("rating", stats.rating, stats.rating >= 0);
+    addNumber("playcount", stats.playCount, stats.playCount >= 0);
+    addNumber("lastplayed", stats.lastPlayed, stats.lastPlayed >= 0);
+    addNumber("dateadded", stats.dateAdded, stats.dateAdded >= 0);
+    addNumber("bpm", stats.bpm, stats.bpm >= 0);
+    addNumber("year", stats.year, stats.year >= 0);
+    addNumber("trackno", stats.trackNo, stats.trackNo >= 0);
+    addNumber("discno", stats.discNo, stats.discNo >= 0);
+    addNumber("duration_ms", stats.durationMs, stats.durationMs >= 0);
+    addNumber("bitrate", stats.bitrate, stats.bitrate >= 0);
+    addText("genre", stats.genre);
+    addText("comment", stats.comment);
+    addText("album_artist", stats.albumArtist);
+    if (stats.albumGain != 0.0) {
+        if (!sets.empty()) {
+            sets += ", ";
+        }
+        sets += "rg_album_gain = ?";
+    }
+    if (stats.trackGain != 0.0) {
+        if (!sets.empty()) {
+            sets += ", ";
+        }
+        sets += "rg_track_gain = ?";
+    }
+    if (sets.empty()) {
+        return false;
+    }
+
+    // Text binds stay in the same relative order as their columns; numeric
+    // binds are independent, so bind both lists at the end in insertion order.
+    // Two passes over the column list are avoided by binding from a per-call
+    // cursor that mirrors how the SET clause was assembled.
+    std::string sql = "UPDATE tracks SET " + sets + " WHERE path = ?";
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(db_, sql.c_str(), -1, &statement, nullptr) != SQLITE_OK) {
+        setError("applyMigration prepare");
+        return false;
+    }
+
+    const auto bindAll = [&](sqlite3_stmt* target) {
+        std::size_t numberIndex = 0;
+        std::size_t textIndex = 0;
+        int index = 1;
+        const auto bindNumber = [&](bool present) {
+            if (present) {
+                sqlite3_bind_int64(target, index++, numbers[numberIndex++]);
+            }
+        };
+        const auto bindTextValue = [&](const std::string& value) {
+            if (!value.empty()) {
+                bindText(target, index++, texts[textIndex++]);
+            }
+        };
+        bindNumber(stats.rating >= 0);
+        bindNumber(stats.playCount >= 0);
+        bindNumber(stats.lastPlayed >= 0);
+        bindNumber(stats.dateAdded >= 0);
+        bindNumber(stats.bpm >= 0);
+        bindNumber(stats.year >= 0);
+        bindNumber(stats.trackNo >= 0);
+        bindNumber(stats.discNo >= 0);
+        bindNumber(stats.durationMs >= 0);
+        bindNumber(stats.bitrate >= 0);
+        bindTextValue(stats.genre);
+        bindTextValue(stats.comment);
+        bindTextValue(stats.albumArtist);
+        if (stats.albumGain != 0.0) {
+            sqlite3_bind_double(target, index++, stats.albumGain);
+        }
+        if (stats.trackGain != 0.0) {
+            sqlite3_bind_double(target, index++, stats.trackGain);
+        }
+        sqlite3_bind_text(target, index, path.data(), static_cast<int>(path.size()),
+                          SQLITE_TRANSIENT);
+    };
+
+    bindAll(statement);
+    const bool ok = sqlite3_step(statement) == SQLITE_DONE && sqlite3_changes(db_) > 0;
+    sqlite3_finalize(statement);
+    if (ok) {
+        return true;
+    }
+
+    // Second pass: Winamp paths may differ only by case/drive letter.
+    std::string fallbackSql = sql + " COLLATE NOCASE";
+    sqlite3_stmt* fallback = nullptr;
+    if (sqlite3_prepare_v2(db_, fallbackSql.c_str(), -1, &fallback, nullptr) != SQLITE_OK) {
+        return false;
+    }
+    bindAll(fallback);
+    const bool matched = sqlite3_step(fallback) == SQLITE_DONE && sqlite3_changes(db_) > 0;
+    sqlite3_finalize(fallback);
+    return matched;
 }
 
 bool LibraryDb::begin() {

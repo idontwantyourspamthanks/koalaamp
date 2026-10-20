@@ -34,6 +34,8 @@ struct Track {
     std::string albumArtist;
     std::string album;
     std::string genre;
+    std::string comment;
+    int bpm{0};
     int year{0};
     int trackNo{0};
     int discNo{0};

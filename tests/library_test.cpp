@@ -425,3 +425,61 @@ TEST_CASE("library queries, ratings and play counts flow through SQLite") {
     std::error_code error;
     fs::remove_all(dir, error);
 }
+
+TEST_CASE("Winamp migration stats apply idempotently by path") {
+    const fs::path dir = tempDir("koalaamp-mi1-apply");
+    LibraryDb db{dir / "library.db"};
+    REQUIRE(db.open());
+    ScannedTrack scanned;
+    scanned.track.path = "/Music/Migrated.flac";
+    scanned.track.title = "Migrated";
+    scanned.track.artist = "Artist";
+    scanned.format = "flac";
+    scanned.mtime = 1;
+    scanned.size = 10;
+    REQUIRE(db.upsert(scanned));
+
+    MigrationStats stats;
+    stats.rating = 4;
+    stats.playCount = 27;
+    stats.lastPlayed = 1'700'000'000;
+    stats.dateAdded = 1'690'000'000;
+    stats.albumGain = -1.5;
+    stats.trackGain = 2.5;
+    stats.bpm = 120;
+    stats.year = 2020;
+    stats.trackNo = 3;
+    stats.discNo = 1;
+    stats.genre = "Rock";
+    stats.comment = "Imported";
+    stats.albumArtist = "Album Artist";
+    stats.durationMs = 215000;
+    stats.bitrate = 320000;
+    REQUIRE(db.applyMigration("/Music/Migrated.flac", stats));
+    const auto first = db.allTracks();
+    REQUIRE(first.size() == 1);
+    CHECK(first[0].rating == 4);
+    CHECK(first[0].playCount == 27);
+    CHECK(first[0].lastPlayed == 1'700'000'000);
+    CHECK(first[0].dateAdded == 1'690'000'000);
+    CHECK(first[0].bpm == 120);
+    CHECK(first[0].genre == "Rock");
+    CHECK(first[0].comment == "Imported");
+    CHECK(first[0].albumArtist == "Album Artist");
+    CHECK(first[0].durationMs == 215000);
+    CHECK(first[0].bitrate == 320000);
+
+    // A case-different Winamp path still matches; repeated application is stable.
+    REQUIRE(db.applyMigration("/music/migrated.flac", stats));
+    const auto second = db.allTracks();
+    REQUIRE(second.size() == 1);
+    CHECK(second[0].rating == first[0].rating);
+    CHECK(second[0].playCount == first[0].playCount);
+    CHECK(second[0].lastPlayed == first[0].lastPlayed);
+    CHECK(second[0].dateAdded == first[0].dateAdded);
+    CHECK(second[0].genre == first[0].genre);
+
+    CHECK_FALSE(db.applyMigration("/music/missing.flac", stats));
+    std::error_code error;
+    fs::remove_all(dir, error);
+}
