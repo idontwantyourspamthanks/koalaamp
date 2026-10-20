@@ -12,6 +12,7 @@
 #include <QLabel>
 #include <QInputDialog>
 #include <QLineEdit>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QListWidget>
 #include <QPainter>
@@ -322,30 +323,40 @@ void ConnectionDialog::quickConnect() {
     const std::string deviceId = deriveDeviceId(m_machineId.machineId(), "");
     JellyfinClient client(m_transport, DeviceProfile{});
 
-    if (!client.quickConnectEnabled(baseUrl, deviceId)) {
-        setStatus(QStringLiteral("QuickConnect is disabled on this server"));
-        return;
-    }
-
+    // No Enabled pre-check: if the server is unreachable, that check was
+    // indistinguishable from "QuickConnect is disabled" and the dialog silently
+    // did nothing. Initiate reports the real reason.
     const QuickConnectStartOutcome outcome = client.initiateQuickConnect(baseUrl, deviceId);
     if (const auto* start = std::get_if<QuickConnectStart>(&outcome)) {
         m_quickConnectBaseUrl = QString::fromStdString(baseUrl);
         m_quickConnectDeviceId = QString::fromStdString(deviceId);
         m_quickConnectSecret = QString::fromStdString(start->secret);
         m_quickConnectPolls = 0;
-        m_quickConnect->setText(QStringLiteral("Cancel QuickConnect"));
+        // The code is the whole point of the flow; put it on the button as well
+        // as the status so it cannot be missed at the bottom of the window.
+        m_quickConnect->setText(QStringLiteral("Code %1 — cancel")
+                                    .arg(QString::fromStdString(start->code)));
         m_quickConnectTimer.start();
-        setStatus(QStringLiteral("QuickConnect code %1 — approve it in Jellyfin")
+        setStatus(QStringLiteral("Approve code %1 in Jellyfin (Quick Connect)")
                       .arg(QString::fromStdString(start->code)));
+        std::fprintf(stderr, "koalaamp: QuickConnect code %s at %s\n", start->code.c_str(),
+                     baseUrl.c_str());
         return;
     }
+
+    QString reason;
     if (std::holds_alternative<ItemsUnauthorized>(outcome)) {
-        setStatus(QStringLiteral("The server rejected the request"));
+        reason = QStringLiteral(
+            "QuickConnect is disabled on this server, or it rejected the request");
     } else if (std::holds_alternative<ItemsUnreachable>(outcome)) {
-        setStatus(QStringLiteral("Server unreachable"));
+        reason = QStringLiteral("Server unreachable");
     } else {
-        setStatus(QString::fromStdString(std::get<ItemsFailed>(outcome).message));
+        reason = QString::fromStdString(std::get<ItemsFailed>(outcome).message);
     }
+    std::fprintf(stderr, "koalaamp: QuickConnect failed at %s: %s\n", baseUrl.c_str(),
+                 reason.toStdString().c_str());
+    setStatus(reason);
+    QMessageBox::warning(this, QStringLiteral("QuickConnect"), reason);
 }
 
 void ConnectionDialog::pollQuickConnect() {
