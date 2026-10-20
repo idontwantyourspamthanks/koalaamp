@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
+#include <limits>
 
 namespace koalaamp::interop::vlc {
 namespace {
@@ -17,6 +18,11 @@ std::int64_t nowNs() {
 }
 
 } // namespace
+
+struct VlcPcmTap::StreamState {
+    std::shared_ptr<playback::IMediaStreamSource> source;
+    std::unique_ptr<playback::IMediaStream> stream; // valid between open and close
+};
 
 VlcPcmTap::VlcPcmTap(std::size_t ringFloats) : m_ring(ringFloats) {}
 
@@ -41,6 +47,9 @@ VlcPcmTap::~VlcPcmTap() {
     if (m_media) {
         libvlc_media_release(m_media);
     }
+    // After the media: its callbacks may still run until the player is stopped,
+    // and the opaque they receive lives here.
+    m_streamState.reset();
     if (m_instance) {
         libvlc_release(m_instance);
     }
@@ -139,11 +148,84 @@ bool VlcPcmTap::setMediaImpl(const std::string& source, bool location) {
     if (m_media) {
         libvlc_media_release(m_media);
     }
+    m_streamState.reset(); // the previous media may have been callback-backed
     m_media = media;
     // Bump after the switch: events emitted from here on belong to this media,
     // and anything tagged with an older generation is stale (FE-4).
     m_generation.fetch_add(1, std::memory_order_release);
     return true;
+}
+
+bool VlcPcmTap::setMediaStream(std::shared_ptr<playback::IMediaStreamSource> source) {
+    if (!ensureInstance() || !m_mp || !source) {
+        return false;
+    }
+    auto state = std::make_unique<StreamState>();
+    state->source = std::move(source);
+    libvlc_media_t* media =
+        libvlc_media_new_callbacks(m_instance, &VlcPcmTap::cbStreamOpen, &VlcPcmTap::cbStreamRead,
+                                   &VlcPcmTap::cbStreamSeek, &VlcPcmTap::cbStreamClose,
+                                   state.get());
+    if (!media) {
+        return false;
+    }
+    libvlc_media_player_set_media(m_mp, media);
+    if (m_media) {
+        libvlc_media_release(m_media);
+    }
+    // Old media released first, then its opaque: the player was stopped by the
+    // caller before the switch, so no callback can still be in flight for it.
+    m_streamState = std::move(state);
+    m_media = media;
+    m_generation.fetch_add(1, std::memory_order_release);
+    return true;
+}
+
+int VlcPcmTap::cbStreamOpen(void* opaque, void** datap, std::uint64_t* sizep) {
+    auto* state = static_cast<StreamState*>(opaque);
+    if (!state || !state->source) {
+        return -1;
+    }
+    std::int64_t size = -1;
+    state->stream = state->source->open(&size);
+    if (!state->stream) {
+        return -1;
+    }
+    // libvlc's contract: UINT64_MAX means "size unknown", not 0.
+    if (sizep != nullptr) {
+        *sizep = size >= 0 ? static_cast<std::uint64_t>(size) : UINT64_MAX;
+    }
+    // libvlc hands `datap` to read/seek/close (the callback ABI's private
+    // pointer); the media's opaque is the same state, so either route lands
+    // here. A null below would make the first read fail without a trace.
+    if (datap != nullptr) {
+        *datap = state;
+    }
+    return 0;
+}
+
+ssize_t VlcPcmTap::cbStreamRead(void* opaque, unsigned char* buf, std::size_t len) {
+    auto* state = static_cast<StreamState*>(opaque);
+    if (!state || !state->stream) {
+        return -1;
+    }
+    return static_cast<ssize_t>(state->stream->read(buf, len));
+}
+
+int VlcPcmTap::cbStreamSeek(void* opaque, std::uint64_t offset) {
+    auto* state = static_cast<StreamState*>(opaque);
+    if (!state || !state->stream ||
+        offset > static_cast<std::uint64_t>(std::numeric_limits<std::int64_t>::max())) {
+        return -1;
+    }
+    return state->stream->seek(static_cast<std::int64_t>(offset)) ? 0 : -1;
+}
+
+void VlcPcmTap::cbStreamClose(void* opaque) {
+    auto* state = static_cast<StreamState*>(opaque);
+    if (state) {
+        state->stream.reset(); // releases the HTTP response, not the source
+    }
 }
 
 void VlcPcmTap::play() {

@@ -7,6 +7,7 @@
 #include "servers/jellyfin/ArtworkCache.hpp"
 #include "servers/jellyfin/AuthHeaders.hpp"
 #include "servers/jellyfin/JellyfinStream.hpp"
+#include "servers/jellyfin/JellyfinMediaSource.hpp"
 #include "servers/jellyfin/DeviceIdentity.hpp"
 #include "servers/jellyfin/Discovery.hpp"
 #include "servers/jellyfin/FixtureTransport.hpp"
@@ -391,6 +392,32 @@ TEST_CASE("audio streams over the static endpoint and a far seek re-requests wit
     CHECK(*headerValue(transport.requests()[1], "Range") == "bytes=20-");
     CHECK(stream->tellg() == 24);
 
+}
+
+TEST_CASE("the media source opens, reads and seeks through libvlc's callback shape") {
+    FixtureTransport transport{std::filesystem::path(kFixtureDir)};
+    JellyfinMediaSource source{transport, testProfile(), kBaseUrl, "fixture-token-1", kDeviceId,
+                               "77777777777777777777777777777777"};
+
+    std::int64_t size = -1;
+    auto stream = source.open(&size);
+    REQUIRE(stream != nullptr);
+    CHECK(source.lastError().empty());
+    CHECK(size == 10); // fixture 11's Content-Length
+
+    unsigned char buf[8] = {};
+    CHECK(stream->read(buf, 4) == 4);
+    CHECK(std::string(reinterpret_cast<const char*>(buf), 4) == "0123");
+
+    // Past the buffered response: the source must re-request, and the adapter
+    // must report success so libvlc can keep seeking.
+    REQUIRE(stream->seek(20));
+    CHECK(stream->read(buf, 4) == 4);
+    CHECK(std::string(reinterpret_cast<const char*>(buf), 4) == "abcd");
+
+    REQUIRE(transport.requests().size() == 2);
+    REQUIRE(headerValue(transport.requests()[1], "Range") != nullptr);
+    CHECK(*headerValue(transport.requests()[1], "Range") == "bytes=20-");
 }
 
 TEST_CASE("an auth 401 carries the server's own reason") {

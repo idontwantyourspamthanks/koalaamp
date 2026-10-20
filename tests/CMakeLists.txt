@@ -64,6 +64,15 @@ if(KOALAAMP_HAS_LIBVLC)
     target_link_libraries(koalaamp_vlc_tests PRIVATE Catch2::Catch2WithMain koalaamp_vlc)
     catch_discover_tests(koalaamp_vlc_tests)
     message(STATUS "KoalaAmp: libvlc EQ-rule test enabled")
+
+    # SV-2 direct play: libvlc decodes a Jellyfin item through
+    # libvlc_media_new_callbacks (no temp file, token in the header only).
+    add_executable(koalaamp_jellyfin_stream_tests jellyfin_stream_libvlc_test.cpp)
+    koalaamp_enable_warnings(koalaamp_jellyfin_stream_tests)
+    target_link_libraries(koalaamp_jellyfin_stream_tests PRIVATE
+        Catch2::Catch2WithMain koalaamp_jellyfin koalaamp_vlc)
+    catch_discover_tests(koalaamp_jellyfin_stream_tests)
+    message(STATUS "KoalaAmp: Jellyfin callback-stream test enabled")
 endif()
 
 # FE-4: PlaybackCore end-to-end (transport/seek/volume/EndReached/queue), the

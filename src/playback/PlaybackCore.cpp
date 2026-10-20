@@ -617,10 +617,14 @@ struct PlaybackCore::Impl {
         if (prepareHook) {
             prepareHook(target);
         }
-        const bool location = target.kind == MediaRef::Kind::Url;
-        const bool ok = location ? tap->setMediaLocation(target.value) : tap->setMedia(target.value);
+        const bool streamed = target.kind == MediaRef::Kind::Stream;
+        const bool ok =
+            streamed ? tap->setMediaStream(target.stream)
+                     : (target.kind == MediaRef::Kind::Url ? tap->setMediaLocation(target.value)
+                                                           : tap->setMedia(target.value));
         if (!ok) {
-            const std::string what = "libvlc could not open media: " + target.value;
+            const std::string what = "libvlc could not open media: " +
+                                     (streamed ? std::string("<stream>") : target.value);
             forEachObserver([&](IPlaybackObserver& obs) { obs.onError(what); });
             stopInternal();
             return;
@@ -799,7 +803,12 @@ struct PlaybackCore::Impl {
         tap->ring().discardAll(); // drop the previous media's tail deterministically
         const bool location = media.kind == MediaRef::Kind::Url;
         bool ok = false;
-        if (!enginePrimed) {
+        if (media.kind == MediaRef::Kind::Stream) {
+            // Callback-backed source (SV-2 direct play): the tap creates the
+            // player on first use, so there is no separate open step.
+            ok = tap->setMediaStream(media.stream);
+            enginePrimed = true;
+        } else if (!enginePrimed) {
             ok = location ? tap->openLocation(media.value) : tap->open(media.value);
             enginePrimed = true;
         } else {
@@ -807,7 +816,9 @@ struct PlaybackCore::Impl {
         }
         if (!ok) {
             enginePlaying = false;
-            const std::string what = "libvlc could not open media: " + media.value;
+            const std::string what =
+                "libvlc could not open media: " +
+                (media.kind == MediaRef::Kind::Stream ? std::string("<stream>") : media.value);
             forEachObserver([&](IPlaybackObserver& obs) { obs.onError(what); });
             return false;
         }

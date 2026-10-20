@@ -4,9 +4,12 @@
 
 #pragma once
 
+#include "playback/MediaStream.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 
 namespace koalaamp::playback {
@@ -17,11 +20,15 @@ struct PcmFormat {
     int channels{2};
 };
 
-/// A reference to a playable medium. A stream is delivered separately via the
-/// track-source abstraction; this covers the path/URL cases.
+/// A reference to a playable medium: a local path, a locator (MRL), or a
+/// callback-backed byte stream (SV-2 direct play — the engine reads it through
+/// `libvlc_media_new_callbacks`, so no temp file and no URL credentials).
 struct MediaRef {
-    enum class Kind { Path, Url } kind{Kind::Path};
+    enum class Kind { Path, Url, Stream } kind{Kind::Path};
     std::string value;
+    /// `Kind::Stream`: the re-openable byte source. `value` is then only a
+    /// display label for errors and the UI, never a locator.
+    std::shared_ptr<IMediaStreamSource> stream;
 };
 
 /// The decode/playback seam. In DSP mode decoded PCM is delivered through

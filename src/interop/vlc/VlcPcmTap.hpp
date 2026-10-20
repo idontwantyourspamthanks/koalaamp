@@ -13,10 +13,12 @@
 
 #include "interop/vlc/Metrics.hpp"
 #include "interop/vlc/SpscRing.hpp"
+#include "playback/MediaStream.hpp"
 
 #include <atomic>
 #include <cstdint>
 #include <functional>
+#include <memory>
 #include <string>
 #include <vector>
 #include <vlc/vlc.h>
@@ -99,6 +101,13 @@ public:
     /// Replace the current media with a locator (MRL): http(s)://, file://, ...
     bool setMediaLocation(const std::string& url);
 
+    /// Replace the current media with a callback-backed byte stream
+    /// (`libvlc_media_new_callbacks`): no temp file, no URL credentials, and a
+    /// seek reaches the source instead of the network. The tap keeps a shared
+    /// reference to `source`, which must stay alive until this media is
+    /// replaced or the tap is destroyed.
+    bool setMediaStream(std::shared_ptr<playback::IMediaStreamSource> source);
+
     void play();
     void pause();
     void resume();
@@ -156,6 +165,14 @@ private:
     bool attachEvents();
     bool setMediaImpl(const std::string& source, bool location);
 
+    /// Per-media state handed to libvlc as the callback opaque. It must outlive
+    /// the media: libvlc does not refcount the opaque pointer.
+    struct StreamState;
+    static int cbStreamOpen(void* opaque, void** datap, std::uint64_t* sizep);
+    static ssize_t cbStreamRead(void* opaque, unsigned char* buf, std::size_t len);
+    static int cbStreamSeek(void* opaque, std::uint64_t offset);
+    static void cbStreamClose(void* opaque);
+
     static void cbPlay(void* data, const void* samples, unsigned count, std::int64_t pts);
     static void cbPause(void* data, std::int64_t pts);
     static void cbResume(void* data, std::int64_t pts);
@@ -167,6 +184,7 @@ private:
     libvlc_instance_t* m_instance{nullptr};
     libvlc_media_player_t* m_mp{nullptr};
     libvlc_media_t* m_media{nullptr};
+    std::unique_ptr<StreamState> m_streamState; // opaque for a callback-backed media
     libvlc_event_manager_t* m_eventManager{nullptr};
 
     FloatRing m_ring;
