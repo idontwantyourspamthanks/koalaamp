@@ -114,6 +114,9 @@ ConnectionDialog::ConnectionDialog(servers::jellyfin::IHttpTransport& transport,
     m_status->setGeometry(x, client.y() + 192, width, 20);
     m_status->setText(QStringLiteral("No server selected"));
 
+    connect(m_list, &QListWidget::currentRowChanged, this,
+            [this](int) { fillFromSelection(); });
+    connect(m_password, &QLineEdit::returnPressed, this, &ConnectionDialog::login);
     connect(m_login, &QPushButton::clicked, this, &ConnectionDialog::login);
     connect(m_discover, &QPushButton::clicked, this, &ConnectionDialog::discover);
     connect(m_remove, &QPushButton::clicked, this, &ConnectionDialog::removeSelected);
@@ -189,6 +192,7 @@ void ConnectionDialog::refreshList() {
             if (m_list->item(i)->data(Qt::UserRole).toString() ==
                 QString::fromStdString(active->serverId)) {
                 m_list->setCurrentRow(i);
+                fillFromSelection(); // prefill after an app restart
                 break;
             }
         }
@@ -233,6 +237,7 @@ void ConnectionDialog::login() {
         refreshList();
         m_password->clear();
         m_browse->setEnabled(true);
+        m_browse->setFocus(); // Enter opens the library right after signing in
         setStatus(saved ? QStringLiteral("Signed in as %1 — saved")
                               .arg(QString::fromStdString(success->session.userName))
                         : QStringLiteral("Signed in, but the server list could not be saved"));
@@ -251,6 +256,26 @@ void ConnectionDialog::login() {
     } else {
         const auto& failed = std::get<AuthFailed>(outcome);
         setStatus(QString::fromStdString(failed.message));
+    }
+}
+
+void ConnectionDialog::fillFromSelection() {
+    const QListWidgetItem* item = m_list->currentItem();
+    if (item == nullptr) {
+        return;
+    }
+    const std::string serverId = item->data(Qt::UserRole).toString().toStdString();
+    for (const auto& entry : m_book.entries()) {
+        if (entry.serverId != serverId) {
+            continue;
+        }
+        m_url->setText(QString::fromStdString(entry.baseUrl));
+        m_user->setText(QString::fromStdString(entry.userName));
+        m_password->clear();
+        m_password->setFocus();
+        setStatus(QStringLiteral("Enter the password for %1")
+                      .arg(QString::fromStdString(entry.userName)));
+        return;
     }
 }
 

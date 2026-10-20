@@ -68,6 +68,8 @@ private:
     void discover();
     void removeSelected();
     void browseServer();
+    /// Fills URL/user from the selected saved server and focuses the password.
+    void fillFromSelection();
     void refreshList();
     void setStatus(const QString& text);
 

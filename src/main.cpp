@@ -596,8 +596,10 @@ int main(int argc, char** argv) {
         QMenu menu;
 
 #if defined(KOALAAMP_HAS_GL_VISUALIZER)
-        QAction* servers = menu.addAction(QStringLiteral("Servers…"));
-        QObject::connect(servers, &QAction::triggered, &window, [&] {
+        // One entry point for the connection manager; Browse reuses it when no
+        // session is active, so a restart (tokens are memory-only) never leaves
+        // the user staring at a dead menu item.
+        const auto launchServersDialog = [&] {
             auto* dialog =
                 new koalaamp::ui::ConnectionDialog(serverTransport, serverBook, {}, &window);
             dialog->setAttribute(Qt::WA_DeleteOnClose);
@@ -622,11 +624,19 @@ int main(int argc, char** argv) {
             dialog->show();
             dialog->raise();
             dialog->activateWindow();
-        });
+        };
+        QAction* servers = menu.addAction(QStringLiteral("Servers…"));
+        QObject::connect(servers, &QAction::triggered, &window, launchServersDialog);
+
         QAction* browse = menu.addAction(QStringLiteral("Browse server…"));
 #if defined(KOALAAMP_HAS_PLAYBACK_CORE)
-        browse->setEnabled(activeServer.has_value());
-        QObject::connect(browse, &QAction::triggered, &window, openServerBrowser);
+        QObject::connect(browse, &QAction::triggered, &window, [&] {
+            if (activeServer) {
+                openServerBrowser();
+            } else {
+                launchServersDialog(); // saved server is prefilled for re-login
+            }
+        });
 #else
         browse->setEnabled(false);
 #endif

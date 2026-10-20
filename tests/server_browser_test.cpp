@@ -152,5 +152,33 @@ TEST_CASE("the connection dialog offers Browse once signed in") {
     browse->click();
     CHECK(requested);
 
+    // Restart model: a fresh book from the same file has the identity but no
+    // token. Selecting the saved server prefills URL/user; only the password is
+    // entered again, and signing in re-enables Browse.
+    FixtureTransport restartedTransport{fs::path(kFixtureDir)};
+    ServerBook reopened{(dir / "servers.json").string()};
+    REQUIRE(reopened.load());
+    ConnectionDialog restarted{restartedTransport, reopened, (dir / "machine-id").string()};
+    auto* url2 = restarted.findChild<QLineEdit*>(QStringLiteral("urlField"));
+    auto* user2 = restarted.findChild<QLineEdit*>(QStringLiteral("userField"));
+    auto* password2 = restarted.findChild<QLineEdit*>(QStringLiteral("passwordField"));
+    auto* login2 = restarted.findChild<QPushButton*>(QStringLiteral("loginButton"));
+    auto* browse2 = restarted.findChild<QPushButton*>(QStringLiteral("browseButton"));
+    REQUIRE(url2 != nullptr);
+    REQUIRE(user2 != nullptr);
+    REQUIRE(password2 != nullptr);
+    REQUIRE(login2 != nullptr);
+    REQUIRE(browse2 != nullptr);
+    CHECK(url2->text() == QStringLiteral("http://jellyfin.local:8096"));
+    CHECK(user2->text() == QStringLiteral("tester"));
+    CHECK(password2->text().isEmpty());
+    CHECK_FALSE(restarted.session().has_value());
+    CHECK_FALSE(browse2->isEnabled());
+
+    password2->setText(QStringLiteral("password"));
+    login2->click();
+    CHECK(restarted.session().has_value());
+    CHECK(browse2->isEnabled());
+
     fs::remove_all(dir, ec);
 }
