@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://plex.local:32400/library/metadata/100/thumb/1",
+    "headers": [],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "image/jpeg"
+      ]
+    ],
+    "body": "JPEG",
+    "error": ""
+  }
+}

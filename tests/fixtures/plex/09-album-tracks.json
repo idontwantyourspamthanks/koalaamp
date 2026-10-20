@@ -1,0 +1,68 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://plex.local:32400/library/metadata/100/children",
+    "headers": [],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": {
+      "MediaContainer": {
+        "Metadata": [
+          {
+            "ratingKey": "200",
+            "type": "track",
+            "title": "First Track",
+            "grandparentTitle": "Plex Artist",
+            "parentTitle": "Plex Album",
+            "index": 1,
+            "parentIndex": 1,
+            "duration": 180000,
+            "Media": [
+              {
+                "container": "flac",
+                "audioCodec": "flac",
+                "bitrate": 900,
+                "Part": [
+                  {
+                    "key": "/library/parts/555/123/file.flac"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "ratingKey": "201",
+            "type": "track",
+            "title": "Second Track",
+            "grandparentTitle": "Plex Artist",
+            "parentTitle": "Plex Album",
+            "index": 2,
+            "parentIndex": 1,
+            "duration": 180000,
+            "Media": [
+              {
+                "container": "flac",
+                "audioCodec": "flac",
+                "bitrate": 900,
+                "Part": [
+                  {
+                    "key": "/library/parts/556/123/file.flac"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "error": ""
+  }
+}

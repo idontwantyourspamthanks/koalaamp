@@ -28,6 +28,7 @@
 | MI-1 migration wizard | `tickets/MI-1-migration.md` |
 | SV-1 Jellyfin port | `tickets/SV-1-jellyfin-port.md` |
 | SV-2 Jellyfin playback | `tickets/SV-2-jellyfin-playback.md` |
+| SV-3 Plex client | `tickets/SV-3-plex-client.md` |
 | SV-4 Plex playback | `tickets/SV-4-plex-playback.md` |
 | SV-5 Jellyfin browser | `tickets/SV-5-jellyfin-browser.md` |
 | SV-6 session keychain | `tickets/SV-6-session-keychain.md` |

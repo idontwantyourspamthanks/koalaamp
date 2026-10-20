@@ -1,0 +1,25 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://plex.local:32400/identity",
+    "headers": [],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": {
+      "MediaContainer": {
+        "machineIdentifier": "server-1",
+        "friendlyName": "Plex Box",
+        "version": "1.41.0"
+      }
+    },
+    "error": ""
+  }
+}

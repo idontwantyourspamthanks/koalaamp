@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://plex.local:32400/library/parts/555/123/file.flac",
+    "headers": [],
+    "body": ""
+  },
+  "response": {
+    "status": 206,
+    "headers": [
+      [
+        "Content-Type",
+        "audio/flac"
+      ],
+      [
+        "Content-Range",
+        "bytes 20-29/100"
+      ]
+    ],
+    "body": "abcdefghij",
+    "error": ""
+  }
+}

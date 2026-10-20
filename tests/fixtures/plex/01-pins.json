@@ -1,0 +1,23 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "https://plex.tv/api/v2/pins",
+    "headers": [],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": {
+      "id": 12345,
+      "code": "ABCD",
+      "authToken": null
+    },
+    "error": ""
+  }
+}

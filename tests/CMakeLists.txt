@@ -87,6 +87,18 @@ target_compile_definitions(library_tests PRIVATE
     KOALAAMP_LIBRARY_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/library")
 catch_discover_tests(library_tests)
 
+# SV-3: Plex auth/browse/source fixtures.
+add_executable(plex_port_tests plex_port_test.cpp)
+koalaamp_enable_warnings(plex_port_tests)
+target_include_directories(plex_port_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/third_party/include")
+target_link_libraries(plex_port_tests PRIVATE
+    Catch2::Catch2WithMain koalaamp_plex koalaamp_jellyfin)
+target_compile_definitions(plex_port_tests PRIVATE
+    KOALAAMP_PLEX_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/plex")
+catch_discover_tests(plex_port_tests)
+
 # SV-1: the connection manager's persisted server list. Identity only — the store
 # is documented to carry no tokens or passwords, so the test pins that too.
 add_executable(server_book_tests server_book_test.cpp)

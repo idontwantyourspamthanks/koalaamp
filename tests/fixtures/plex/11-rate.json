@@ -1,0 +1,19 @@
+{
+  "request": {
+    "method": "PUT",
+    "url": "http://plex.local:32400/:/rate?key=200&identifier=com.plexapp.plugins.library&rating=8",
+    "headers": [],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": {},
+    "error": ""
+  }
+}

@@ -1,0 +1,50 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://plex.tv/api/v2/resources?includeHttps=1&includeRelay=1",
+    "headers": [],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": [
+      {
+        "clientIdentifier": "server-1",
+        "name": "Plex Box",
+        "provides": "server",
+        "accessToken": "pms-token",
+        "connections": [
+          {
+            "uri": "https://public.plex.direct:32400",
+            "local": false,
+            "relay": false
+          },
+          {
+            "uri": "http://192.168.1.10:32400",
+            "local": true,
+            "relay": false
+          },
+          {
+            "uri": "https://relay.plex.direct:443",
+            "local": false,
+            "relay": true
+          }
+        ]
+      },
+      {
+        "clientIdentifier": "client-1",
+        "name": "Plex Web",
+        "provides": "client",
+        "accessToken": "x",
+        "connections": []
+      }
+    ],
+    "error": ""
+  }
+}

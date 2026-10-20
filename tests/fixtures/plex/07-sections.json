@@ -1,0 +1,34 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://plex.local:32400/library/sections",
+    "headers": [],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": {
+      "MediaContainer": {
+        "Directory": [
+          {
+            "key": "1",
+            "type": "artist",
+            "title": "Music"
+          },
+          {
+            "key": "2",
+            "type": "movie",
+            "title": "Movies"
+          }
+        ]
+      }
+    },
+    "error": ""
+  }
+}

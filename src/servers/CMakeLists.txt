@@ -26,3 +26,6 @@ endif()
 
 # FE-5 spike: koalapaw Jellyfin gateway port (auth/discovery/browse).
 add_subdirectory(jellyfin)
+
+# SV-3: koalapaw Plex gateway port (PIN auth, GDM, music browse).
+add_subdirectory(plex)

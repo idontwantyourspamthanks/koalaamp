@@ -1,0 +1,24 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "https://plex.tv/api/v2/user",
+    "headers": [],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": {
+      "id": 9,
+      "uuid": "user-uuid",
+      "title": "tester",
+      "username": "tester"
+    },
+    "error": ""
+  }
+}
