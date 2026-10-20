@@ -534,6 +534,62 @@ int main(int argc, char** argv) {
     } serverReporting;
 
     QPointer<koalaamp::ui::ServerBrowserWindow> serverBrowser;
+
+    const auto openServerBrowser = [&] {
+        if (!activeServer) {
+            return;
+        }
+        if (serverBrowser) {
+            serverBrowser->show();
+            serverBrowser->raise();
+            serverBrowser->activateWindow();
+            return;
+        }
+        serverBrowser = new koalaamp::ui::ServerBrowserWindow(
+            serverTransport, *activeServer,
+            [&](const std::vector<koalaamp::library::Track>& tracks, std::size_t start,
+                bool enqueueNext) {
+                if (!activeServer || tracks.empty() || start >= tracks.size()) {
+                    return;
+                }
+                koalaamp::servers::jellyfin::DeviceProfile profile;
+                profile.deviceName = koalaamp::servers::jellyfin::defaultDeviceName();
+                koalaamp::servers::jellyfin::JellyfinPlayback planner{serverTransport, profile};
+                const std::string sessionId = serverReporting.playSessionId();
+                const auto& auth = *activeServer;
+                if (enqueueNext) {
+                    auto plan = planner.plan(auth.baseUrl, auth.accessToken, auth.deviceId,
+                                             tracks[start], sessionId);
+                    core->enqueueNext(std::move(plan.media));
+                    return;
+                }
+                for (std::size_t i = start; i < tracks.size(); ++i) {
+                    auto plan = planner.plan(auth.baseUrl, auth.accessToken, auth.deviceId,
+                                             tracks[i], sessionId);
+                    if (i == start) {
+                        core->play(plan.media);
+                    } else {
+                        core->enqueue(std::move(plan.media));
+                    }
+                }
+            },
+            &window);
+        serverBrowser->setAttribute(Qt::WA_DeleteOnClose);
+        serverBrowser->setSkin(skinSet ? &*skinSet : nullptr);
+        // A stale token sends the user back to the connection manager rather
+        // than leaving a browser that answers every click with 401.
+        QObject::connect(serverBrowser, &koalaamp::ui::ServerBrowserWindow::sessionExpired,
+                         &window, [&] {
+                             if (serverBrowser) {
+                                 serverBrowser->close();
+                             }
+                             activeServer.reset();
+                             serverReporting.detach();
+                         });
+        serverBrowser->show();
+        serverBrowser->raise();
+        serverBrowser->activateWindow();
+    };
 #endif
 
     const auto showMainMenu = [&] {
@@ -547,6 +603,9 @@ int main(int argc, char** argv) {
             dialog->setAttribute(Qt::WA_DeleteOnClose);
             dialog->setSkin(skinSet ? &*skinSet : nullptr);
 #if defined(KOALAAMP_HAS_PLAYBACK_CORE)
+            // The dialog's Browse button and the main menu share one action.
+            QObject::connect(dialog, &koalaamp::ui::ConnectionDialog::browseRequested, &window,
+                             openServerBrowser);
             // Signing in (or out) attaches/detaches reporting for this session.
             QObject::connect(dialog, &koalaamp::ui::ConnectionDialog::sessionChanged, dialog,
                              [&, dialog] {
@@ -565,53 +624,11 @@ int main(int argc, char** argv) {
             dialog->activateWindow();
         });
         QAction* browse = menu.addAction(QStringLiteral("Browse server…"));
-        browse->setEnabled(activeServer.has_value());
 #if defined(KOALAAMP_HAS_PLAYBACK_CORE)
-        QObject::connect(browse, &QAction::triggered, &window, [&] {
-            if (!activeServer) {
-                return;
-            }
-            if (serverBrowser) {
-                serverBrowser->show();
-                serverBrowser->raise();
-                serverBrowser->activateWindow();
-                return;
-            }
-            serverBrowser = new koalaamp::ui::ServerBrowserWindow(
-                serverTransport, *activeServer,
-                [&](const std::vector<koalaamp::library::Track>& tracks, std::size_t start,
-                    bool enqueueNext) {
-                    if (!activeServer || tracks.empty() || start >= tracks.size()) {
-                        return;
-                    }
-                    koalaamp::servers::jellyfin::DeviceProfile profile;
-                    profile.deviceName = koalaamp::servers::jellyfin::defaultDeviceName();
-                    koalaamp::servers::jellyfin::JellyfinPlayback planner{serverTransport, profile};
-                    const std::string sessionId = serverReporting.playSessionId();
-                    const auto& auth = *activeServer;
-                    if (enqueueNext) {
-                        auto plan = planner.plan(auth.baseUrl, auth.accessToken, auth.deviceId,
-                                                 tracks[start], sessionId);
-                        core->enqueueNext(std::move(plan.media));
-                        return;
-                    }
-                    for (std::size_t i = start; i < tracks.size(); ++i) {
-                        auto plan = planner.plan(auth.baseUrl, auth.accessToken, auth.deviceId,
-                                                 tracks[i], sessionId);
-                        if (i == start) {
-                            core->play(plan.media);
-                        } else {
-                            core->enqueue(std::move(plan.media));
-                        }
-                    }
-                },
-                &window);
-            serverBrowser->setAttribute(Qt::WA_DeleteOnClose);
-            serverBrowser->setSkin(skinSet ? &*skinSet : nullptr);
-            serverBrowser->show();
-            serverBrowser->raise();
-            serverBrowser->activateWindow();
-        });
+        browse->setEnabled(activeServer.has_value());
+        QObject::connect(browse, &QAction::triggered, &window, openServerBrowser);
+#else
+        browse->setEnabled(false);
 #endif
         menu.addSeparator();
 #endif

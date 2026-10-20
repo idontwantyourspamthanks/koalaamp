@@ -3,16 +3,21 @@
 // filtering, album/playlist loading, track loading and the play callback.
 
 #include "servers/jellyfin/FixtureTransport.hpp"
+#include "servers/ServerBook.hpp"
+#include "ui/ConnectionDialog.hpp"
 #include "ui/ServerBrowserWindow.hpp"
 
 #include <QApplication>
+#include <QLineEdit>
 #include <QListWidget>
+#include <QPushButton>
 #include <QTest>
 
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
 
 #include <filesystem>
+#include <system_error>
 #include <string>
 #include <vector>
 
@@ -22,6 +27,8 @@ using namespace koalaamp::servers;
 using namespace koalaamp::servers::jellyfin;
 using koalaamp::library::Track;
 using koalaamp::ui::ServerBrowserWindow;
+using koalaamp::ui::ConnectionDialog;
+using koalaamp::servers::ServerBook;
 
 constexpr const char* kFixtureDir = KOALAAMP_FIXTURE_DIR;
 
@@ -106,4 +113,44 @@ TEST_CASE("selecting a playlist loads its items into the track column") {
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
     return Catch::Session().run(argc, argv);
+}
+
+TEST_CASE("the connection dialog offers Browse once signed in") {
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / "koalaamp-dialog-browse-test";
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir, ec);
+
+    FixtureTransport transport{fs::path(kFixtureDir)};
+    ServerBook book{(dir / "servers.json").string()};
+    ConnectionDialog dialog{transport, book, (dir / "machine-id").string()};
+
+    auto* url = dialog.findChild<QLineEdit*>(QStringLiteral("urlField"));
+    auto* user = dialog.findChild<QLineEdit*>(QStringLiteral("userField"));
+    auto* password = dialog.findChild<QLineEdit*>(QStringLiteral("passwordField"));
+    auto* login = dialog.findChild<QPushButton*>(QStringLiteral("loginButton"));
+    auto* browse = dialog.findChild<QPushButton*>(QStringLiteral("browseButton"));
+    REQUIRE(url != nullptr);
+    REQUIRE(user != nullptr);
+    REQUIRE(password != nullptr);
+    REQUIRE(login != nullptr);
+    REQUIRE(browse != nullptr);
+    CHECK_FALSE(browse->isEnabled());
+
+    bool requested = false;
+    QObject::connect(&dialog, &ConnectionDialog::browseRequested,
+                     [&] { requested = true; });
+
+    url->setText(QStringLiteral("http://jellyfin.local:8096"));
+    user->setText(QStringLiteral("tester"));
+    password->setText(QStringLiteral("password"));
+    login->click();
+
+    REQUIRE(dialog.session().has_value());
+    CHECK(browse->isEnabled());
+    browse->click();
+    CHECK(requested);
+
+    fs::remove_all(dir, ec);
 }

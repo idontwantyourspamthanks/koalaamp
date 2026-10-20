@@ -54,6 +54,8 @@ public:
 signals:
     /// A login succeeded (or the session was cleared by removing its server).
     void sessionChanged();
+    /// The user asked to browse the signed-in server (the Browse button).
+    void browseRequested();
 
 private:
     void paintEvent(QPaintEvent* event) override;
@@ -65,6 +67,7 @@ private:
     void login();
     void discover();
     void removeSelected();
+    void browseServer();
     void refreshList();
     void setStatus(const QString& text);
 
@@ -81,6 +84,7 @@ private:
     QPushButton* m_login = nullptr;
     QPushButton* m_discover = nullptr;
     QPushButton* m_remove = nullptr;
+    QPushButton* m_browse = nullptr;
     QLabel* m_status = nullptr;
 
     QSize m_contentSize{420, 260};

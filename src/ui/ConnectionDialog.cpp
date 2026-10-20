@@ -89,17 +89,25 @@ ConnectionDialog::ConnectionDialog(servers::jellyfin::IHttpTransport& transport,
     m_password->setEchoMode(QLineEdit::Password);
     m_password->setGeometry(x + width / 2 + 4, client.y() + 132, width / 2 - 4, 24);
 
+    // Four buttons on one row: the Browse entry lives here as well as in the
+    // main menu — signing in and then hunting a right-click menu was a UX dead end.
+    const int buttonWidth = width / 4 - 6;
     m_discover = new QPushButton(QStringLiteral("Discover"), this);
     m_discover->setObjectName(QStringLiteral("discoverButton"));
-    m_discover->setGeometry(x, client.y() + 162, width / 3 - 6, 26);
+    m_discover->setGeometry(x, client.y() + 162, buttonWidth, 26);
 
     m_login = new QPushButton(QStringLiteral("Login"), this);
     m_login->setObjectName(QStringLiteral("loginButton"));
-    m_login->setGeometry(x + width / 3, client.y() + 162, width / 3 - 6, 26);
+    m_login->setGeometry(x + width / 4, client.y() + 162, buttonWidth, 26);
 
     m_remove = new QPushButton(QStringLiteral("Remove"), this);
     m_remove->setObjectName(QStringLiteral("removeButton"));
-    m_remove->setGeometry(x + 2 * (width / 3), client.y() + 162, width / 3 - 6, 26);
+    m_remove->setGeometry(x + 2 * (width / 4), client.y() + 162, buttonWidth, 26);
+
+    m_browse = new QPushButton(QStringLiteral("Browse"), this);
+    m_browse->setObjectName(QStringLiteral("browseButton"));
+    m_browse->setGeometry(x + 3 * (width / 4), client.y() + 162, buttonWidth, 26);
+    m_browse->setEnabled(false); // until a login succeeds
 
     m_status = new QLabel(this);
     m_status->setObjectName(QStringLiteral("statusLabel"));
@@ -109,6 +117,7 @@ ConnectionDialog::ConnectionDialog(servers::jellyfin::IHttpTransport& transport,
     connect(m_login, &QPushButton::clicked, this, &ConnectionDialog::login);
     connect(m_discover, &QPushButton::clicked, this, &ConnectionDialog::discover);
     connect(m_remove, &QPushButton::clicked, this, &ConnectionDialog::removeSelected);
+    connect(m_browse, &QPushButton::clicked, this, &ConnectionDialog::browseServer);
 
     refreshList();
 }
@@ -223,6 +232,7 @@ void ConnectionDialog::login() {
 
         refreshList();
         m_password->clear();
+        m_browse->setEnabled(true);
         setStatus(saved ? QStringLiteral("Signed in as %1 — saved")
                               .arg(QString::fromStdString(success->session.userName))
                         : QStringLiteral("Signed in, but the server list could not be saved"));
@@ -242,6 +252,14 @@ void ConnectionDialog::login() {
         const auto& failed = std::get<AuthFailed>(outcome);
         setStatus(QString::fromStdString(failed.message));
     }
+}
+
+void ConnectionDialog::browseServer() {
+    if (!m_session) {
+        setStatus(QStringLiteral("Sign in first"));
+        return;
+    }
+    emit browseRequested();
 }
 
 void ConnectionDialog::discover() {
@@ -298,6 +316,7 @@ void ConnectionDialog::removeSelected() {
     }
     m_book.save();
     m_session.reset();
+    m_browse->setEnabled(false);
     refreshList();
     setStatus(QStringLiteral("Removed"));
     emit sessionChanged();
