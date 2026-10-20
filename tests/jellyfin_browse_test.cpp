@@ -7,7 +7,6 @@
 #include "servers/jellyfin/JellyfinSource.hpp"
 
 #include <catch2/catch_test_macros.hpp>
-
 #include <filesystem>
 #include <string>
 #include <variant>
@@ -45,8 +44,7 @@ TEST_CASE("music libraries come from the user's views") {
     FixtureTransport transport{std::filesystem::path(kFixtureDir)};
     JellyfinClient client{transport, testProfile()};
 
-    const LibrariesOutcome outcome =
-        client.musicLibraries(kBaseUrl, kToken, kDeviceId, kUser);
+    const LibrariesOutcome outcome = client.musicLibraries(kBaseUrl, kToken, kDeviceId, kUser);
     const auto* success = std::get_if<LibrariesSuccess>(&outcome);
     REQUIRE(success != nullptr);
     REQUIRE(success->libraries.size() == 2);
@@ -73,6 +71,10 @@ TEST_CASE("album contents arrive in disc/track order with codec and gain") {
     CHECK(success->tracks[0].codec == "flac");
     REQUIRE(success->tracks[0].rg.has_value());
     CHECK(success->tracks[0].rg->trackGain == -5.0);
+    CHECK(success->tracks[0].recordingMbid == "recording-1");
+    CHECK(success->tracks[0].releaseMbid == "release-1");
+    REQUIRE(success->tracks[0].artistMbids.size() == 1);
+    CHECK(success->tracks[0].artistMbids[0] == "artist-1");
     CHECK(success->tracks[1].id == "track-2");
     CHECK(success->tracks[1].trackNo == 2);
 
@@ -105,20 +107,18 @@ TEST_CASE("playlists list and open read-only in playlist order") {
     CHECK(transport.requests()[1].url ==
           kBaseUrl + "/Playlists/pl-1/Items?userId=user-1&fields="
                      "SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,"
-                     "IndexNumber,ParentIndexNumber,Container,NormalizationGain");
+                     "IndexNumber,ParentIndexNumber,Container,NormalizationGain,ProviderIds");
 }
 
 TEST_CASE("rating posts the 0..10 value to the user-data endpoint") {
     FixtureTransport transport{std::filesystem::path(kFixtureDir)};
     JellyfinClient client{transport, testProfile()};
 
-    const ReportOutcome outcome =
-        client.setRating(kBaseUrl, kToken, kDeviceId, kUser, "item-1", 4);
+    const ReportOutcome outcome = client.setRating(kBaseUrl, kToken, kDeviceId, kUser, "item-1", 4);
     CHECK(std::holds_alternative<ReportSuccess>(outcome));
 
     REQUIRE(transport.requests().size() == 1);
-    CHECK(transport.requests()[0].url ==
-          kBaseUrl + "/Users/user-1/Items/item-1/UserData");
+    CHECK(transport.requests()[0].url == kBaseUrl + "/Users/user-1/Items/item-1/UserData");
     CHECK(contains(transport.requests()[0].body, "\"Rating\":8.0"));
 }
 
@@ -153,11 +153,10 @@ TEST_CASE("the source searches, streams and rates through the same session") {
           kBaseUrl + "/Items?searchTerm=pink&recursive=true&includeItemTypes=Audio"
                      "&sortBy=SortName&sortOrder=Ascending&limit=50&fields="
                      "SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,"
-                     "IndexNumber,ParentIndexNumber,Container,NormalizationGain");
+                     "IndexNumber,ParentIndexNumber,Container,NormalizationGain,ProviderIds");
     CHECK(transport.requests()[1].url ==
           kBaseUrl + "/Audio/77777777777777777777777777777777/stream?static=true");
-    CHECK(transport.requests()[2].url ==
-          kBaseUrl + "/Users/user-1/Items/item-1/UserData");
+    CHECK(transport.requests()[2].url == kBaseUrl + "/Users/user-1/Items/item-1/UserData");
 
     source.signOut();
     CHECK_FALSE(source.isAuthenticated());

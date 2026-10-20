@@ -9,24 +9,25 @@
 #include "scrobble/LastFmClient.hpp"
 #include "scrobble/ListenBrainzClient.hpp"
 #include "scrobble/Md5.hpp"
+#include "scrobble/PlaybackScrobbler.hpp"
 #include "scrobble/ScrobbleCoordinator.hpp"
 #include "scrobble/ScrobbleQueue.hpp"
+#include "scrobble/ScrobbleService.hpp"
 #include "scrobble/SecretStore.hpp"
 #include "scrobble/Transport.hpp"
 
-#include <nlohmann/json.hpp>
-
 #include <catch2/catch_test_macros.hpp>
-
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -79,8 +80,8 @@ std::map<std::string, std::string> parseForm(const std::string& body) {
     std::size_t start = 0;
     while (start <= body.size()) {
         const auto amp = body.find('&', start);
-        const std::string part = body.substr(
-            start, amp == std::string::npos ? std::string::npos : amp - start);
+        const std::string part =
+            body.substr(start, amp == std::string::npos ? std::string::npos : amp - start);
         if (!part.empty()) {
             const auto equals = part.find('=');
             if (equals == std::string::npos) {
@@ -140,11 +141,10 @@ public:
     TempQueueFile() {
         static int counter = 0;
         ++counter;
-        const auto stamp =
-            std::chrono::steady_clock::now().time_since_epoch().count();
+        const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
         path_ = std::filesystem::temp_directory_path() /
-                ("koalaamp-scrobble-" + std::to_string(counter) + "-" +
-                 std::to_string(stamp) + ".json");
+                ("koalaamp-scrobble-" + std::to_string(counter) + "-" + std::to_string(stamp) +
+                 ".json");
     }
     ~TempQueueFile() {
         std::error_code ignored;
@@ -208,10 +208,8 @@ TEST_CASE("MD5 matches the RFC 1321 test vectors") {
     REQUIRE(md5Hex("The quick brown fox jumps over the lazy dog") ==
             "9e107d9d372bb6826bd81d3542a419d6");
     // One million 'a' exercises the multi-block path; 1000 bytes the 2-block tail.
-    REQUIRE(md5Hex(std::string(1000, 'a')) ==
-            "cabe45dcc9ae5b66ba86600cca6b8ba8");
-    REQUIRE(md5Hex(std::string(1000000, 'a')) ==
-            "7707d6ae4e027c70eea2a935c2296f21");
+    REQUIRE(md5Hex(std::string(1000, 'a')) == "cabe45dcc9ae5b66ba86600cca6b8ba8");
+    REQUIRE(md5Hex(std::string(1000000, 'a')) == "7707d6ae4e027c70eea2a935c2296f21");
     // The Last.fm authentication spec's own example string.
     REQUIRE(md5Hex("api_keyxxxxxxxxxxmethodauth.getSessiontokenyyyyyyilovecher") ==
             "b87d61da3cda91a8b6746c4aef55d6f8");
@@ -290,10 +288,7 @@ TEST_CASE("Last.fm error bodies map to LastFmError") {
 
     client.setSessionKey(kSessionKey);
     transport.next = HttpResponse{
-        403,
-        R"({"error":9,"message":"Invalid session key - Please re-authenticate"})",
-        {},
-        {}};
+        403, R"({"error":9,"message":"Invalid session key - Please re-authenticate"})", {}, {}};
     REQUIRE(!client.updateNowPlaying(trackOne()));
     REQUIRE(client.lastError().code == 9);
 
@@ -307,8 +302,7 @@ TEST_CASE("Last.fm error bodies map to LastFmError") {
 
 TEST_CASE("Last.fm updateNowPlaying sends the track body without a timestamp") {
     FakeTransport transport;
-    transport.next = HttpResponse{200, R"({"nowplaying":{"track":{"#text":"Track One"}}})", {},
-                                  {}};
+    transport.next = HttpResponse{200, R"({"nowplaying":{"track":{"#text":"Track One"}}})", {}, {}};
     LastFmClient client({kApiKey, kSharedSecret}, transport);
     client.setSessionKey(kSessionKey);
 
@@ -459,8 +453,8 @@ TEST_CASE("ListenBrainz single carries listened_at and omits absent metadata") {
 TEST_CASE("ListenBrainz maps HTTP failures and refuses a missing token") {
     FakeTransport transport;
     ListenBrainzClient client("lb-token", transport);
-    transport.next = HttpResponse{401, R"({"code":401,"error":"Invalid authorization token."})",
-                                  {}, {}};
+    transport.next =
+        HttpResponse{401, R"({"code":401,"error":"Invalid authorization token."})", {}, {}};
     REQUIRE(!client.submitSingle(trackOne(), 1700000000));
     REQUIRE(client.lastError().httpStatus == 401);
     REQUIRE(client.lastError().message == "Invalid authorization token.");
@@ -542,8 +536,8 @@ TEST_CASE("policy: seek and restart never scrobble the same play twice") {
     coordinator.onProgress(150000, 300000);
     REQUIRE(lastFm.batches.size() == 1);
 
-    coordinator.onProgress(0, 300000);          // seek back to the start
-    coordinator.onProgress(150000, 300000);     // and past the threshold again
+    coordinator.onProgress(0, 300000);      // seek back to the start
+    coordinator.onProgress(150000, 300000); // and past the threshold again
     coordinator.onProgress(300000, 300000);
     REQUIRE(lastFm.batches.size() == 1);
 
@@ -774,7 +768,7 @@ TEST_CASE("queue tolerates malformed files and skips malformed entries") {
 
     {
         std::ofstream out(file.path(), std::ios::binary | std::ios::trunc);
-        out << R"({"version":1,"pending":[)" 
+        out << R"({"version":1,"pending":[)"
                R"({"service":"lastfm","dedupKey":"keep","timestamp":1,"track":{"artist":"A","title":"T"}},)"
                R"({"service":"nope","track":{"artist":"A","title":"T"}},)"
                R"({"service":"lastfm","track":{"title":"missing artist"}},)"
@@ -810,4 +804,88 @@ TEST_CASE("secret store round-trips credentials under scrobble slots") {
     REQUIRE(loadLastFmSessionKey(store).empty());
     forgetListenBrainzToken(store);
     REQUIRE(loadListenBrainzToken(store).empty());
+}
+
+namespace {
+
+class ThreadedFakeTransport final : public ITransport {
+public:
+    HttpResponse perform(const HttpRequest& request) override {
+        std::lock_guard<std::mutex> lock(mutex_);
+        requests.push_back(request);
+        const bool nowPlaying = request.body.find("track.updateNowPlaying") != std::string::npos;
+        if (nowPlaying) {
+            return HttpResponse{200, R"({"nowplaying":{"track":{"#text":"ok"}}})", {}, {}};
+        }
+        return HttpResponse{
+            200, R"({"scrobbles":{"@attr":{"accepted":"1","ignored":"0"}}})", {}, {}};
+    }
+
+    std::size_t count() const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        return requests.size();
+    }
+    bool saw(const std::string& needle) const {
+        std::lock_guard<std::mutex> lock(mutex_);
+        for (const auto& request : requests) {
+            if (request.body.find(needle) != std::string::npos) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+private:
+    mutable std::mutex mutex_;
+    std::vector<HttpRequest> requests;
+};
+
+} // namespace
+
+TEST_CASE("ScrobbleService runs now-playing and submission on its worker") {
+    TempQueueFile file;
+    ThreadedFakeTransport transport;
+    {
+        ScrobbleService service{transport,
+                                file.path(),
+                                ScrobbleMode::Client,
+                                LastFmCredentials{kApiKey, kSharedSecret},
+                                kSessionKey,
+                                ""};
+        service.onTrackStarted(trackOne(), 1000);
+        service.onProgress(120000, 215000);
+
+        const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+        while (transport.count() < 2 && std::chrono::steady_clock::now() < deadline) {
+            std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        }
+        CHECK(transport.saw("track.updateNowPlaying"));
+        CHECK(transport.saw("track.scrobble"));
+        CHECK(service.pendingCount() == 0);
+        service.onTrackEnded();
+    }
+    // Destructor joins before the queue file is removed.
+}
+
+TEST_CASE("library track metadata carries MBIDs into the scrobble shape") {
+    koalaamp::library::Track track;
+    track.artist = "Artist";
+    track.title = "Title";
+    track.album = "Album";
+    track.albumArtist = "Album Artist";
+    track.durationMs = 123000;
+    track.trackNo = 4;
+    track.recordingMbid = "recording-id";
+    track.releaseMbid = "release-id";
+    track.artistMbids = {"artist-a", "artist-b"};
+
+    const ScrobbleTrack scrobble = scrobbleTrackFrom(track);
+    CHECK(scrobble.artist == "Artist");
+    CHECK(scrobble.title == "Title");
+    CHECK(scrobble.durationMs == 123000);
+    CHECK(scrobble.trackNumber == 4);
+    CHECK(scrobble.recordingMbid == "recording-id");
+    CHECK(scrobble.releaseMbid == "release-id");
+    CHECK(scrobble.artistMbids == std::vector<std::string>{"artist-a", "artist-b"});
+    CHECK(scrobble.valid());
 }

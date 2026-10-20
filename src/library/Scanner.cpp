@@ -3,17 +3,16 @@
 
 #include "library/Scanner.hpp"
 
-#include <taglib/audioproperties.h>
-#include <taglib/fileref.h>
-#include <taglib/tag.h>
-#include <taglib/tpropertymap.h>
-
 #include <algorithm>
 #include <array>
 #include <cctype>
 #include <cstdlib>
 #include <map>
 #include <system_error>
+#include <taglib/audioproperties.h>
+#include <taglib/fileref.h>
+#include <taglib/tag.h>
+#include <taglib/tpropertymap.h>
 #include <utility>
 
 namespace koalaamp::library {
@@ -60,9 +59,8 @@ bool stampOf(const fs::path& path, FileStamp& out) {
     if (error) {
         return false;
     }
-    out.mtime = std::chrono::duration_cast<std::chrono::nanoseconds>(
-                    writeTime.time_since_epoch())
-                    .count();
+    out.mtime =
+        std::chrono::duration_cast<std::chrono::nanoseconds>(writeTime.time_since_epoch()).count();
     out.size = fs::file_size(path, error);
     return !error;
 }
@@ -83,7 +81,8 @@ std::string detectArt(const fs::path& directory) {
     static constexpr std::array<const char*, 4> extensions = {".jpg", ".jpeg", ".png", ".webp"};
     std::error_code error;
     std::vector<std::string> names;
-    for (fs::directory_iterator it(directory, error), end; !error && it != end; it.increment(error)) {
+    for (fs::directory_iterator it(directory, error), end; !error && it != end;
+         it.increment(error)) {
         if (it->is_regular_file(error)) {
             names.push_back(lower(it->path().filename().string()));
         }
@@ -106,8 +105,7 @@ struct FoundFile {
 
 void collectInto(const fs::path& root, std::vector<FoundFile>& out) {
     std::error_code error;
-    fs::recursive_directory_iterator it(root, fs::directory_options::skip_permission_denied,
-                                        error);
+    fs::recursive_directory_iterator it(root, fs::directory_options::skip_permission_denied, error);
     const fs::recursive_directory_iterator end;
     for (; !error && it != end; it.increment(error)) {
         const fs::directory_entry& entry = *it;
@@ -158,7 +156,7 @@ std::map<std::string, FileStamp> collectStamps(const std::vector<fs::path>& root
 bool isAudioExtension(const std::string& extension) {
     static constexpr std::array<const char*, 17> kAudio = {
         "mp3", "flac", "ogg", "oga", "opus", "m4a", "aac", "alac", "wav",
-        "wv",  "ape",  "mpc", "it",  "mod",  "s3m", "xm",   "umx"};
+        "wv",  "ape",  "mpc", "it",  "mod",  "s3m", "xm",  "umx"};
     return std::find(std::begin(kAudio), std::end(kAudio), extension) != std::end(kAudio);
 }
 
@@ -205,6 +203,27 @@ std::optional<ScannedTrack> readTrack(const fs::path& path) {
             scanned.track.trackNo = static_cast<int>(tag->track());
 
             scanned.track.discNo = parseLeadingInt(property(properties, "DISCNUMBER"));
+
+            // SC-1: MusicBrainz identities for ListenBrainz. TagLib normalises
+            // Vorbis/ID3/MP4 keys to these property names.
+            scanned.track.recordingMbid = property(properties, "MUSICBRAINZ_TRACKID");
+            if (scanned.track.recordingMbid.empty()) {
+                scanned.track.recordingMbid = property(properties, "MUSICBRAINZ_TRACK_ID");
+            }
+            scanned.track.releaseMbid = property(properties, "MUSICBRAINZ_ALBUMID");
+            const std::string artistIds = property(properties, "MUSICBRAINZ_ARTISTID");
+            std::string currentId;
+            for (std::size_t i = 0; i <= artistIds.size(); ++i) {
+                if (i == artistIds.size() || artistIds[i] == ';' || artistIds[i] == '/') {
+                    if (!currentId.empty()) {
+                        scanned.track.artistMbids.push_back(currentId);
+                        currentId.clear();
+                    }
+                } else if (artistIds[i] != ' ') {
+                    currentId.push_back(artistIds[i]);
+                }
+            }
+
             scanned.composer = property(properties, "COMPOSER");
             scanned.publisher = property(properties, "PUBLISHER");
             if (scanned.publisher.empty()) {
@@ -244,10 +263,8 @@ std::optional<ScannedTrack> readTrack(const fs::path& path) {
             }
             if (any) {
                 // `Track::rg` uses plain doubles; unknown members stay 0.
-                scanned.track.rg = Rg{rg.trackGain.value_or(0.0),
-                                      rg.trackPeak.value_or(0.0),
-                                      rg.albumGain.value_or(0.0),
-                                      rg.albumPeak.value_or(0.0)};
+                scanned.track.rg = Rg{rg.trackGain.value_or(0.0), rg.trackPeak.value_or(0.0),
+                                      rg.albumGain.value_or(0.0), rg.albumPeak.value_or(0.0)};
             }
         }
         if (const TagLib::AudioProperties* audio = ref.audioProperties()) {

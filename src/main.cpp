@@ -38,24 +38,39 @@
 #include "skins/SkinSet.hpp"
 #include "ui/PcmFanout.hpp"
 
+#include <QActionGroup>
 #include <QApplication>
 #include <QCommandLineParser>
 #include <QCoreApplication>
+#include <QDesktopServices>
 #include <QFileDialog>
+#include <QInputDialog>
+#include <QLineEdit>
+#include <QMessageBox>
 #include <QPointer>
+#include <QSettings>
 #include <QStandardPaths>
 #include <QString>
 #include <QTimer>
+#include <QUrl>
+#include <atomic>
 #include <chrono>
 #include <cstdio>
 #include <filesystem>
 #include <memory>
+#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
 
 #ifdef KOALAAMP_HAS_PLAYBACK_CORE
+#include "library/Scanner.hpp"
 #include "playback/PlaybackCore.hpp"
+#include "scrobble/CurlTransport.hpp"
+#include "scrobble/LastFmClient.hpp"
+#include "scrobble/PlaybackScrobbler.hpp"
+#include "scrobble/ScrobbleService.hpp"
+#include "scrobble/SecretStore.hpp"
 #include "servers/jellyfin/JellyfinClient.hpp"
 #include "servers/jellyfin/JellyfinPlayback.hpp"
 #include "servers/jellyfin/JellyfinPlaybackReporter.hpp"
@@ -67,6 +82,30 @@
 #endif
 
 namespace {
+
+#ifdef KOALAAMP_HAS_PLAYBACK_CORE
+/// Forwards the scrobble module's secret seam to the platform credential store
+/// (SV-6). The slot names already carry the scrobble/ prefix, so no remapping.
+class ScrobbleSecretAdapter final : public koalaamp::scrobble::ISecretStore {
+public:
+    explicit ScrobbleSecretAdapter(koalaamp::servers::SecretStore& store) : store_(store) {}
+    bool store(std::string_view key, std::string_view secret) override {
+        return store_.store(key, secret);
+    }
+    std::optional<std::string> load(std::string_view key) const override {
+        return store_.load(key);
+    }
+    bool remove(std::string_view key) override { return store_.remove(key); }
+
+private:
+    koalaamp::servers::SecretStore& store_;
+};
+#endif
+
+std::string environmentString(const char* name) {
+    const QByteArray value = qgetenv(name);
+    return value.isEmpty() ? std::string{} : value.toStdString();
+}
 
 /// The skin DB path under the app config dir (empty when there is none).
 std::string skinDbPath() {
@@ -567,6 +606,96 @@ int main(int argc, char** argv) {
         serverReporting.attach(*core, serverTransport, *activeServer);
     }
 
+    // SC-1: client-side scrobbling. The coordinator is synchronous; the service
+    // owns a worker so a slow Last.fm/ListenBrainz call never blocks playback.
+    // Mode is per active server (or "local"), default Off per spec §8.4.
+    ScrobbleSecretAdapter scrobbleSecrets{*secretStore};
+    std::string lastFmKey = environmentString("KOALAAMP_LASTFM_API_KEY");
+    std::string lastFmSecret = environmentString("KOALAAMP_LASTFM_SHARED_SECRET");
+    if (lastFmKey.empty()) {
+        lastFmKey =
+            scrobbleSecrets.load(koalaamp::scrobble::kLastFmApiKeySlot).value_or(std::string{});
+    }
+    if (lastFmSecret.empty()) {
+        lastFmSecret = scrobbleSecrets.load(koalaamp::scrobble::kLastFmSharedSecretSlot)
+                           .value_or(std::string{});
+    }
+    const std::string lastFmSessionKey = koalaamp::scrobble::loadLastFmSessionKey(scrobbleSecrets);
+    const std::string listenBrainzToken =
+        koalaamp::scrobble::loadListenBrainzToken(scrobbleSecrets);
+
+    const auto scrobbleModeKey =
+        [](const std::optional<koalaamp::servers::ServerAuth>& session) -> QString {
+        if (!session) {
+            return QStringLiteral("local");
+        }
+        return QStringLiteral("%1/%2")
+            .arg(session->backend == koalaamp::servers::ServerBackend::Plex
+                     ? QStringLiteral("plex")
+                     : QStringLiteral("jellyfin"))
+            .arg(QString::fromStdString(session->serverId));
+    };
+    QSettings scrobbleSettings;
+    std::atomic<int> scrobbleMode{
+        scrobbleSettings
+            .value(QStringLiteral("scrobble/mode/") + scrobbleModeKey(activeServer),
+                   static_cast<int>(koalaamp::scrobble::ScrobbleMode::Off))
+            .toInt()};
+    auto scrobbleTransport = koalaamp::scrobble::makeCurlTransport();
+    koalaamp::scrobble::ScrobbleService scrobbleService{
+        *scrobbleTransport,
+        (QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation) +
+         QStringLiteral("/scrobble-queue.json"))
+            .toStdString(),
+        static_cast<koalaamp::scrobble::ScrobbleMode>(scrobbleMode.load()),
+        koalaamp::scrobble::LastFmCredentials{lastFmKey, lastFmSecret},
+        lastFmSessionKey,
+        listenBrainzToken};
+
+    const auto refreshScrobbleMode = [&] {
+        QSettings settings;
+        const int mode =
+            settings
+                .value(QStringLiteral("scrobble/mode/") + scrobbleModeKey(activeServer),
+                       static_cast<int>(koalaamp::scrobble::ScrobbleMode::Off))
+                .toInt();
+        scrobbleMode.store(mode);
+        scrobbleService.setMode(static_cast<koalaamp::scrobble::ScrobbleMode>(mode));
+    };
+
+    struct ScrobbleWiring {
+        koalaamp::playback::PlaybackCore* core{nullptr};
+        koalaamp::scrobble::PlaybackScrobbler observer;
+
+        ScrobbleWiring(koalaamp::playback::PlaybackCore& playback,
+                       koalaamp::scrobble::ScrobbleService& service,
+                       koalaamp::scrobble::PlaybackScrobbler::ModeProvider mode,
+                       koalaamp::scrobble::PlaybackScrobbler::TrackResolver resolve)
+            : core(&playback), observer(service, std::move(mode), std::move(resolve)) {
+            core->addObserver(&observer);
+        }
+        ~ScrobbleWiring() {
+            if (core != nullptr) {
+                core->removeObserver(&observer);
+            }
+        }
+    } scrobbleWiring{
+        *core, scrobbleService,
+        [&scrobbleMode] {
+            return static_cast<koalaamp::scrobble::ScrobbleMode>(scrobbleMode.load());
+        },
+        [](const koalaamp::playback::MediaRef& media) -> std::optional<koalaamp::library::Track> {
+            if (media.track) {
+                return media.track;
+            }
+            if (media.kind == koalaamp::playback::MediaRef::Kind::Path) {
+                if (auto scanned = koalaamp::library::readTrack(media.value)) {
+                    return scanned->track;
+                }
+            }
+            return std::nullopt;
+        }};
+
     QPointer<koalaamp::ui::ServerBrowserWindow> serverBrowser;
     std::unique_ptr<koalaamp::ui::IServerBrowserSource> browserSource;
 
@@ -659,6 +788,7 @@ int main(int argc, char** argv) {
                 activeServer.reset();
                 browserSource.reset();
                 serverReporting.detach();
+                refreshScrobbleMode();
             });
         serverBrowser->show();
         serverBrowser->raise();
@@ -693,6 +823,7 @@ int main(int argc, char** argv) {
                                  if (activeServer) {
                                      serverReporting.attach(*core, serverTransport, *activeServer);
                                  }
+                                 refreshScrobbleMode();
                              });
 #endif
             dialog->show();
@@ -715,6 +846,159 @@ int main(int argc, char** argv) {
         browse->setEnabled(false);
 #endif
         menu.addSeparator();
+#if defined(KOALAAMP_HAS_PLAYBACK_CORE)
+        QMenu* scrobbling = menu.addMenu(QStringLiteral("Scrobbling"));
+        QActionGroup* scrobbleModes = new QActionGroup(scrobbling);
+        scrobbleModes->setExclusive(true);
+        const auto addScrobbleMode = [&](const QString& label,
+                                         koalaamp::scrobble::ScrobbleMode mode) -> QAction* {
+            QAction* action = scrobbling->addAction(label);
+            action->setCheckable(true);
+            action->setChecked(scrobbleMode.load() == static_cast<int>(mode));
+            action->setActionGroup(scrobbleModes);
+            QObject::connect(action, &QAction::triggered, &window, [&, mode] {
+                QSettings settings;
+                settings.setValue(QStringLiteral("scrobble/mode/") + scrobbleModeKey(activeServer),
+                                  static_cast<int>(mode));
+                scrobbleMode.store(static_cast<int>(mode));
+                scrobbleService.setMode(mode);
+                if (activeServer && mode == koalaamp::scrobble::ScrobbleMode::Client &&
+                    !settings.value(QStringLiteral("scrobble/duplicateWarningSeen"), false)
+                         .toBool()) {
+                    settings.setValue(QStringLiteral("scrobble/duplicateWarningSeen"), true);
+                    QMessageBox::information(
+                        &window, QStringLiteral("Scrobbling"),
+                        QStringLiteral("This app will submit listens for server tracks. "
+                                       "Disable the server's Last.fm/Plex plugin, or choose "
+                                       "Relay so only the server submits."));
+                }
+            });
+            return action;
+        };
+        addScrobbleMode(QStringLiteral("Off"), koalaamp::scrobble::ScrobbleMode::Off);
+        addScrobbleMode(QStringLiteral("Client (this app)"),
+                        koalaamp::scrobble::ScrobbleMode::Client);
+        QAction* relayMode = addScrobbleMode(QStringLiteral("Relay (server plugin)"),
+                                             koalaamp::scrobble::ScrobbleMode::Relay);
+        // Relay only makes sense with a server plugin; local playback has none.
+        relayMode->setEnabled(activeServer.has_value());
+        QAction* scrobbleHint =
+            scrobbling->addAction(QStringLiteral("Only one side submits each listen"));
+        scrobbleHint->setEnabled(false);
+        scrobbling->addSeparator();
+
+        const std::string existingLastFmUser =
+            scrobbleSecrets.load(koalaamp::scrobble::kLastFmUsernameSlot).value_or(std::string{});
+        QAction* lastFm = scrobbling->addAction(
+            existingLastFmUser.empty()
+                ? QStringLiteral("Connect Last.fm…")
+                : QStringLiteral("Last.fm: %1").arg(QString::fromStdString(existingLastFmUser)));
+        QObject::connect(lastFm, &QAction::triggered, &window, [&] {
+            std::string apiKey = environmentString("KOALAAMP_LASTFM_API_KEY");
+            std::string sharedSecret = environmentString("KOALAAMP_LASTFM_SHARED_SECRET");
+            if (apiKey.empty()) {
+                apiKey = scrobbleSecrets.load(koalaamp::scrobble::kLastFmApiKeySlot)
+                             .value_or(std::string{});
+            }
+            if (sharedSecret.empty()) {
+                sharedSecret = scrobbleSecrets.load(koalaamp::scrobble::kLastFmSharedSecretSlot)
+                                   .value_or(std::string{});
+            }
+            if (apiKey.empty()) {
+                bool ok = false;
+                const QString value = QInputDialog::getText(
+                    &window, QStringLiteral("Last.fm"), QStringLiteral("API key:"),
+                    QLineEdit::Normal, QString::fromStdString(apiKey), &ok);
+                if (!ok || value.trimmed().isEmpty()) {
+                    return;
+                }
+                apiKey = value.trimmed().toStdString();
+                scrobbleSecrets.store(koalaamp::scrobble::kLastFmApiKeySlot, apiKey);
+            }
+            if (sharedSecret.empty()) {
+                bool ok = false;
+                const QString value = QInputDialog::getText(&window, QStringLiteral("Last.fm"),
+                                                            QStringLiteral("Shared secret:"),
+                                                            QLineEdit::Password, QString(), &ok);
+                if (!ok || value.isEmpty()) {
+                    return;
+                }
+                sharedSecret = value.toStdString();
+                scrobbleSecrets.store(koalaamp::scrobble::kLastFmSharedSecretSlot, sharedSecret);
+            }
+
+            auto authTransport = koalaamp::scrobble::makeCurlTransport();
+            koalaamp::scrobble::LastFmClient client(
+                koalaamp::scrobble::LastFmCredentials{apiKey, sharedSecret}, *authTransport);
+            const auto token = client.getToken();
+            if (!token) {
+                const auto& error = client.lastError();
+                QMessageBox::warning(
+                    &window, QStringLiteral("Last.fm"),
+                    error.message.empty()
+                        ? QStringLiteral("Could not start Last.fm sign-in (code %1).")
+                              .arg(error.code)
+                        : QString::fromStdString(error.message));
+                return;
+            }
+            QDesktopServices::openUrl(
+                QUrl(QString::fromStdString(koalaamp::scrobble::lastFmAuthUrl(apiKey, *token))));
+            QMessageBox::information(
+                &window, QStringLiteral("Last.fm"),
+                QStringLiteral("Authorize KoalaAmp in the browser, then click OK."));
+            const auto session = client.getSession(*token);
+            if (!session) {
+                const auto& error = client.lastError();
+                QMessageBox::warning(
+                    &window, QStringLiteral("Last.fm"),
+                    error.message.empty()
+                        ? QStringLiteral("Last.fm did not return a session (code %1).")
+                              .arg(error.code)
+                        : QString::fromStdString(error.message));
+                return;
+            }
+            if (!koalaamp::scrobble::rememberLastFmSession(scrobbleSecrets, session->name,
+                                                           session->key)) {
+                QMessageBox::warning(
+                    &window, QStringLiteral("Last.fm"),
+                    QStringLiteral("Connected, but the keychain refused the "
+                                   "session token; it will not survive a restart."));
+            }
+            scrobbleService.setLastFm(koalaamp::scrobble::LastFmCredentials{apiKey, sharedSecret},
+                                      session->key);
+            QMessageBox::information(
+                &window, QStringLiteral("Last.fm"),
+                QStringLiteral("Connected as %1.").arg(QString::fromStdString(session->name)));
+        });
+
+        QAction* listenBrainz = scrobbling->addAction(QStringLiteral("ListenBrainz token…"));
+        QObject::connect(listenBrainz, &QAction::triggered, &window, [&] {
+            bool ok = false;
+            const QString entered = QInputDialog::getText(
+                &window, QStringLiteral("ListenBrainz"),
+                QStringLiteral("User token (empty disconnects):"), QLineEdit::Password,
+                QString::fromStdString(koalaamp::scrobble::loadListenBrainzToken(scrobbleSecrets)),
+                &ok);
+            if (!ok) {
+                return;
+            }
+            if (entered.isEmpty()) {
+                koalaamp::scrobble::forgetListenBrainzToken(scrobbleSecrets);
+                scrobbleService.setListenBrainz(std::string{});
+                return;
+            }
+            if (!koalaamp::scrobble::rememberListenBrainzToken(scrobbleSecrets,
+                                                               entered.toStdString())) {
+                QMessageBox::warning(&window, QStringLiteral("ListenBrainz"),
+                                     QStringLiteral("The keychain refused the token."));
+                return;
+            }
+            scrobbleService.setListenBrainz(entered.toStdString());
+        });
+        QAction* pending = scrobbling->addAction(
+            QStringLiteral("%1 listen(s) queued").arg(scrobbleService.pendingCount()));
+        pending->setEnabled(false);
+#endif
 #endif
         QMenu* presets = menu.addMenu(QStringLiteral("Presets"));
         QAction* choose = presets->addAction(QStringLiteral("Choose preset folder…"));

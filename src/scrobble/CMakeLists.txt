@@ -11,6 +11,7 @@ add_library(koalaamp_scrobble STATIC
     ListenBrainzClient.cpp
     ScrobbleQueue.cpp
     ScrobbleCoordinator.cpp
+    ScrobbleService.cpp
     CurlTransport.cpp)
 koalaamp_enable_warnings(koalaamp_scrobble)
 target_include_directories(koalaamp_scrobble
@@ -19,4 +20,5 @@ target_include_directories(koalaamp_scrobble
 
 # The curl adapter is an implementation detail: PRIVATE keeps the gateway out of
 # consumers' public interface (static-library link propagation is expected).
-target_link_libraries(koalaamp_scrobble PRIVATE koalaamp_jellyfin)
+find_package(Threads REQUIRED)
+target_link_libraries(koalaamp_scrobble PRIVATE koalaamp_jellyfin Threads::Threads)

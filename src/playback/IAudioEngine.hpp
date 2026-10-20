@@ -44,6 +44,9 @@ struct MediaRef {
     std::optional<library::Rg> rg;
     /// Present for media played from a server (SV-2 reporting).
     std::optional<ServerMediaInfo> server;
+    /// Source metadata for UI/scrobbling when the caller has it. Local paths
+    /// without this are resolved from tags by the scrobble wiring.
+    std::optional<library::Track> track;
 };
 
 /// The decode/playback seam. In DSP mode decoded PCM is delivered through

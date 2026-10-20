@@ -44,6 +44,10 @@ struct Track {
     std::string codec;
     /// Source bitrate in bits/s when the server reports one; 0 = unknown.
     std::int64_t bitrate{0};
+    /// MusicBrainz identities, when the source/tags supply them (SC-1).
+    std::string recordingMbid;
+    std::vector<std::string> artistMbids;
+    std::string releaseMbid;
     std::optional<Rg> rg;
 };
 

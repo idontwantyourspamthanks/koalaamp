@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "url": "http://jellyfin.local:8096/Items?parentId=album-1&recursive=true&includeItemTypes=Audio&sortBy=ParentIndexNumber,IndexNumber&sortOrder=Ascending&fields=SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,IndexNumber,ParentIndexNumber,Container,NormalizationGain",
+    "url": "http://jellyfin.local:8096/Items?parentId=album-1&recursive=true&includeItemTypes=Audio&sortBy=ParentIndexNumber,IndexNumber&sortOrder=Ascending&fields=SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,IndexNumber,ParentIndexNumber,Container,NormalizationGain,ProviderIds",
     "headers": [
       [
         "Authorization",
@@ -37,7 +37,12 @@
           "ParentIndexNumber": 1,
           "RunTimeTicks": 1800000000,
           "Container": "flac",
-          "NormalizationGain": -5.0
+          "NormalizationGain": -5.0,
+          "ProviderIds": {
+            "MusicBrainzTrack": "recording-1",
+            "MusicBrainzAlbum": "release-1",
+            "MusicBrainzArtist": "artist-1"
+          }
         },
         {
           "Id": "track-2",

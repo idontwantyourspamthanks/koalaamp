@@ -29,7 +29,7 @@ target_compile_definitions(koalaamp PRIVATE
 koalaamp_enable_warnings(koalaamp)
 target_link_libraries(koalaamp PRIVATE koalaamp_ui)
 if(TARGET koalaamp_ui_playback)
-    target_link_libraries(koalaamp PRIVATE koalaamp_ui_playback)
+    target_link_libraries(koalaamp PRIVATE koalaamp_ui_playback koalaamp_scrobble koalaamp_library)
     target_compile_definitions(koalaamp PRIVATE KOALAAMP_HAS_PLAYBACK_CORE=1)
 endif()
 # VZ-1: the app creates the visualizer's engine (the UI layer never links the back

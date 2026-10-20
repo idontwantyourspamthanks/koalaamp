@@ -1,6 +1,6 @@
 # SC-1 · Scrobbling
 
-- **Milestone:** M3 · **Est:** 3d · **Depends:** SV-2, AU-2 · **Status:** in progress — module complete, app wiring pending
+- **Milestone:** M3 · **Est:** 3d · **Depends:** SV-2, AU-2 · **Status:** in-review — app wiring complete; live sandbox pending
 
 ## Story
 Report listens to Last.fm and/or ListenBrainz from the client, with an anti-double-scrobble
@@ -16,7 +16,7 @@ reporting already shipped (SV-2); this is the independent scrobble path.
       with `recording_mbid`/`artist_mbids`/`release_mbid` when available.
 - [x] Scrobble policy: threshold (default 50% or 4 min), one listen per play, no
       re-scrobble after seek/restart; offline queue persisted and flushed.
-- [ ] Anti-double-scrobble mode: per-server setting `Relay | Client | Off` (server
+- [x] Anti-double-scrobble mode: per-server setting `Relay | Client | Off` (server
       plugin already scrobbles when set to Relay); UI copy explains the duplication.
 - [x] Transport seam + fixtures: Last.fm and ListenBrainz request/response replay,
       signature verification, offline retry, policy matrix.
@@ -27,9 +27,17 @@ now-playing, batched scrobble), `ListenBrainzClient` (Token header, playing_now/
 MBIDs), `ScrobbleQueue` (atomic JSON, dedup keys, retry counts), `ScrobbleCoordinator`
 (threshold/once-per-play/seek+restart dedup/modes), `SecretStore` seam, and a transport
 seam with a libcurl adapter. Tests: `koalaamp_scrobble_tests`, 24 cases / 235 assertions.
-Deferred: production wiring in `main.cpp`/UI (the module takes explicit calls), the
-per-server Relay/Client/Off settings UI, browser launch for desktop auth, and the live
-sandbox run.
+Wired: `ScrobbleService` owns a worker thread, so now-playing/submission never block
+PlaybackCore; `PlaybackScrobbler` converts track/position/end events and resolves local
+file metadata through `library::readTrack`. The main menu has per-server
+`Off | Client | Relay`, Last.fm desktop auth (browser + token/session, credentials and
+session in the keychain), ListenBrainz token entry, and the duplicate-submission warning.
+Mode persists in QSettings for now (PC-1 folds it into settings.json). Jellyfin now
+requests `ProviderIds` and maps MusicBrainz track/album/artist IDs; TagLib scanner does
+the same for local files. Remaining: the live Last.fm/ListenBrainz sandbox run (needs an
+API key/shared secret and a ListenBrainz token). App-wide Last.fm credentials are read
+from `KOALAAMP_LASTFM_API_KEY` / `KOALAAMP_LASTFM_SHARED_SECRET` or entered once in the
+menu; RL-1 still needs to ship registered keys (or document the env override).
 
 ## Acceptance
 - Sandbox Last.fm: auth, now-playing, scrobble accepted; ListenBrainz token submit

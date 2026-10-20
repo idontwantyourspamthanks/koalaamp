@@ -19,8 +19,8 @@ namespace koalaamp::servers::plex {
 
 class PlexMediaSource final : public koalaamp::playback::IMediaStreamSource {
 public:
-    PlexMediaSource(jellyfin::IHttpTransport& transport, PlexClientInfo info,
-                    std::string baseUrl, std::string token, std::string partPath);
+    PlexMediaSource(jellyfin::IHttpTransport& transport, PlexClientInfo info, std::string baseUrl,
+                    std::string token, std::string partPath);
 
     std::unique_ptr<koalaamp::playback::IMediaStream> open(std::int64_t* size) override;
 
@@ -37,15 +37,17 @@ private:
 
 /// Builds the engine reference for a PMS track: Kind::Stream over the part URL,
 /// with the server identity the timeline reporter consumes.
-inline koalaamp::playback::MediaRef makePlexMedia(
-    jellyfin::IHttpTransport& transport, PlexClientInfo info, const std::string& baseUrl,
-    const std::string& token, const library::Track& track) {
+inline koalaamp::playback::MediaRef makePlexMedia(jellyfin::IHttpTransport& transport,
+                                                  PlexClientInfo info, const std::string& baseUrl,
+                                                  const std::string& token,
+                                                  const library::Track& track) {
     koalaamp::playback::MediaRef media;
     media.kind = koalaamp::playback::MediaRef::Kind::Stream;
     media.value = track.title;
-    media.stream = std::make_shared<PlexMediaSource>(transport, std::move(info), baseUrl, token,
-                                                     track.path);
+    media.stream =
+        std::make_shared<PlexMediaSource>(transport, std::move(info), baseUrl, token, track.path);
     media.server = koalaamp::playback::ServerMediaInfo{track.id, {}, "DirectPlay"};
+    media.track = track;
     return media;
 }
 

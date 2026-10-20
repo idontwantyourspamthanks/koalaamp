@@ -78,10 +78,11 @@ PlaybackPlan JellyfinPlayback::plan(const std::string& baseUrl, const std::strin
 
     plan.media.kind = playback::MediaRef::Kind::Stream;
     plan.media.value = track.title.empty() ? track.id : track.title;
-    plan.media.stream = std::make_shared<JellyfinMediaSource>(
-        transport_, profile_, baseUrl, token, deviceId, plan.spec);
+    plan.media.stream = std::make_shared<JellyfinMediaSource>(transport_, profile_, baseUrl, token,
+                                                              deviceId, plan.spec);
     plan.media.rg = track.rg;
     plan.media.server = playback::ServerMediaInfo{track.id, {}, playMethodName(plan.method)};
+    plan.media.track = track;
     return plan;
 }
 

@@ -1,7 +1,7 @@
 {
   "request": {
     "method": "GET",
-    "url": "http://jellyfin.local:8096/Items?parentId=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee&searchTerm=pink&recursive=true&includeItemTypes=Audio&sortBy=SortName&sortOrder=Ascending&limit=50&fields=SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,IndexNumber,ParentIndexNumber,Container,NormalizationGain",
+    "url": "http://jellyfin.local:8096/Items?parentId=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee&searchTerm=pink&recursive=true&includeItemTypes=Audio&sortBy=SortName&sortOrder=Ascending&limit=50&fields=SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,IndexNumber,ParentIndexNumber,Container,NormalizationGain,ProviderIds",
     "headers": [
       [
         "Authorization",

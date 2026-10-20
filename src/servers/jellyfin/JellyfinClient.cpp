@@ -3,9 +3,8 @@
 
 #include "servers/jellyfin/JellyfinClient.hpp"
 
-#include <nlohmann/json.hpp>
-
 #include <cctype>
+#include <nlohmann/json.hpp>
 #include <utility>
 
 namespace koalaamp::servers::jellyfin {
@@ -87,9 +86,9 @@ library::Track trackFromDto(const json& dto) {
     track.title = str(dto, "Name");
     track.album = str(dto, "Album");
     track.albumArtist = str(dto, "AlbumArtist");
-    if (const auto artists = dto.find("Artists");
-        artists != dto.end() && artists->is_array() && !artists->empty() &&
-        artists->front().is_string()) {
+    if (const auto artists = dto.find("Artists"); artists != dto.end() && artists->is_array() &&
+                                                  !artists->empty() &&
+                                                  artists->front().is_string()) {
         track.artist = artists->front().get<std::string>();
     }
     if (track.artist.empty()) {
@@ -105,10 +104,28 @@ library::Track trackFromDto(const json& dto) {
         bitrate != dto.end() && bitrate->is_number_integer()) {
         track.bitrate = bitrate->get<std::int64_t>();
     }
+    // SC-1: Jellyfin exposes MusicBrainz as ProviderIds; carry them so
+    // ListenBrainz can submit with recording/release/artist MBIDs.
+    if (const auto ids = dto.find("ProviderIds"); ids != dto.end() && ids->is_object()) {
+        track.recordingMbid = str(*ids, "MusicBrainzTrack");
+        track.releaseMbid = str(*ids, "MusicBrainzAlbum");
+        const std::string artists = str(*ids, "MusicBrainzArtist");
+        std::string currentId;
+        for (std::size_t i = 0; i <= artists.size(); ++i) {
+            if (i == artists.size() || artists[i] == ';' || artists[i] == ',') {
+                if (!currentId.empty()) {
+                    track.artistMbids.push_back(currentId);
+                    currentId.clear();
+                }
+            } else if (artists[i] != ' ') {
+                currentId.push_back(artists[i]);
+            }
+        }
+    }
+
     // One normalization gain per item (computed from the file's ReplayGain tag
     // server-side); album mode falls back to it.
-    if (const auto gain = dto.find("NormalizationGain");
-        gain != dto.end() && gain->is_number()) {
+    if (const auto gain = dto.find("NormalizationGain"); gain != dto.end() && gain->is_number()) {
         library::Rg rg;
         rg.trackGain = gain->get<double>();
         track.rg = rg;
@@ -189,7 +206,7 @@ AuthOutcome JellyfinClient::authenticate(const std::string& baseUrl, const std::
 }
 
 bool JellyfinClient::quickConnectEnabled(const std::string& baseUrl, const std::string& deviceId,
-                                           const library::Cancellation& cancel) {
+                                         const library::Cancellation& cancel) {
     HttpRequest request;
     request.method = "GET";
     request.url = baseUrlNoSlash(baseUrl) + "/QuickConnect/Enabled";
@@ -198,8 +215,9 @@ bool JellyfinClient::quickConnectEnabled(const std::string& baseUrl, const std::
     return response.httpOk() && response.body.find("true") != std::string::npos;
 }
 
-QuickConnectStartOutcome JellyfinClient::initiateQuickConnect(const std::string& baseUrl, const std::string& deviceId,
-                                     const library::Cancellation& cancel) {
+QuickConnectStartOutcome JellyfinClient::initiateQuickConnect(const std::string& baseUrl,
+                                                              const std::string& deviceId,
+                                                              const library::Cancellation& cancel) {
     HttpRequest request;
     request.method = "POST";
     request.url = baseUrlNoSlash(baseUrl) + "/QuickConnect/Initiate";
@@ -230,13 +248,13 @@ QuickConnectStartOutcome JellyfinClient::initiateQuickConnect(const std::string&
     }
 }
 
-QuickConnectStateOutcome JellyfinClient::quickConnectState(const std::string& baseUrl, const std::string& deviceId,
-                                  const std::string& secret,
-                                  const library::Cancellation& cancel) {
+QuickConnectStateOutcome JellyfinClient::quickConnectState(const std::string& baseUrl,
+                                                           const std::string& deviceId,
+                                                           const std::string& secret,
+                                                           const library::Cancellation& cancel) {
     HttpRequest request;
     request.method = "GET";
-    request.url =
-        baseUrlNoSlash(baseUrl) + "/QuickConnect/Connect?secret=" + encodeQuery(secret);
+    request.url = baseUrlNoSlash(baseUrl) + "/QuickConnect/Connect?secret=" + encodeQuery(secret);
     request.headers = baseHeaders(profile_, deviceId, /*token=*/{});
     request.connectTimeout = std::chrono::seconds(5);
     request.totalTimeout = std::chrono::seconds(8);
@@ -249,8 +267,8 @@ QuickConnectStateOutcome JellyfinClient::quickConnectState(const std::string& ba
         return ItemsUnauthorized{};
     }
     if (!response.httpOk()) {
-        return ItemsFailed{"QuickConnect poll failed (HTTP " +
-                           std::to_string(response.status) + ")"};
+        return ItemsFailed{"QuickConnect poll failed (HTTP " + std::to_string(response.status) +
+                           ")"};
     }
     try {
         const json body = json::parse(response.body);
@@ -337,7 +355,8 @@ ItemsOutcome JellyfinClient::musicAlbumsWindow(const std::string& baseUrl, const
     return atoZWindow(baseUrl, token, deviceId, parentId, "MusicAlbum", startIndex, limit, cancel);
 }
 
-ItemsOutcome JellyfinClient::musicArtistsWindow(const std::string& baseUrl, const std::string& token,
+ItemsOutcome JellyfinClient::musicArtistsWindow(const std::string& baseUrl,
+                                                const std::string& token,
                                                 const std::string& deviceId,
                                                 const std::string& parentId, int startIndex,
                                                 int limit, const library::Cancellation& cancel) {
@@ -417,23 +436,22 @@ OffsetsOutcome JellyfinClient::letterOffsets(const std::string& baseUrl, const s
 
 SearchOutcome JellyfinClient::search(const std::string& baseUrl, const std::string& token,
                                      const std::string& deviceId, const std::string& parentId,
-                                     const std::string& query,
-                                     const std::string& includeItemTypes, int limit,
-                                     const library::Cancellation& cancel) {
+                                     const std::string& query, const std::string& includeItemTypes,
+                                     int limit, const library::Cancellation& cancel) {
     HttpRequest request;
     request.method = "GET";
     std::string params;
     if (!parentId.empty()) {
         params += "parentId=" + encodeQuery(parentId) + "&";
     }
-    params += "searchTerm=" + encodeQuery(query) + "&recursive=true&includeItemTypes=" +
-              encodeQuery(includeItemTypes) +
+    params += "searchTerm=" + encodeQuery(query) +
+              "&recursive=true&includeItemTypes=" + encodeQuery(includeItemTypes) +
               "&sortBy=SortName"
               "&sortOrder=Ascending"
               "&limit=" +
               std::to_string(limit) +
               "&fields=SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,IndexNumber,"
-              "ParentIndexNumber,Container,NormalizationGain";
+              "ParentIndexNumber,Container,NormalizationGain,ProviderIds";
     request.url = baseUrlNoSlash(baseUrl) + "/Items?" + params;
     request.headers = baseHeaders(profile_, deviceId, token);
 
@@ -477,14 +495,10 @@ ReportOutcome JellyfinClient::reportPlayback(const std::string& baseUrl, const s
         path = "/Sessions/Playing/Stopped";
     }
 
-    json body{{"ItemId", report.itemId},
-              {"PlaySessionId", report.playSessionId},
-              {"PlayMethod", report.playMethod},
-              {"PositionTicks", report.positionTicks},
-              {"IsPaused", report.paused},
-              {"IsMuted", report.muted},
-              {"VolumeLevel", report.volumeLevel},
-              {"CanSeek", true}};
+    json body{{"ItemId", report.itemId},           {"PlaySessionId", report.playSessionId},
+              {"PlayMethod", report.playMethod},   {"PositionTicks", report.positionTicks},
+              {"IsPaused", report.paused},         {"IsMuted", report.muted},
+              {"VolumeLevel", report.volumeLevel}, {"CanSeek", true}};
     body["MediaSourceId"] = report.mediaSourceId.empty() ? report.itemId : report.mediaSourceId;
     if (!report.eventName.empty()) {
         body["EventName"] = report.eventName;
@@ -560,7 +574,7 @@ TracksOutcome JellyfinClient::albumTracks(const std::string& baseUrl, const std:
         "&recursive=true&includeItemTypes=Audio"
         "&sortBy=ParentIndexNumber,IndexNumber&sortOrder=Ascending"
         "&fields=SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,IndexNumber,"
-        "ParentIndexNumber,Container,NormalizationGain";
+        "ParentIndexNumber,Container,NormalizationGain,ProviderIds";
     request.url = baseUrlNoSlash(baseUrl) + "/Items?" + params;
     request.headers = baseHeaders(profile_, deviceId, token);
 
@@ -642,7 +656,7 @@ TracksOutcome JellyfinClient::playlistItems(const std::string& baseUrl, const st
     request.url = baseUrlNoSlash(baseUrl) + "/Playlists/" + encodeQuery(playlistId) +
                   "/Items?userId=" + encodeQuery(userId) +
                   "&fields=SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,"
-                  "IndexNumber,ParentIndexNumber,Container,NormalizationGain";
+                  "IndexNumber,ParentIndexNumber,Container,NormalizationGain,ProviderIds";
     request.headers = baseHeaders(profile_, deviceId, token);
 
     const HttpResponse response = transport_.perform(request, cancel);
