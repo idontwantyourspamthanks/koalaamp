@@ -34,10 +34,14 @@ file metadata through `library::readTrack`. The main menu has per-server
 session in the keychain), ListenBrainz token entry, and the duplicate-submission warning.
 Mode persists in QSettings for now (PC-1 folds it into settings.json). Jellyfin now
 requests `ProviderIds` and maps MusicBrainz track/album/artist IDs; TagLib scanner does
-the same for local files. Remaining: the live Last.fm/ListenBrainz sandbox run (needs an
-API key/shared secret and a ListenBrainz token). App-wide Last.fm credentials are read
-from `KOALAAMP_LASTFM_API_KEY` / `KOALAAMP_LASTFM_SHARED_SECRET` or entered once in the
-menu; RL-1 still needs to ship registered keys (or document the env override).
+the same for local files. Remaining: the live Last.fm/ListenBrainz sandbox run. Last.fm requires an
+application-wide API key/shared secret: these are build inputs
+(`KOALAAMP_LASTFM_API_KEY` / `KOALAAMP_LASTFM_SHARED_SECRET`, with environment overrides
+for development) and users are never prompted. Without them the menu shows a disabled
+"Last.fm: app key not configured" action and ListenBrainz remains available with a
+personal token. **Release blocker:** RL-1 must register the Last.fm application and ship
+its keys, or keep Last.fm off (the key registration flow is no longer something end users
+can reasonably complete). Live sandbox needs the shipped key + a ListenBrainz token.
 
 ## Acceptance
 - Sandbox Last.fm: auth, now-playing, scrobble accepted; ListenBrainz token submit

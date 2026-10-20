@@ -27,6 +27,19 @@ target_compile_definitions(koalaamp PRIVATE
     # VZ-1: the bundled starter presets, so a fresh install has something to show.
     "KOALAAMP_BUNDLED_PRESETS=\"${CMAKE_SOURCE_DIR}/presets\"")
 koalaamp_enable_warnings(koalaamp)
+# Last.fm desktop auth uses an application-wide API key/shared secret. These are
+# registered by the maintainer, never entered by users. Leave empty for a build
+# where Last.fm is simply unavailable (ListenBrainz still works).
+set(KOALAAMP_LASTFM_API_KEY "" CACHE STRING "Last.fm application API key")
+set(KOALAAMP_LASTFM_SHARED_SECRET "" CACHE STRING "Last.fm application shared secret")
+if(KOALAAMP_LASTFM_API_KEY)
+    target_compile_definitions(koalaamp PRIVATE
+        "KOALAAMP_BUILTIN_LASTFM_API_KEY=\"${KOALAAMP_LASTFM_API_KEY}\"")
+endif()
+if(KOALAAMP_LASTFM_SHARED_SECRET)
+    target_compile_definitions(koalaamp PRIVATE
+        "KOALAAMP_BUILTIN_LASTFM_SHARED_SECRET=\"${KOALAAMP_LASTFM_SHARED_SECRET}\"")
+endif()
 target_link_libraries(koalaamp PRIVATE koalaamp_ui)
 if(TARGET koalaamp_ui_playback)
     target_link_libraries(koalaamp PRIVATE koalaamp_ui_playback koalaamp_scrobble koalaamp_library)

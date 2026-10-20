@@ -57,10 +57,6 @@ private:
 /// settings page. Neither is ever written to the scrobble queue.
 inline constexpr std::string_view kLastFmSessionKeySlot = "scrobble/lastfm/session";
 inline constexpr std::string_view kLastFmUsernameSlot = "scrobble/lastfm/username";
-/// Application credentials from the Last.fm API account. The key is public;
-/// the shared secret is stored in the OS keychain like the session key.
-inline constexpr std::string_view kLastFmApiKeySlot = "scrobble/lastfm/api-key";
-inline constexpr std::string_view kLastFmSharedSecretSlot = "scrobble/lastfm/shared-secret";
 inline constexpr std::string_view kListenBrainzTokenSlot = "scrobble/listenbrainz/token";
 
 inline std::string loadLastFmSessionKey(const ISecretStore& store) {
@@ -86,6 +82,8 @@ inline bool rememberListenBrainzToken(ISecretStore& store, std::string_view toke
     return store.store(kListenBrainzTokenSlot, token);
 }
 
-inline void forgetListenBrainzToken(ISecretStore& store) { store.remove(kListenBrainzTokenSlot); }
+inline void forgetListenBrainzToken(ISecretStore& store) {
+    store.remove(kListenBrainzTokenSlot);
+}
 
 } // namespace koalaamp::scrobble

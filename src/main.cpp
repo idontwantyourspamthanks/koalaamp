@@ -107,6 +107,35 @@ std::string environmentString(const char* name) {
     return value.isEmpty() ? std::string{} : value.toStdString();
 }
 
+/// Last.fm requires an application-wide API key/shared secret. These are
+/// supplied at build time (or by the developer's environment); users must never
+/// be asked for them.
+std::string builtinLastFmApiKey() {
+#ifdef KOALAAMP_BUILTIN_LASTFM_API_KEY
+    return KOALAAMP_BUILTIN_LASTFM_API_KEY;
+#else
+    return {};
+#endif
+}
+
+std::string builtinLastFmSharedSecret() {
+#ifdef KOALAAMP_BUILTIN_LASTFM_SHARED_SECRET
+    return KOALAAMP_BUILTIN_LASTFM_SHARED_SECRET;
+#else
+    return {};
+#endif
+}
+
+std::string lastFmApiKey() {
+    const std::string fromEnvironment = environmentString("KOALAAMP_LASTFM_API_KEY");
+    return fromEnvironment.empty() ? builtinLastFmApiKey() : fromEnvironment;
+}
+
+std::string lastFmSharedSecret() {
+    const std::string fromEnvironment = environmentString("KOALAAMP_LASTFM_SHARED_SECRET");
+    return fromEnvironment.empty() ? builtinLastFmSharedSecret() : fromEnvironment;
+}
+
 /// The skin DB path under the app config dir (empty when there is none).
 std::string skinDbPath() {
     const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
@@ -610,16 +639,8 @@ int main(int argc, char** argv) {
     // owns a worker so a slow Last.fm/ListenBrainz call never blocks playback.
     // Mode is per active server (or "local"), default Off per spec §8.4.
     ScrobbleSecretAdapter scrobbleSecrets{*secretStore};
-    std::string lastFmKey = environmentString("KOALAAMP_LASTFM_API_KEY");
-    std::string lastFmSecret = environmentString("KOALAAMP_LASTFM_SHARED_SECRET");
-    if (lastFmKey.empty()) {
-        lastFmKey =
-            scrobbleSecrets.load(koalaamp::scrobble::kLastFmApiKeySlot).value_or(std::string{});
-    }
-    if (lastFmSecret.empty()) {
-        lastFmSecret = scrobbleSecrets.load(koalaamp::scrobble::kLastFmSharedSecretSlot)
-                           .value_or(std::string{});
-    }
+    const std::string lastFmKey = lastFmApiKey();
+    const std::string lastFmSecret = lastFmSharedSecret();
     const std::string lastFmSessionKey = koalaamp::scrobble::loadLastFmSessionKey(scrobbleSecrets);
     const std::string listenBrainzToken =
         koalaamp::scrobble::loadListenBrainzToken(scrobbleSecrets);
@@ -889,42 +910,28 @@ int main(int argc, char** argv) {
 
         const std::string existingLastFmUser =
             scrobbleSecrets.load(koalaamp::scrobble::kLastFmUsernameSlot).value_or(std::string{});
+        const bool lastFmConfigured = !lastFmKey.empty() && !lastFmSecret.empty();
         QAction* lastFm = scrobbling->addAction(
-            existingLastFmUser.empty()
+            !lastFmConfigured ? QStringLiteral("Last.fm: app key not configured")
+            : existingLastFmUser.empty()
                 ? QStringLiteral("Connect Last.fm…")
                 : QStringLiteral("Last.fm: %1").arg(QString::fromStdString(existingLastFmUser)));
+        lastFm->setEnabled(lastFmConfigured);
+        if (!lastFmConfigured) {
+            lastFm->setToolTip(QStringLiteral(
+                "This build has no Last.fm application key. The maintainer must register "
+                "an API application and build with KOALAAMP_LASTFM_API_KEY / "
+                "KOALAAMP_LASTFM_SHARED_SECRET; users cannot supply these."));
+        }
         QObject::connect(lastFm, &QAction::triggered, &window, [&] {
-            std::string apiKey = environmentString("KOALAAMP_LASTFM_API_KEY");
-            std::string sharedSecret = environmentString("KOALAAMP_LASTFM_SHARED_SECRET");
-            if (apiKey.empty()) {
-                apiKey = scrobbleSecrets.load(koalaamp::scrobble::kLastFmApiKeySlot)
-                             .value_or(std::string{});
-            }
-            if (sharedSecret.empty()) {
-                sharedSecret = scrobbleSecrets.load(koalaamp::scrobble::kLastFmSharedSecretSlot)
-                                   .value_or(std::string{});
-            }
-            if (apiKey.empty()) {
-                bool ok = false;
-                const QString value = QInputDialog::getText(
-                    &window, QStringLiteral("Last.fm"), QStringLiteral("API key:"),
-                    QLineEdit::Normal, QString::fromStdString(apiKey), &ok);
-                if (!ok || value.trimmed().isEmpty()) {
-                    return;
-                }
-                apiKey = value.trimmed().toStdString();
-                scrobbleSecrets.store(koalaamp::scrobble::kLastFmApiKeySlot, apiKey);
-            }
-            if (sharedSecret.empty()) {
-                bool ok = false;
-                const QString value = QInputDialog::getText(&window, QStringLiteral("Last.fm"),
-                                                            QStringLiteral("Shared secret:"),
-                                                            QLineEdit::Password, QString(), &ok);
-                if (!ok || value.isEmpty()) {
-                    return;
-                }
-                sharedSecret = value.toStdString();
-                scrobbleSecrets.store(koalaamp::scrobble::kLastFmSharedSecretSlot, sharedSecret);
+            const std::string& apiKey = lastFmKey;
+            const std::string& sharedSecret = lastFmSecret;
+            if (apiKey.empty() || sharedSecret.empty()) {
+                QMessageBox::information(
+                    &window, QStringLiteral("Last.fm"),
+                    QStringLiteral("This build has no Last.fm application key. ListenBrainz "
+                                   "works with a personal token instead."));
+                return;
             }
 
             auto authTransport = koalaamp::scrobble::makeCurlTransport();
