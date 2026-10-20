@@ -8,6 +8,7 @@
 #include "servers/jellyfin/JellyfinClient.hpp"
 #include "servers/plex/PlexAuth.hpp"
 #include "servers/plex/PlexClient.hpp"
+#include "servers/plex/PlexGdm.hpp"
 #include "ui/GenRenderer.hpp"
 
 #include <QApplication>
@@ -277,21 +278,13 @@ void ConnectionDialog::fillFromSelection() {
         m_user->setText(QString::fromStdString(entry.userName));
         m_password->clear();
         m_selectedBackend = entry.backend;
-        if (entry.backend == servers::ServerBackend::Plex) {
-            if (m_session && m_session->serverId == entry.serverId &&
-                m_session->backend == servers::ServerBackend::Plex) {
-                return; // restored from the keychain above
-            }
-            m_plex->setFocus();
-            setStatus(QStringLiteral("Plex session expired — press Plex to link again"));
-            return;
-        }
         if (m_secrets != nullptr) {
             if (const auto token = m_secrets->load(
                     servers::sessionSecretKey(entry.backend, entry.serverId, entry.baseUrl));
                 token && !token->empty()) {
                 const bool changed = !m_session || m_session->accessToken != *token ||
-                                     m_session->serverId != entry.serverId;
+                                     m_session->serverId != entry.serverId ||
+                                     m_session->backend != entry.backend;
                 m_session = servers::ServerAuth{entry.baseUrl,  entry.userId,   *token,
                                                 entry.deviceId, entry.serverId, entry.backend,
                                                 entry.userName};
@@ -308,6 +301,11 @@ void ConnectionDialog::fillFromSelection() {
                 m_browse->setEnabled(false);
                 emit sessionChanged();
             }
+        }
+        if (entry.backend == servers::ServerBackend::Plex) {
+            m_plex->setFocus();
+            setStatus(QStringLiteral("Plex session expired — press Plex to link again"));
+            return;
         }
         m_password->setFocus();
         setStatus(QStringLiteral("Enter the password for %1")
@@ -685,20 +683,44 @@ void ConnectionDialog::browseServer() {
         return;
     }
     emit browseRequested();
+    // The browser is now the working surface; leaving this dialog on top hides it
+    // and swallows clicks meant for the album/track lists.
+    close();
 }
 
 void ConnectionDialog::discover() {
-    const auto found = servers::jellyfin::discoverServers();
+    struct Found {
+        servers::ServerBackend backend;
+        std::string name;
+        std::string address;
+    };
+    std::vector<Found> found;
+    for (const auto& server : servers::jellyfin::discoverServers()) {
+        found.push_back(Found{servers::ServerBackend::Jellyfin, server.name, server.address});
+    }
+    for (const auto& server : servers::plex::discoverPlexServers()) {
+        found.push_back(Found{servers::ServerBackend::Plex, server.name, server.address});
+    }
     if (found.empty()) {
-        setStatus(QStringLiteral("No Jellyfin servers answered on the LAN"));
+        setStatus(QStringLiteral("No Jellyfin or Plex servers answered on the LAN"));
         return;
     }
-    if (found.size() == 1) {
-        const auto& server = found.front();
+
+    const auto choose = [this](const Found& server) {
         m_url->setText(QString::fromStdString(server.address));
         const QString name = QString::fromStdString(server.name);
-        setStatus(name.isEmpty() ? QStringLiteral("Found one server")
-                                 : QStringLiteral("Found %1").arg(name));
+        if (server.backend == servers::ServerBackend::Plex) {
+            m_selectedBackend = servers::ServerBackend::Plex;
+            m_plex->setFocus();
+            setStatus(QStringLiteral("Found Plex server %1 — press Plex to sign in").arg(name));
+        } else {
+            setStatus(name.isEmpty() ? QStringLiteral("Found a Jellyfin server")
+                                     : QStringLiteral("Found %1").arg(name));
+        }
+    };
+
+    if (found.size() == 1) {
+        choose(found.front());
         return;
     }
 
@@ -706,10 +728,14 @@ void ConnectionDialog::discover() {
     // had done nothing; ask instead.
     QStringList labels;
     labels.reserve(static_cast<qsizetype>(found.size()));
-    for (const auto& server : found) {
+    for (const Found& server : found) {
         const QString name = QString::fromStdString(server.name);
-        labels << QStringLiteral("%1 — %2").arg(name.isEmpty() ? QStringLiteral("Jellyfin") : name,
-                                                QString::fromStdString(server.address));
+        labels << QStringLiteral("%1 — %2 — %3")
+                      .arg(server.backend == servers::ServerBackend::Plex
+                               ? QStringLiteral("Plex")
+                               : QStringLiteral("Jellyfin"),
+                           name.isEmpty() ? QStringLiteral("server") : name,
+                           QString::fromStdString(server.address));
     }
     bool accepted = false;
     const QString chosen =
@@ -720,11 +746,10 @@ void ConnectionDialog::discover() {
         return;
     }
     const qsizetype index = labels.indexOf(chosen);
-    if (index < 0 || static_cast<std::size_t>(index) >= found.size()) {
+    if (index < 0 || static_cast<qsizetype>(index) >= static_cast<qsizetype>(found.size())) {
         return;
     }
-    m_url->setText(QString::fromStdString(found[static_cast<std::size_t>(index)].address));
-    setStatus(QStringLiteral("Selected %1").arg(chosen));
+    choose(found[static_cast<std::size_t>(index)]);
 }
 
 void ConnectionDialog::removeSelected() {

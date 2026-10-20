@@ -231,6 +231,44 @@ TEST_CASE("QuickConnect signs in from the connection dialog") {
     fs::remove_all(dir, ec);
 }
 
+TEST_CASE("a saved Plex entry restores its keychain session in the dialog") {
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / "koalaamp-dialog-plex-restore";
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir, ec);
+
+    koalaamp::servers::ServerBook book{(dir / "servers.json").string()};
+    koalaamp::servers::ServerEntry plex;
+    plex.serverId = "ps1";
+    plex.name = "Plex Box";
+    plex.baseUrl = "http://pms.local:32400";
+    plex.userId = "plex-user";
+    plex.userName = "tester";
+    plex.deviceId = "plex-client";
+    plex.backend = koalaamp::servers::ServerBackend::Plex;
+    book.upsert(plex);
+    REQUIRE(book.save());
+
+    koalaamp::servers::MemorySecretStore secrets;
+    REQUIRE(
+        secrets.store(koalaamp::servers::sessionSecretKey(koalaamp::servers::ServerBackend::Plex,
+                                                          "ps1", "http://pms.local:32400"),
+                      "plex-token"));
+
+    FixtureTransport transport{fs::path(KOALAAMP_PLEX_FIXTURE_DIR)};
+    ConnectionDialog dialog{transport, book, (dir / "machine-id").string(), nullptr, &secrets};
+    auto* browse = dialog.findChild<QPushButton*>(QStringLiteral("browseButton"));
+    REQUIRE(browse != nullptr);
+    CHECK(browse->isEnabled());
+    REQUIRE(dialog.session().has_value());
+    CHECK(dialog.session()->backend == koalaamp::servers::ServerBackend::Plex);
+    CHECK(dialog.session()->accessToken == "plex-token");
+    CHECK(dialog.session()->serverId == "ps1");
+
+    fs::remove_all(dir, ec);
+}
+
 TEST_CASE("Plex signs in through the dialog's PIN link") {
     namespace fs = std::filesystem;
     const fs::path dir = fs::temp_directory_path() / "koalaamp-dialog-plex-test";

@@ -479,7 +479,10 @@ int main(int argc, char** argv) {
     std::optional<koalaamp::servers::ServerAuth> activeServer =
         koalaamp::servers::restoreSession(serverBook, *secretStore);
     if (activeServer && serverBook.active() != nullptr) {
-        std::fprintf(stderr, "koalaamp: restored Jellyfin session for %s\n",
+        std::fprintf(stderr, "koalaamp: restored %s session for %s\n",
+                     serverBook.active()->backend == koalaamp::servers::ServerBackend::Plex
+                         ? "Plex"
+                         : "Jellyfin",
                      serverBook.active()->userName.c_str());
     }
 #endif

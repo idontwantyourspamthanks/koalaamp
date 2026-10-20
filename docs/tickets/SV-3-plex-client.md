@@ -56,9 +56,13 @@ version-gated posture the 2025–26 Plex churn record demands.
   uses `PlexPlaybackReporter` and `PlexMediaSource`.
 - Fixture tests: Plex PIN dialog completion + browser adapter in
   `jellyfin_browser_window_tests`; `plex_port_tests`, `plex_playback_tests`.
-- Live pass (pending, needs an account + reachable PMS): Servers… → Plex → enter the
-  code at plex.tv/link → pick the server → browse → play; confirm the PMS dashboard
-  shows the timeline/scrobble and that pause/seek/stop update it.
+- A saved Plex row now reloads its keychain token when the dialog opens, so Browse is
+  enabled across restarts (the first cut treated the empty in-memory session as expired).
+- Discover probes both Jellyfin UDP and Plex GDM; Plex results prefill the URL and point
+  at the Plex button (account auth still happens through plex.tv).
+- Live pass (run 2026-10-20 on the LAN PMS): restored session → Browse → album → track
+  played over `.plex.direct`; main window advanced 00:02 with 48 kHz stereo PCM. The
+  PMS dashboard timeline/scrobble check remains outstanding.
 
 ## Out of scope
 - Playback/timeline/scrobble/watched — SV-4.
