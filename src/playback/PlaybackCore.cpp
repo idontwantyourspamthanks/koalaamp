@@ -951,6 +951,12 @@ void PlaybackCore::enqueue(MediaRef media) {
     m_queueSize.store(m_impl->queue.size());
 }
 
+void PlaybackCore::enqueueNext(MediaRef media) {
+    std::lock_guard<std::mutex> lock(m_impl->stateMutex);
+    m_impl->queue.push_front(std::move(media));
+    m_queueSize.store(m_impl->queue.size());
+}
+
 void PlaybackCore::clearQueue() {
     std::lock_guard<std::mutex> lock(m_impl->stateMutex);
     m_impl->queue.clear();

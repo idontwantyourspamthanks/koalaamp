@@ -24,12 +24,28 @@
 
 namespace koalaamp::servers::jellyfin {
 
+/// Which form of `/Audio/{id}/stream` to request.
+///
+/// Direct play is the static file. Transcode asks the same endpoint for a
+/// re-encoded progressive stream: libvlc cannot attach our Authorization header
+/// to the HLS playlist's child requests, so an HLS fallback would force the
+/// token into URLs — the one thing this client never does. The controller's
+/// progressive form keeps header auth and still gets Range-style seeks.
+struct StreamSpec {
+    std::string itemId;
+    bool directPlay{true};
+    std::string audioCodec{"aac"}; ///< transcode target
+    int audioBitRate{192000};      ///< bits/s
+    int maxAudioChannels{2};
+    std::string playSessionId;     ///< echoed to the server for transcode sessions
+};
+
 class JellyfinStream final : public std::streambuf {
 public:
     /// Performs the first request at `startOffset`. Failure is not thrown: `ok()`
     /// is false and `error()` says why (401/404/transport).
     JellyfinStream(IHttpTransport& transport, DeviceProfile profile, std::string baseUrl,
-                   std::string token, std::string deviceId, std::string itemId,
+                   std::string token, std::string deviceId, StreamSpec spec,
                    std::int64_t startOffset = 0);
 
     /// Byte offset of the next read within the resource.
@@ -56,7 +72,7 @@ private:
     std::string baseUrl_;
     std::string token_;
     std::string deviceId_;
-    std::string itemId_;
+    StreamSpec spec_;
 
     std::string body_;     ///< the current response's bytes
     std::int64_t start_ = 0; ///< resource offset of body_[0]
@@ -70,8 +86,7 @@ private:
 std::unique_ptr<std::istream> openJellyfinStream(IHttpTransport& transport, DeviceProfile profile,
                                                  const std::string& baseUrl,
                                                  const std::string& token,
-                                                 const std::string& deviceId,
-                                                 const std::string& itemId,
+                                                 const std::string& deviceId, StreamSpec spec,
                                                  std::string* error = nullptr);
 
 } // namespace koalaamp::servers::jellyfin

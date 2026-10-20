@@ -26,6 +26,7 @@ using koalaamp::servers::jellyfin::DeviceProfile;
 using koalaamp::servers::jellyfin::HttpRequest;
 using koalaamp::servers::jellyfin::HttpResponse;
 using koalaamp::servers::jellyfin::IHttpTransport;
+using koalaamp::servers::jellyfin::StreamSpec;
 
 const std::string kBaseUrl = "http://jellyfin.local:8096";
 const std::string kItemId = "77777777777777777777777777777777";
@@ -115,7 +116,8 @@ std::string makeSineWav(double hz, unsigned rate, unsigned channels, double seco
 TEST_CASE("libvlc decodes a Jellyfin item through the callback stream") {
     WavTransport transport{makeSineWav(440.0, 48000, 2, 0.5)};
     auto source = std::make_shared<koalaamp::servers::jellyfin::JellyfinMediaSource>(
-        transport, testProfile(), kBaseUrl, "fixture-token-1", "device-under-test", kItemId);
+        transport, testProfile(), kBaseUrl, "fixture-token-1", "device-under-test",
+        StreamSpec{kItemId});
 
     koalaamp::interop::vlc::VlcPcmTap tap;
     std::atomic<std::uint64_t> frames{0};

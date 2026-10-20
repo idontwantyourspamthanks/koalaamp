@@ -44,17 +44,17 @@ private:
 
 JellyfinMediaSource::JellyfinMediaSource(IHttpTransport& transport, DeviceProfile profile,
                                          std::string baseUrl, std::string token,
-                                         std::string deviceId, std::string itemId)
+                                         std::string deviceId, StreamSpec spec)
     : transport_(transport),
       profile_(std::move(profile)),
       baseUrl_(std::move(baseUrl)),
       token_(std::move(token)),
       deviceId_(std::move(deviceId)),
-      itemId_(std::move(itemId)) {}
+      spec_(std::move(spec)) {}
 
 std::unique_ptr<koalaamp::playback::IMediaStream> JellyfinMediaSource::open(std::int64_t* size) {
     auto buffer = std::make_unique<JellyfinStream>(transport_, profile_, baseUrl_, token_,
-                                                   deviceId_, itemId_);
+                                                   deviceId_, spec_);
     if (!buffer->ok()) {
         lastError_ = buffer->error();
         return nullptr;

@@ -1,0 +1,32 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://jellyfin.local:8096/Audio/70000000000000000000000000000002/stream?static=false&audioCodec=aac&audioBitRate=192000&maxAudioChannels=2&playSessionId=abc-session",
+    "headers": [
+      [
+        "Authorization",
+        "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"device-under-test\", Version=\"0.0.1\", Token=\"fixture-token-1\""
+      ],
+      [
+        "Accept",
+        "application/json"
+      ]
+    ],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "audio/aac"
+      ],
+      [
+        "Content-Length",
+        "15"
+      ]
+    ],
+    "body": "transcode-bytes",
+    "error": ""
+  }
+}

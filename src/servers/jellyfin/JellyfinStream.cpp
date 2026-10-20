@@ -50,13 +50,13 @@ std::int64_t startFromContentRange(const std::string& value) {
 
 JellyfinStream::JellyfinStream(IHttpTransport& transport, DeviceProfile profile,
                                std::string baseUrl, std::string token, std::string deviceId,
-                               std::string itemId, std::int64_t startOffset)
+                               StreamSpec spec, std::int64_t startOffset)
     : transport_(transport),
       profile_(std::move(profile)),
       baseUrl_(std::move(baseUrl)),
       token_(std::move(token)),
       deviceId_(std::move(deviceId)),
-      itemId_(std::move(itemId)) {
+      spec_(std::move(spec)) {
     ok_ = fetch(startOffset);
 }
 
@@ -66,7 +66,19 @@ bool JellyfinStream::fetch(std::int64_t offset) {
 
     HttpRequest request;
     request.method = "GET";
-    request.url = baseUrlNoSlash(baseUrl_) + "/Audio/" + itemId_ + "/stream?static=true";
+    std::string url = baseUrlNoSlash(baseUrl_) + "/Audio/" + spec_.itemId + "/stream?";
+    if (spec_.directPlay) {
+        url += "static=true";
+    } else {
+        // Progressive transcode: same endpoint and header auth as direct play.
+        url += "static=false&audioCodec=" + spec_.audioCodec +
+               "&audioBitRate=" + std::to_string(spec_.audioBitRate) +
+               "&maxAudioChannels=" + std::to_string(spec_.maxAudioChannels);
+        if (!spec_.playSessionId.empty()) {
+            url += "&playSessionId=" + spec_.playSessionId;
+        }
+    }
+    request.url = std::move(url);
     request.headers = baseHeaders(profile_, deviceId_, token_);
     if (offset > 0) {
         request.headers.emplace_back("Range", "bytes=" + std::to_string(offset) + "-");
@@ -160,10 +172,10 @@ JellyfinStream::pos_type JellyfinStream::seekpos(pos_type position, std::ios_bas
 std::unique_ptr<std::istream> openJellyfinStream(IHttpTransport& transport, DeviceProfile profile,
                                                  const std::string& baseUrl,
                                                  const std::string& token,
-                                                 const std::string& deviceId,
-                                                 const std::string& itemId, std::string* error) {
+                                                 const std::string& deviceId, StreamSpec spec,
+                                                 std::string* error) {
     auto buffer = std::make_unique<JellyfinStream>(transport, std::move(profile), baseUrl, token,
-                                                   deviceId, itemId);
+                                                   deviceId, std::move(spec));
     if (!buffer->ok()) {
         if (error != nullptr) {
             *error = buffer->error();

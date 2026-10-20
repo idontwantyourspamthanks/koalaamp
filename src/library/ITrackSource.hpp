@@ -39,6 +39,11 @@ struct Track {
     int discNo{0};
     int rating{0};
     std::int64_t durationMs{0};
+    /// Container/codec hint from a server item ("flac", "mp3", "aac", …), used
+    /// by SV-2's direct-vs-transcode decision. Empty when unknown.
+    std::string codec;
+    /// Source bitrate in bits/s when the server reports one; 0 = unknown.
+    std::int64_t bitrate{0};
     std::optional<Rg> rg;
 };
 

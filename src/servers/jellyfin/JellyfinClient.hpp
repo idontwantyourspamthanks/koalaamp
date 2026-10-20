@@ -111,6 +111,7 @@ struct PlaybackReport {
     std::int64_t positionTicks{0};
     bool paused{false};
     bool muted{false};
+    int volumeLevel{100}; ///< 0..100, the field server dashboards display
     /// Progress reports name the cause ("TimeUpdate", "Pause", "Unpause", "Seek"…).
     std::string eventName;
 };

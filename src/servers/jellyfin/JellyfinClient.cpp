@@ -296,7 +296,7 @@ SearchOutcome JellyfinClient::search(const std::string& baseUrl, const std::stri
               "&limit=" +
               std::to_string(limit) +
               "&fields=SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,IndexNumber,"
-              "ParentIndexNumber";
+              "ParentIndexNumber,Container,NormalizationGain";
     request.url = baseUrlNoSlash(baseUrl) + "/Items?" + params;
     request.headers = baseHeaders(profile_, deviceId, token);
 
@@ -339,6 +339,19 @@ SearchOutcome JellyfinClient::search(const std::string& baseUrl, const std::stri
                 track.discNo = dto.value("ParentIndexNumber", 0);
                 // Jellyfin reports RunTimeTicks in 100 ns units.
                 track.durationMs = static_cast<std::int64_t>(dto.value("RunTimeTicks", 0LL) / 10000LL);
+                track.codec = str(dto, "Container");
+                if (const auto bitrate = dto.find("Bitrate");
+                    bitrate != dto.end() && bitrate->is_number_integer()) {
+                    track.bitrate = bitrate->get<std::int64_t>();
+                }
+                // One normalization gain per item (computed from the file's
+                // ReplayGain tag server-side); album mode falls back to it.
+                if (const auto gain = dto.find("NormalizationGain");
+                    gain != dto.end() && gain->is_number()) {
+                    library::Rg rg;
+                    rg.trackGain = gain->get<double>();
+                    track.rg = rg;
+                }
                 success.tracks.push_back(std::move(track));
             }
         }
@@ -365,6 +378,7 @@ ReportOutcome JellyfinClient::reportPlayback(const std::string& baseUrl, const s
               {"PositionTicks", report.positionTicks},
               {"IsPaused", report.paused},
               {"IsMuted", report.muted},
+              {"VolumeLevel", report.volumeLevel},
               {"CanSeek", true}};
     body["MediaSourceId"] = report.mediaSourceId.empty() ? report.itemId : report.mediaSourceId;
     if (!report.eventName.empty()) {

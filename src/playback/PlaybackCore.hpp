@@ -173,6 +173,9 @@ public:
 
     // --- queue (deque semantics: consumed before the session-list refill) ---
     void enqueue(MediaRef media);
+    /// Insert at the *front* of the queue (the remote-control "PlayNext"
+    /// semantics: next up, without touching the current track).
+    void enqueueNext(MediaRef media);
     void clearQueue();
     std::size_t queueSize() const { return m_queueSize.load(); }
     /// Front of the queue, else the repeat/shuffle fallback candidate.

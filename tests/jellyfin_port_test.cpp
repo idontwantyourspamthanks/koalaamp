@@ -263,6 +263,9 @@ TEST_CASE("search maps /Items audio results onto Track") {
     CHECK(first.trackNo == 1);
     CHECK(first.discNo == 1);
     CHECK(first.durationMs == 124700); // RunTimeTicks are 100 ns units.
+    CHECK(first.codec == "flac");
+    REQUIRE(first.rg.has_value());
+    CHECK(first.rg->trackGain == -6.2); // NormalizationGain, dB
 
     CHECK(success->tracks[2].artist == "Pink Floyd");
     CHECK(success->tracks[2].durationMs == 806200);
@@ -363,7 +366,7 @@ TEST_CASE("audio streams over the static endpoint and a far seek re-requests wit
 
     std::string error;
     const auto stream = openJellyfinStream(transport, testProfile(), kBaseUrl, "fixture-token-1",
-                                           kDeviceId, "77777777777777777777777777777777", &error);
+                                           kDeviceId, StreamSpec{"77777777777777777777777777777777"}, &error);
     REQUIRE(stream != nullptr);
     CHECK(error.empty());
 
@@ -397,7 +400,7 @@ TEST_CASE("audio streams over the static endpoint and a far seek re-requests wit
 TEST_CASE("the media source opens, reads and seeks through libvlc's callback shape") {
     FixtureTransport transport{std::filesystem::path(kFixtureDir)};
     JellyfinMediaSource source{transport, testProfile(), kBaseUrl, "fixture-token-1", kDeviceId,
-                               "77777777777777777777777777777777"};
+                               StreamSpec{"77777777777777777777777777777777"}};
 
     std::int64_t size = -1;
     auto stream = source.open(&size);

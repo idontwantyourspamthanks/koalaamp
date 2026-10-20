@@ -4,12 +4,14 @@
 
 #pragma once
 
+#include "library/ITrackSource.hpp"
 #include "playback/MediaStream.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <optional>
 #include <string>
 
 namespace koalaamp::playback {
@@ -18,6 +20,14 @@ namespace koalaamp::playback {
 struct PcmFormat {
     int sampleRate{48000};
     int channels{2};
+};
+
+/// Server-side identity for `/Sessions/Playing*` reports (SV-2). A server media
+/// ref carries one; local media leaves it empty.
+struct ServerMediaInfo {
+    std::string itemId;
+    std::string mediaSourceId; ///< empty means "same as itemId"
+    std::string playMethod;    ///< DirectPlay | Transcode
 };
 
 /// A reference to a playable medium: a local path, a locator (MRL), or a
@@ -29,6 +39,11 @@ struct MediaRef {
     /// `Kind::Stream`: the re-openable byte source. `value` is then only a
     /// display label for errors and the UI, never a locator.
     std::shared_ptr<IMediaStreamSource> stream;
+    /// ReplayGain hints carried from the source (server `NormalizationGain`);
+    /// the prepare hook prefers them over reading tags off `value`.
+    std::optional<library::Rg> rg;
+    /// Present for media played from a server (SV-2 reporting).
+    std::optional<ServerMediaInfo> server;
 };
 
 /// The decode/playback seam. In DSP mode decoded PCM is delivered through

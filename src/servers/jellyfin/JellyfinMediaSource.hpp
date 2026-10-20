@@ -11,6 +11,7 @@
 #include "playback/MediaStream.hpp"
 #include "servers/jellyfin/AuthHeaders.hpp"
 #include "servers/jellyfin/HttpTransport.hpp"
+#include "servers/jellyfin/JellyfinStream.hpp"
 
 #include <memory>
 #include <string>
@@ -21,7 +22,7 @@ class JellyfinMediaSource final : public koalaamp::playback::IMediaStreamSource 
 public:
     /// `transport` MUST outlive the source and every stream it opens.
     JellyfinMediaSource(IHttpTransport& transport, DeviceProfile profile, std::string baseUrl,
-                        std::string token, std::string deviceId, std::string itemId);
+                        std::string token, std::string deviceId, StreamSpec spec);
 
     /// Opens `/Audio/{id}/stream?static=true` (one fresh request per call). On
     /// failure returns nullptr and `lastError()` carries the reason.
@@ -35,7 +36,7 @@ private:
     std::string baseUrl_;
     std::string token_;
     std::string deviceId_;
-    std::string itemId_;
+    StreamSpec spec_;
     std::string lastError_;
 };
 

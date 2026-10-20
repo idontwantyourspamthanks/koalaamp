@@ -36,6 +36,27 @@ target_compile_definitions(jellyfin_port_tests PRIVATE
     KOALAAMP_SERVERS_SRC="${CMAKE_SOURCE_DIR}/src/servers")
 catch_discover_tests(jellyfin_port_tests)
 
+# SV-2: direct-vs-transcode planning + /Sessions/Playing* player wiring.
+add_executable(jellyfin_playback_tests jellyfin_playback_test.cpp)
+koalaamp_enable_warnings(jellyfin_playback_tests)
+target_include_directories(jellyfin_playback_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src"
+    "${CMAKE_SOURCE_DIR}/third_party/include")
+target_link_libraries(jellyfin_playback_tests PRIVATE
+    Catch2::Catch2WithMain koalaamp_jellyfin)
+target_compile_definitions(jellyfin_playback_tests PRIVATE
+    KOALAAMP_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/jellyfin")
+catch_discover_tests(jellyfin_playback_tests)
+
+# SV-2: /socket remote control (scripted transport, no network).
+add_executable(jellyfin_remote_tests jellyfin_remote_test.cpp)
+koalaamp_enable_warnings(jellyfin_remote_tests)
+target_include_directories(jellyfin_remote_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(jellyfin_remote_tests PRIVATE
+    Catch2::Catch2WithMain koalaamp_jellyfin)
+catch_discover_tests(jellyfin_remote_tests)
+
 # SV-1: the connection manager's persisted server list. Identity only — the store
 # is documented to carry no tokens or passwords, so the test pins that too.
 add_executable(server_book_tests server_book_test.cpp)
@@ -73,6 +94,14 @@ if(KOALAAMP_HAS_LIBVLC)
         Catch2::Catch2WithMain koalaamp_jellyfin koalaamp_vlc)
     catch_discover_tests(koalaamp_jellyfin_stream_tests)
     message(STATUS "KoalaAmp: Jellyfin callback-stream test enabled")
+
+    # SV-2: remote commands against the real queue (PlayNext enqueues).
+    add_executable(jellyfin_remote_playback_tests jellyfin_remote_playback_test.cpp)
+    koalaamp_enable_warnings(jellyfin_remote_playback_tests)
+    target_link_libraries(jellyfin_remote_playback_tests PRIVATE
+        Catch2::Catch2WithMain koalaamp_jellyfin koalaamp_playback_core)
+    catch_discover_tests(jellyfin_remote_playback_tests)
+    message(STATUS "KoalaAmp: Jellyfin remote-queue test enabled")
 endif()
 
 # FE-4: PlaybackCore end-to-end (transport/seek/volume/EndReached/queue), the

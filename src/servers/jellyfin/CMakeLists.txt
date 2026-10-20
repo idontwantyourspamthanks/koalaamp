@@ -12,6 +12,11 @@ add_library(koalaamp_jellyfin STATIC
     ArtworkCache.cpp
     JellyfinStream.cpp
     JellyfinMediaSource.cpp
+    JellyfinPlayback.cpp
+    JellyfinPlaybackReporter.cpp
+    WebSocket.cpp
+    JellyfinRemote.cpp
+    JellyfinRemotePlayback.cpp
     Discovery.cpp)
 koalaamp_enable_warnings(koalaamp_jellyfin)
 target_include_directories(koalaamp_jellyfin

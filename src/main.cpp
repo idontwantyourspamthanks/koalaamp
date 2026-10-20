@@ -18,6 +18,7 @@
 
 #include "audio/AlbumEqStore.hpp"
 #include "audio/DspPipeline.hpp"
+#include "audio/RgTags.hpp"
 #include "ui/DspEqSink.hpp"
 #include "ui/EqWindow.hpp"
 #include "ui/WindowPlatform.hpp"
@@ -313,6 +314,32 @@ int main(int argc, char** argv) {
     dsp->setSettings(startupDsp);
     auto eqSink = std::make_unique<koalaamp::ui::DspEqSink>(*dsp);
     auto albumEqStore = std::make_unique<koalaamp::audio::AlbumEqStore>();
+
+    // SV-2: per-track ReplayGain activation. Server media carries the gateway's
+    // `NormalizationGain` on the MediaRef; local media is read from the file's
+    // tags. The hook fires before each play and at a gapless boundary, so the
+    // DSP stage latches the incoming track's gain on its first block.
+    auto rgTags = std::make_shared<koalaamp::audio::RgTagSource>();
+    core->setTrackPrepareHook([dsp = dsp.get(), rgTags](const koalaamp::playback::MediaRef& media) {
+        koalaamp::audio::RgInfo info;
+        if (media.rg) {
+            if (media.rg->trackGain != 0.0) {
+                info.trackGainDb = media.rg->trackGain;
+            }
+            if (media.rg->trackPeak > 0.0) {
+                info.trackPeak = media.rg->trackPeak;
+            }
+            if (media.rg->albumGain != 0.0) {
+                info.albumGainDb = media.rg->albumGain;
+            }
+            if (media.rg->albumPeak > 0.0) {
+                info.albumPeak = media.rg->albumPeak;
+            }
+        } else if (media.kind == koalaamp::playback::MediaRef::Kind::Path) {
+            info = rgTags->forPath(media.value);
+        }
+        dsp->setReplayGain(info);
+    });
     // VZ-1: the visualizer consumes the same post-DSP samples as the main window's
     // spectrum. It joins as a second reader of a fan-out after the DSP — installing
     // another engine tap would replace the DSP chain instead of adding a reader

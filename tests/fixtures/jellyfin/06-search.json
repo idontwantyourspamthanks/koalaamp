@@ -1,10 +1,16 @@
 {
   "request": {
     "method": "GET",
-    "url": "http://jellyfin.local:8096/Items?parentId=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee&searchTerm=pink&recursive=true&includeItemTypes=Audio&sortBy=SortName&sortOrder=Ascending&limit=50&fields=SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,IndexNumber,ParentIndexNumber",
+    "url": "http://jellyfin.local:8096/Items?parentId=aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee&searchTerm=pink&recursive=true&includeItemTypes=Audio&sortBy=SortName&sortOrder=Ascending&limit=50&fields=SortName,RunTimeTicks,Album,AlbumArtist,Artists,ProductionYear,IndexNumber,ParentIndexNumber,Container,NormalizationGain",
     "headers": [
-      ["Authorization", "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"<derived-device-id>\", Version=\"0.0.1\", Token=\"fixture-token-1\""],
-      ["Accept", "application/json"]
+      [
+        "Authorization",
+        "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"<derived-device-id>\", Version=\"0.0.1\", Token=\"fixture-token-1\""
+      ],
+      [
+        "Accept",
+        "application/json"
+      ]
     ],
     "body": ""
   },
@@ -18,12 +24,20 @@
           "Type": "Audio",
           "Album": "Pink Moon",
           "AlbumArtist": "Nick Drake",
-          "Artists": ["Nick Drake"],
+          "Artists": [
+            "Nick Drake"
+          ],
           "ProductionYear": 1972,
           "IndexNumber": 1,
           "ParentIndexNumber": 1,
           "RunTimeTicks": 1247000000,
-          "UserData": {"Played": false, "IsFavorite": false, "PlayCount": 0}
+          "UserData": {
+            "Played": false,
+            "IsFavorite": false,
+            "PlayCount": 0
+          },
+          "Container": "flac",
+          "NormalizationGain": -6.2
         },
         {
           "Name": "Pink + White",
@@ -31,12 +45,19 @@
           "Type": "Audio",
           "Album": "Blonde",
           "AlbumArtist": "Frank Ocean",
-          "Artists": ["Frank Ocean"],
+          "Artists": [
+            "Frank Ocean"
+          ],
           "ProductionYear": 2016,
           "IndexNumber": 8,
           "ParentIndexNumber": 1,
           "RunTimeTicks": 1828000000,
-          "UserData": {"Played": true, "IsFavorite": false, "PlayCount": 3}
+          "UserData": {
+            "Played": true,
+            "IsFavorite": false,
+            "PlayCount": 3
+          },
+          "Container": "dsf"
         },
         {
           "Name": "Shine On You Crazy Diamond (Parts I-V)",
@@ -44,12 +65,19 @@
           "Type": "Audio",
           "Album": "Wish You Were Here",
           "AlbumArtist": "Pink Floyd",
-          "Artists": ["Pink Floyd"],
+          "Artists": [
+            "Pink Floyd"
+          ],
           "ProductionYear": 1975,
           "IndexNumber": 1,
           "ParentIndexNumber": 1,
           "RunTimeTicks": 8062000000,
-          "UserData": {"Played": false, "IsFavorite": true, "PlayCount": 7}
+          "UserData": {
+            "Played": false,
+            "IsFavorite": true,
+            "PlayCount": 7
+          },
+          "Container": "flac"
         }
       ],
       "TotalRecordCount": 3,
