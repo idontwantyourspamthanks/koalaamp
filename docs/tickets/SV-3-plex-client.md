@@ -1,6 +1,6 @@
 # SV-3 · Plex client port (auth / browse / source)
 
-- **Milestone:** M3 · **Est:** 3d · **Depends:** SV-1, LI-2 · **Status:** in-review — fixture-replayed; live PMS pass pending
+- **Milestone:** M3 · **Est:** 3d · **Depends:** SV-1, LI-2 · **Status:** done — fixture-replayed; live PMS browse/playback confirmed 2026-10-20
 
 ## Story
 The second server backend: plex.tv PIN/link sign-in, GDM discovery, music sections →
@@ -61,8 +61,8 @@ version-gated posture the 2025–26 Plex churn record demands.
 - Discover probes both Jellyfin UDP and Plex GDM; Plex results prefill the URL and point
   at the Plex button (account auth still happens through plex.tv).
 - Live pass (run 2026-10-20 on the LAN PMS): restored session → Browse → album → track
-  played over `.plex.direct`; main window advanced 00:02 with 48 kHz stereo PCM. The
-  PMS dashboard timeline/scrobble check remains outstanding.
+  played over `.plex.direct`; main window advanced with 48 kHz stereo PCM, and the user
+  confirmed working. Dashboard timeline/rate/scrobble evidence is tracked in SV-4.
 
 ## Out of scope
 - Playback/timeline/scrobble/watched — SV-4.

@@ -1,6 +1,6 @@
 # SV-4 · Plex playback + progress + ratings
 
-- **Milestone:** M3 · **Est:** 2d · **Depends:** SV-3, AU-1 · **Status:** in-review — fixture-replayed; live PMS pass pending
+- **Milestone:** M3 · **Est:** 2d · **Depends:** SV-3, AU-1 · **Status:** in-review — live PMS playback confirmed 2026-10-20; dashboard/scrobble evidence pending
 
 ## Story
 Plex playback closes the loop: direct-play a track from the PMS with the right headers, keep the server's dashboard truthful via `/:/timeline`, and let ratings/watched state written by our skinned UI appear in Plex web. Deliberately conservative posture — Plex churns its API, so everything here is version-gated and fixture-pinned.
