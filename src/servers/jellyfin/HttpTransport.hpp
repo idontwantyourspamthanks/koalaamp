@@ -25,6 +25,11 @@ struct HttpRequest {
     std::string url;
     std::vector<std::pair<std::string, std::string>> headers;
     std::string body;
+    /// Per-request timeout overrides; zero means the transport's default.
+    /// QuickConnect uses tighter bounds so a dropped connection cannot leave the
+    /// dialog's button stuck on "QuickConnect…".
+    std::chrono::milliseconds connectTimeout{0};
+    std::chrono::milliseconds totalTimeout{0};
 };
 
 struct HttpResponse {

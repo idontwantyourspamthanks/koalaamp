@@ -206,6 +206,10 @@ TEST_CASE("QuickConnect signs in from the connection dialog") {
 
     url->setText(QStringLiteral("http://jellyfin.local:8096"));
     quick->click();
+    // The initiate call runs on a worker; wait for the completion to be queued.
+    for (int i = 0; i < 200 && !quick->text().contains(QStringLiteral("123456")); ++i) {
+        QTest::qWait(10);
+    }
     CHECK(quick->text().contains(QStringLiteral("123456"))); // visible on the button
     CHECK(status->text().contains(QStringLiteral("123456")));
     CHECK_FALSE(dialog.session().has_value());

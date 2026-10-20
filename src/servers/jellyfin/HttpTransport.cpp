@@ -93,8 +93,11 @@ HttpResponse CurlTransport::perform(const HttpRequest& request,
     curl_easy_setopt(curl, CURLOPT_HEADERDATA, &response.headers);
     curl_easy_setopt(curl, CURLOPT_HTTPHEADER, headers);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, static_cast<long>(connectTimeout_.count()));
-    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(totalTimeout_.count()));
+    const auto connectTimeout =
+        request.connectTimeout.count() > 0 ? request.connectTimeout : connectTimeout_;
+    const auto totalTimeout = request.totalTimeout.count() > 0 ? request.totalTimeout : totalTimeout_;
+    curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT_MS, static_cast<long>(connectTimeout.count()));
+    curl_easy_setopt(curl, CURLOPT_TIMEOUT_MS, static_cast<long>(totalTimeout.count()));
 
     ProgressContext progress{&cancel};
     curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);

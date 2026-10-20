@@ -15,12 +15,15 @@
 #include <QLineEdit>
 #include <QMessageBox>
 #include <QMouseEvent>
+#include <QPointer>
 #include <QListWidget>
 #include <QPainter>
 #include <QPushButton>
 #include <QUrl>
 
+#include <chrono>
 #include <cstdio>
+#include <thread>
 
 #include <algorithm>
 #include <variant>
@@ -326,8 +329,12 @@ void ConnectionDialog::quickConnect() {
         return;
     }
 
-    // Visible acknowledgement before the blocking HTTP call: a click that
-    // changes nothing reads as a broken button.
+    if (m_quickConnectPending) {
+        return; // a request is already in flight; ignore the extra click
+    }
+
+    // Visible acknowledgement before the request: a click that changes nothing
+    // reads as a broken button.
     m_quickConnect->setText(QStringLiteral("QuickConnect…"));
     m_quickConnect->repaint();
     QApplication::processEvents();
@@ -335,43 +342,78 @@ void ConnectionDialog::quickConnect() {
     // QuickConnect is pre-auth: there is no user yet, so the device id is
     // derived from the machine alone and stays stable for the token's lifetime.
     const std::string deviceId = deriveDeviceId(m_machineId.machineId(), "");
-    JellyfinClient client(m_transport, DeviceProfile{});
+    const std::string requestBaseUrl = baseUrl;
 
-    // No Enabled pre-check: if the server is unreachable, that check was
-    // indistinguishable from "QuickConnect is disabled" and the dialog silently
-    // did nothing. Initiate reports the real reason.
-    const QuickConnectStartOutcome outcome = client.initiateQuickConnect(baseUrl, deviceId);
-    if (const auto* start = std::get_if<QuickConnectStart>(&outcome)) {
-        m_quickConnectBaseUrl = QString::fromStdString(baseUrl);
-        m_quickConnectDeviceId = QString::fromStdString(deviceId);
-        m_quickConnectSecret = QString::fromStdString(start->secret);
-        m_quickConnectPolls = 0;
-        // The code is the whole point of the flow; put it on the button as well
-        // as the status so it cannot be missed at the bottom of the window.
-        m_quickConnect->setText(QStringLiteral("Code %1 — cancel")
-                                    .arg(QString::fromStdString(start->code)));
-        m_quickConnectTimer.start();
-        setStatus(QStringLiteral("Approve code %1 in Jellyfin (Quick Connect)")
-                      .arg(QString::fromStdString(start->code)));
-        std::fprintf(stderr, "koalaamp: QuickConnect code %s at %s\n", start->code.c_str(),
-                     baseUrl.c_str());
+    // The call is bounded (5 s connect / 8 s total), but it still must not block
+    // the GUI thread: run it and marshal the result back. `qApp` is the queued
+    // call's context so a closed dialog never receives the completion.
+    m_quickConnectPending = true;
+    const QPointer<ConnectionDialog> self(this);
+    IHttpTransport* transport = &m_transport;
+    std::thread([self, transport, requestBaseUrl, deviceId] {
+        using namespace koalaamp::servers::jellyfin;
+        const auto started = std::chrono::steady_clock::now();
+        JellyfinClient client(*transport, DeviceProfile{});
+        const QuickConnectStartOutcome outcome =
+            client.initiateQuickConnect(requestBaseUrl, deviceId);
+        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                 std::chrono::steady_clock::now() - started)
+                                 .count();
+        std::fprintf(stderr, "koalaamp: QuickConnect initiate returned in %lld ms\n",
+                     static_cast<long long>(elapsed));
+
+        bool ok = false;
+        QString secret;
+        QString code;
+        QString reason;
+        if (const auto* start = std::get_if<QuickConnectStart>(&outcome)) {
+            ok = true;
+            secret = QString::fromStdString(start->secret);
+            code = QString::fromStdString(start->code);
+        } else if (std::holds_alternative<ItemsUnauthorized>(outcome)) {
+            reason = QStringLiteral(
+                "QuickConnect is disabled on this server, or it rejected the request");
+        } else if (std::holds_alternative<ItemsUnreachable>(outcome)) {
+            reason = QStringLiteral("Server unreachable");
+        } else {
+            reason = QString::fromStdString(std::get<ItemsFailed>(outcome).message);
+        }
+        QMetaObject::invokeMethod(
+            qApp,
+            [self, ok, secret, code, reason, requestBaseUrl = QString::fromStdString(requestBaseUrl),
+             deviceId = QString::fromStdString(deviceId)] {
+                if (self) {
+                    self->onQuickConnectInitiated(ok, secret, code, reason, requestBaseUrl, deviceId);
+                }
+            },
+            Qt::QueuedConnection);
+    }).detach();
+}
+
+void ConnectionDialog::onQuickConnectInitiated(bool ok, const QString& secret,
+                                               const QString& code, const QString& reason,
+                                               const QString& baseUrl, const QString& deviceId) {
+    m_quickConnectPending = false;
+    if (!ok) {
+        std::fprintf(stderr, "koalaamp: QuickConnect failed at %s: %s\n",
+                     baseUrl.toStdString().c_str(), reason.toStdString().c_str());
+        m_quickConnect->setText(QStringLiteral("QuickConnect"));
+        setStatus(reason);
+        QMessageBox::warning(this, QStringLiteral("QuickConnect"), reason);
         return;
     }
 
-    QString reason;
-    if (std::holds_alternative<ItemsUnauthorized>(outcome)) {
-        reason = QStringLiteral(
-            "QuickConnect is disabled on this server, or it rejected the request");
-    } else if (std::holds_alternative<ItemsUnreachable>(outcome)) {
-        reason = QStringLiteral("Server unreachable");
-    } else {
-        reason = QString::fromStdString(std::get<ItemsFailed>(outcome).message);
-    }
-    std::fprintf(stderr, "koalaamp: QuickConnect failed at %s: %s\n", baseUrl.c_str(),
-                 reason.toStdString().c_str());
-    m_quickConnect->setText(QStringLiteral("QuickConnect"));
-    setStatus(reason);
-    QMessageBox::warning(this, QStringLiteral("QuickConnect"), reason);
+    m_quickConnectBaseUrl = baseUrl;
+    m_quickConnectDeviceId = deviceId;
+    m_quickConnectSecret = secret;
+    m_quickConnectPolls = 0;
+    // The code is the whole point of the flow; put it on the button as well as
+    // the status so it cannot be missed at the bottom of the window.
+    m_quickConnect->setText(QStringLiteral("Code %1 — cancel").arg(code));
+    m_quickConnectTimer.start();
+    setStatus(QStringLiteral("Approve code %1 in Jellyfin (Quick Connect)").arg(code));
+    std::fprintf(stderr, "koalaamp: QuickConnect code %s at %s\n", code.toStdString().c_str(),
+                 baseUrl.toStdString().c_str());
 }
 
 void ConnectionDialog::pollQuickConnect() {

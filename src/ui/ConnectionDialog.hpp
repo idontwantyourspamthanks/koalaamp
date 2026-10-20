@@ -80,6 +80,10 @@ private:
     void browseServer();
     /// Starts (or cancels) the QuickConnect handshake.
     void quickConnect();
+    /// Completion marshalled from the initiate worker (GUI thread).
+    void onQuickConnectInitiated(bool ok, const QString& secret, const QString& code,
+                                 const QString& reason, const QString& baseUrl,
+                                 const QString& deviceId);
     void finishLogin(const std::string& baseUrl,
                      const servers::jellyfin::AuthSession& session, const std::string& deviceId);
     void stopQuickConnect(const QString& message);
@@ -110,6 +114,7 @@ private:
     QString m_quickConnectDeviceId;
     QString m_quickConnectSecret;
     int m_quickConnectPolls = 0;
+    bool m_quickConnectPending = false;
 
     QSize m_contentSize{420, 260};
     bool m_closePressed = false;

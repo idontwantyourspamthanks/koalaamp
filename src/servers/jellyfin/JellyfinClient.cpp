@@ -204,6 +204,8 @@ QuickConnectStartOutcome JellyfinClient::initiateQuickConnect(const std::string&
     request.method = "POST";
     request.url = baseUrlNoSlash(baseUrl) + "/QuickConnect/Initiate";
     request.headers = baseHeaders(profile_, deviceId, /*token=*/{});
+    request.connectTimeout = std::chrono::seconds(5);
+    request.totalTimeout = std::chrono::seconds(8);
 
     const HttpResponse response = transport_.perform(request, cancel);
     if (!response.transportOk()) {
@@ -236,6 +238,8 @@ QuickConnectStateOutcome JellyfinClient::quickConnectState(const std::string& ba
     request.url =
         baseUrlNoSlash(baseUrl) + "/QuickConnect/Connect?secret=" + encodeQuery(secret);
     request.headers = baseHeaders(profile_, deviceId, /*token=*/{});
+    request.connectTimeout = std::chrono::seconds(5);
+    request.totalTimeout = std::chrono::seconds(8);
 
     const HttpResponse response = transport_.perform(request, cancel);
     if (!response.transportOk()) {
@@ -269,6 +273,8 @@ AuthOutcome JellyfinClient::authenticateWithQuickConnect(const std::string& base
     request.url = baseUrlNoSlash(baseUrl) + "/Users/AuthenticateWithQuickConnect";
     request.headers = baseHeaders(profile_, deviceId, /*token=*/{});
     request.headers.emplace_back("Content-Type", "application/json");
+    request.connectTimeout = std::chrono::seconds(5);
+    request.totalTimeout = std::chrono::seconds(8);
     request.body = json{{"Secret", secret}}.dump();
 
     const HttpResponse response = transport_.perform(request, cancel);
