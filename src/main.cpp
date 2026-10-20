@@ -59,6 +59,8 @@
 #include <cstdio>
 #include <ctime>
 #include <filesystem>
+#include <fstream>
+#include <iterator>
 #include <memory>
 #include <optional>
 #include <string>
@@ -69,6 +71,7 @@
 #include "library/LibraryDb.hpp"
 #include "library/Scanner.hpp"
 #include "playback/PlaybackCore.hpp"
+#include "playlist/Playlist.hpp"
 #include "scrobble/CurlTransport.hpp"
 #include "scrobble/LastFmClient.hpp"
 #include "scrobble/PlaybackScrobbler.hpp"
@@ -933,6 +936,41 @@ int main(int argc, char** argv) {
 
         QAction* winampImport = menu.addAction(QStringLiteral("Import from Winamp…"));
         QObject::connect(winampImport, &QAction::triggered, &window, [&] {
+            // The ML index is only a list of references; append every M3U it
+            // points at through PL-1's readers rather than replacing the live
+            // playlist, which the current-winamp.m3u option already handles.
+            const auto importMlPlaylists = [&playlist](const std::string& indexPath) {
+                std::ifstream in(std::filesystem::path(indexPath), std::ios::binary);
+                if (!in) {
+                    return false;
+                }
+                const std::string bytes{std::istreambuf_iterator<char>(in),
+                                        std::istreambuf_iterator<char>()};
+                const auto entries = koalaamp::playlist::readIndex(bytes);
+                const std::filesystem::path base = std::filesystem::path(indexPath).parent_path();
+                std::vector<koalaamp::ui::PleditEntry> rows;
+                for (const auto& entry : entries) {
+                    std::filesystem::path file(entry.filename);
+                    if (file.is_relative()) {
+                        file = base / file;
+                    }
+                    const auto list = koalaamp::playlist::readFile(file);
+                    for (const auto& track : list.tracks) {
+                        koalaamp::ui::PleditEntry row;
+                        row.title = track.title.empty()
+                                        ? koalaamp::playlist::titleFromFilename(track.filename)
+                                        : track.title;
+                        row.filename = track.filename;
+                        row.lengthMs = track.lengthMs;
+                        rows.push_back(std::move(row));
+                    }
+                }
+                if (rows.empty()) {
+                    return false;
+                }
+                playlist.addEntries(std::move(rows));
+                return true;
+            };
             auto* dialog = new koalaamp::ui::MigrationDialog(
                 libraryDbPath.toStdString(),
                 [&playlist](const std::string& path) { return playlist.openPlaylist(path); },
@@ -940,6 +978,7 @@ int main(int argc, char** argv) {
                     return equalizer.importPresetsFromFile(path);
                 },
                 &window);
+            dialog->setIndexImporter(importMlPlaylists);
             dialog->setAttribute(Qt::WA_DeleteOnClose);
             dialog->setSkin(skinSet ? &*skinSet : nullptr);
             dialog->show();

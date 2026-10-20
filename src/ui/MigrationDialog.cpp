@@ -12,6 +12,7 @@
 #include <QFileDialog>
 #include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPushButton>
@@ -105,6 +106,11 @@ MigrationDialog::MigrationDialog(std::string databasePath, PathCallback openPlay
     m_presets->setChecked(true);
     m_presets->setGeometry(x, client.y() + 70, width, 24);
 
+    m_mlPlaylists = new QCheckBox(QStringLiteral("Media Library playlists (playlists.xml)"), this);
+    m_mlPlaylists->setObjectName(QStringLiteral("winampMlPlaylists"));
+    m_mlPlaylists->setChecked(true);
+    m_mlPlaylists->setGeometry(x, client.y() + 98, width, 24);
+
     m_back = new QPushButton(QStringLiteral("Back"), this);
     m_back->setObjectName(QStringLiteral("winampBack"));
     m_back->setGeometry(x, client.bottom() - 40, 90, 28);
@@ -119,7 +125,12 @@ MigrationDialog::MigrationDialog(std::string databasePath, PathCallback openPlay
     m_report->setObjectName(QStringLiteral("winampReport"));
     m_report->setWordWrap(true);
     m_report->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    m_report->setGeometry(x, client.y() + 10, width, client.height() - 74);
+    m_report->setGeometry(x, client.y() + 10, width, 88);
+
+    m_unmatchedList = new QListWidget(this);
+    m_unmatchedList->setObjectName(QStringLiteral("winampUnmatched"));
+    m_unmatchedList->setGeometry(x, client.y() + 102, width, client.height() - 190);
+    m_unmatchedList->setSelectionMode(QAbstractItemView::NoSelection);
 
     m_export = new QPushButton(QStringLiteral("Export unmatched…"), this);
     m_export->setObjectName(QStringLiteral("winampExport"));
@@ -199,9 +210,11 @@ void MigrationDialog::showStep(int step) {
     m_ratings->setVisible(step == 1);
     m_playlist->setVisible(step == 1);
     m_presets->setVisible(step == 1);
+    m_mlPlaylists->setVisible(step == 1);
     m_back->setVisible(step == 1);
     m_import->setVisible(step == 1);
     m_report->setVisible(step == 2);
+    m_unmatchedList->setVisible(step == 2);
     m_export->setVisible(step == 2);
     m_close->setVisible(step == 2);
 }
@@ -224,10 +237,16 @@ void MigrationDialog::nextStep() {
         }
         m_playlistPath = firstExisting(paths, {"winamp.m3u8", "winamp.m3u", "winamp.pls"});
         m_presetPath.reset();
+        m_indexPath.reset();
         const std::filesystem::path q1 = paths.winampDir / "winamp.q1";
         std::error_code error;
         if (std::filesystem::exists(q1, error)) {
             m_presetPath = q1.string();
+        }
+        const std::filesystem::path index =
+            paths.winampDir / "plugins" / "ml" / "playlists" / "playlists.xml";
+        if (std::filesystem::exists(index, error)) {
+            m_indexPath = index.string();
         }
         const QString detail = QStringLiteral("Found %1. Choose what to bring across.")
                                    .arg(QString::fromStdString(paths.winampDir.string()));
@@ -287,18 +306,31 @@ void MigrationDialog::runImport() {
     } else if (m_presets->isChecked()) {
         presetLine = QStringLiteral("EQ presets: none saved");
     }
+    QString indexLine = QStringLiteral("ML playlists: not selected");
+    if (m_mlPlaylists->isChecked() && m_indexPath.has_value()) {
+        const bool imported = m_importIndex != nullptr && m_importIndex(*m_indexPath);
+        indexLine = imported ? QStringLiteral("ML playlists: imported")
+                             : QStringLiteral("ML playlists: none imported");
+    } else if (m_mlPlaylists->isChecked()) {
+        indexLine = QStringLiteral("ML playlists: none saved");
+    }
 
     const QString text = QStringLiteral("%1\n"
                                         "Unmatched paths: %2\n"
                                         "Unknown fields skipped: %3\n"
-                                        "Volume: %4 · EQ: %5\n\n%6\n%7")
+                                        "Volume: %4 · EQ: %5\n\n%6\n%7\n%8")
                              .arg(ratingsLine)
                              .arg(report.unmatched)
                              .arg(report.skippedFields)
                              .arg(report.state.volume)
                              .arg(report.state.useEq ? QStringLiteral("on") : QStringLiteral("off"))
-                             .arg(playlistLine, presetLine);
+                             .arg(playlistLine, presetLine, indexLine);
     m_report->setText(text);
+    m_unmatchedList->clear();
+    for (const std::string& path : m_unmatched) {
+        m_unmatchedList->addItem(QString::fromStdString(path));
+    }
+    m_unmatchedList->setVisible(!m_unmatched.empty());
     m_export->setEnabled(!m_unmatched.empty());
     showStep(2);
 }

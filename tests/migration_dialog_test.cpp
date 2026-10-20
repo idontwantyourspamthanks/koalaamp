@@ -30,6 +30,11 @@ struct Fixture {
         fs::create_directories(dir);
         std::ofstream(dir / "winamp.ini") << "[Winamp]\nconfig_volume=180\n";
         std::ofstream(dir / "winamp.m3u") << "#EXTM3U\n" << (dir / "track.flac").string() << "\n";
+        fs::create_directories(dir / "plugins" / "ml" / "playlists");
+        std::ofstream(dir / "plugins" / "ml" / "playlists" / "playlists.xml")
+            << "<?xml version=\"1.0\"?><Winamp:Playlists>"
+               "<playlist filename=\"mix.m3u\" title=\"Mix\" songs=\"1\" seconds=\"1\" "
+               "id=\"{1}\"/></Winamp:Playlists>";
     }
     ~Fixture() {
         std::error_code error;
@@ -49,6 +54,7 @@ Widget* child(QWidget& dialog, const char* name) {
 TEST_CASE("migration wizard validates a folder and routes the selected imports") {
     Fixture fixture;
     std::string playlistPath;
+    std::string indexPath;
     int presetCalls = 0;
     MigrationDialog dialog((fixture.dir / "library.db").string(),
                            [&](const std::string& path) {
@@ -60,6 +66,10 @@ TEST_CASE("migration wizard validates a folder and routes the selected imports")
                                return true;
                            });
     dialog.show();
+    dialog.setIndexImporter([&](const std::string& path) {
+        indexPath = path;
+        return true;
+    });
 
     child<QLineEdit>(dialog, "winampFolder")->setText(QString::fromStdString(fixture.dir.string()));
     child<QPushButton>(dialog, "winampNext")->click();
@@ -67,9 +77,11 @@ TEST_CASE("migration wizard validates a folder and routes the selected imports")
     auto* ratings = child<QCheckBox>(dialog, "winampRatings");
     auto* playlist = child<QCheckBox>(dialog, "winampPlaylist");
     auto* presets = child<QCheckBox>(dialog, "winampPresets");
+    auto* mlPlaylists = child<QCheckBox>(dialog, "winampMlPlaylists");
     CHECK(ratings->isVisible());
     CHECK(playlist->isVisible());
     CHECK(presets->isVisible());
+    CHECK(mlPlaylists->isVisible());
 
     // The NDE path is already exercised end to end in migration_tests; here the
     // wizard must still run with ratings off and route the two file imports.
@@ -78,11 +90,13 @@ TEST_CASE("migration wizard validates a folder and routes the selected imports")
     child<QPushButton>(dialog, "winampImport")->click();
 
     CHECK(playlistPath == (fixture.dir / "winamp.m3u").string());
+    CHECK(indexPath == (fixture.dir / "plugins" / "ml" / "playlists" / "playlists.xml").string());
     CHECK(presetCalls == 0);
     auto* report = child<QLabel>(dialog, "winampReport");
     CHECK(report->isVisible());
     CHECK(report->text().contains(QStringLiteral("Ratings: not selected")));
     CHECK(report->text().contains(QStringLiteral("Playlist: imported")));
+    CHECK(report->text().contains(QStringLiteral("ML playlists: imported")));
     CHECK(child<QPushButton>(dialog, "winampClose")->isVisible());
 }
 

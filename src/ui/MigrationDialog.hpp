@@ -22,6 +22,7 @@
 class QCheckBox;
 class QLabel;
 class QLineEdit;
+class QListWidget;
 class QMouseEvent;
 class QPushButton;
 
@@ -37,6 +38,10 @@ public:
     /// receives `winamp.q1`. Both return whether the host consumed the file.
     MigrationDialog(std::string databasePath, PathCallback openPlaylist, PathCallback importPresets,
                     QWidget* parent = nullptr);
+
+    /// The Media Library index importer (PL-1's `playlists.xml` reader); set by
+    /// the host because it appends to the live playlist window.
+    void setIndexImporter(PathCallback importer) { m_importIndex = std::move(importer); }
 
     void setSkin(const skins::SkinSet* skin);
     QSize contentSize() const { return m_contentSize; }
@@ -58,6 +63,7 @@ private:
     std::string m_databasePath;
     PathCallback m_openPlaylist;
     PathCallback m_importPresets;
+    PathCallback m_importIndex;
     const skins::SkinSet* m_skin = nullptr;
     QSize m_contentSize;
 
@@ -71,13 +77,16 @@ private:
     QCheckBox* m_ratings = nullptr;
     QCheckBox* m_playlist = nullptr;
     QCheckBox* m_presets = nullptr;
+    QCheckBox* m_mlPlaylists = nullptr;
     QLabel* m_status = nullptr;
     QLabel* m_report = nullptr;
+    QListWidget* m_unmatchedList = nullptr;
 
     int m_step = 0;
     bool m_closePressed = false;
     std::optional<std::string> m_playlistPath;
     std::optional<std::string> m_presetPath;
+    std::optional<std::string> m_indexPath;
     std::vector<std::string> m_unmatched;
 };
 

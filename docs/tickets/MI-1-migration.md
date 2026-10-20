@@ -1,6 +1,6 @@
 # MI-1 · Winamp migration wizard
 
-- **Milestone:** M2 · **Est:** 4d · **Depends:** LI-3, AU-1, PL-1 · **Status:** in-progress — NDE, config, wizard, current M3U + q1, unmatched export landed; ML playlist index, bookmarks, recent history and skins pending
+- **Milestone:** M2 · **Est:** 4d · **Depends:** LI-3, AU-1, PL-1 · **Status:** in-progress — NDE, config, wizard, current + ML playlists, q1, unmatched export landed; bookmarks, recent history and skins pending
 
 ## Story
 The on-ramp for the exact user this product is for: someone with 15 years of Winamp state. One wizard reads their real `%APPDATA%\Winamp` — playlists, the NDE media-library database (ratings, playcounts, last-played, ReplayGain), EQ presets, bookmarks, preferences — and merges it into our library idempotently, with a report of what didn't match.
@@ -10,7 +10,7 @@ The on-ramp for the exact user this product is for: someone with 15 years of Win
 - [x] NDE reader (read-only): `main.dat`/`main.idx` — NDETABLE/NDEINDEX signatures, field IDs 0-41, record/column linked-list walk, u16-length strings, type tolerance (unknown types → skip field, count it).
 - [x] Import mapping: filename (normalized path join), rating, playcount, lastplay, dateadded, RG gains/peaks, bpm, genre/comment → upsert onto scanned tracks by normalized path (case-insensitive on Windows/mac, sensitive on Linux + case-fallback pass).
 - [ ] Recent/history NDE (`recent.dat`/`recent.idx`) → play history feed (optional, default on).
-- [ ] Playlists: `plugins\ml\playlists\playlists.xml` index + the `.m3u` files it points to (PL-1 readers); current `winamp.m3u`/`.m3u8` is wired.
+- [x] Playlists: current `winamp.m3u`/`.m3u8`; `plugins\ml\playlists\playlists.xml` index and its `.m3u` files (PL-1 readers, appended to the live playlist).
 - [x] `winamp.ini`: volume, EQ state/preamp/limiter/eq_type, skin path, `config_titlefmt`, shuffle/repeat, windowshade flags.
 - [x] `winamp.q1` EQ presets (wizard routes to SE-5).
 - [ ] `winamp.bm` bookmarks.
@@ -46,8 +46,11 @@ routes the current `winamp.m3u`/`.m3u8` through the existing PL-1 reader and
 reported without blocking those two. `migration_dialog_tests` covers folder
 validation, option routing and the report offscreen.
 
-Still to build: the ML `playlists.xml` index and its `.m3u` set, `winamp.bm`,
-`recent.dat` history, and copying `Skins/` into the app's skin folder. The
+The ML `playlists.xml` index is read with PL-1's `readIndex` and each referenced
+M3U is appended through `readFile`; the current playlist and EQ presets are
+routed separately, so a failure in one does not cancel the others. Still to
+build: `winamp.bm`, `recent.dat` history, and copying `Skins/` into the app's
+skin folder. The
 documented field acceptance still needs a real donation fixture; the generated
 fixture covers all documented scalar types and the corruption smoke.
 
