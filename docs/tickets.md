@@ -20,7 +20,10 @@
 | SE-5 EQ window | `tickets/SE-5-eq-window.md` |
 | AU-1 DSP + EQ | `tickets/AU-1-dsp-eq.md` |
 | AU-2 gapless + ReplayGain | `tickets/AU-2-gapless-replaygain.md` |
+| LI-1 scanner + TagLib | `tickets/LI-1-scanner.md` |
+| LI-2 SQLite + FTS5 | `tickets/LI-2-sqlite.md` |
 | LI-3 library UI + smart views | `tickets/LI-3-library-ui.md` |
+| SC-1 scrobbling | `tickets/SC-1-scrobbling.md` |
 | VZ-1 visualizer window | `tickets/VZ-1-visualizer.md` |
 | MI-1 migration wizard | `tickets/MI-1-migration.md` |
 | SV-1 Jellyfin port | `tickets/SV-1-jellyfin-port.md` |

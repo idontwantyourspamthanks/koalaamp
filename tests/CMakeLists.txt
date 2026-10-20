@@ -78,6 +78,15 @@ target_compile_definitions(jellyfin_browse_tests PRIVATE
     KOALAAMP_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/jellyfin")
 catch_discover_tests(jellyfin_browse_tests)
 
+# LI-1/LI-2: scanner, incremental stamps, watcher, SQLite/FTS5.
+add_executable(library_tests library_test.cpp)
+koalaamp_enable_warnings(library_tests)
+target_include_directories(library_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(library_tests PRIVATE Catch2::Catch2WithMain koalaamp_library)
+target_compile_definitions(library_tests PRIVATE
+    KOALAAMP_LIBRARY_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/library")
+catch_discover_tests(library_tests)
+
 # SV-1: the connection manager's persisted server list. Identity only — the store
 # is documented to carry no tokens or passwords, so the test pins that too.
 add_executable(server_book_tests server_book_test.cpp)
