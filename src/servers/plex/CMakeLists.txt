@@ -8,11 +8,13 @@ add_library(koalaamp_plex STATIC
     PlexGdm.cpp
     PlexClient.cpp
     PlexStream.cpp
-    PlexSource.cpp)
+    PlexSource.cpp
+    PlexMediaSource.cpp
+    PlexTimeline.cpp)
 koalaamp_enable_warnings(koalaamp_plex)
 target_include_directories(koalaamp_plex
     PUBLIC "${CMAKE_SOURCE_DIR}/src"
     PRIVATE "${CMAKE_SOURCE_DIR}/third_party/include")
 target_link_libraries(koalaamp_plex
-    PUBLIC koalaamp_servers koalaamp_library
+    PUBLIC koalaamp_servers koalaamp_library koalaamp_playback
     PRIVATE koalaamp_jellyfin)

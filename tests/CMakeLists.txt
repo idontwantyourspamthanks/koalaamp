@@ -99,6 +99,26 @@ target_compile_definitions(plex_port_tests PRIVATE
     KOALAAMP_PLEX_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/plex")
 catch_discover_tests(plex_port_tests)
 
+# SV-4: Plex timeline/watched/profile/media source.
+add_executable(plex_playback_tests plex_playback_test.cpp)
+koalaamp_enable_warnings(plex_playback_tests)
+target_include_directories(plex_playback_tests PRIVATE
+    "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(plex_playback_tests PRIVATE
+    Catch2::Catch2WithMain koalaamp_plex koalaamp_jellyfin)
+target_compile_definitions(plex_playback_tests PRIVATE
+    KOALAAMP_PLEX_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/plex")
+catch_discover_tests(plex_playback_tests)
+
+# SV-4: libvlc plays a PMS part through the callback media source.
+if(KOALAAMP_HAS_LIBVLC)
+    add_executable(plex_stream_libvlc_tests plex_stream_libvlc_test.cpp)
+    koalaamp_enable_warnings(plex_stream_libvlc_tests)
+    target_link_libraries(plex_stream_libvlc_tests PRIVATE
+        Catch2::Catch2WithMain koalaamp_plex koalaamp_vlc)
+    catch_discover_tests(plex_stream_libvlc_tests)
+endif()
+
 # SV-1: the connection manager's persisted server list. Identity only — the store
 # is documented to carry no tokens or passwords, so the test pins that too.
 add_executable(server_book_tests server_book_test.cpp)

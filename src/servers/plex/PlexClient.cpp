@@ -120,6 +120,9 @@ HttpResponse PlexClient::get(std::string_view path,
     request.method = "GET";
     request.url = std::move(url);
     request.headers = plexHeaders(info_, includeToken ? token_ : std::string_view{});
+    for (const auto& header : plexProfileHeaders()) {
+        request.headers.push_back(header);
+    }
     return transport_.perform(request, cancel);
 }
 
@@ -142,6 +145,9 @@ HttpResponse PlexClient::put(std::string_view path,
     request.method = "PUT";
     request.url = std::move(url);
     request.headers = plexHeaders(info_, token_);
+    for (const auto& header : plexProfileHeaders()) {
+        request.headers.push_back(header);
+    }
     return transport_.perform(request, cancel);
 }
 

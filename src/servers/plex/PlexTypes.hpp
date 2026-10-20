@@ -41,6 +41,49 @@ inline std::vector<std::pair<std::string, std::string>> plexHeaders(const PlexCl
     return headers;
 }
 
+/// Headers that advertise our direct-play codec set to PMS (SV-4). Sent on PMS
+/// metadata requests so the server's decisions match what libvlc can decode.
+inline std::vector<std::pair<std::string, std::string>> plexProfileHeaders() {
+    const std::string extra =
+        "add-direct-play-profile(type=musicProfile&container=flac&audioCodec=flac&protocol=http)"
+        "+add-direct-play-profile(type=musicProfile&container=mp3&audioCodec=mp3&protocol=http)"
+        "+add-direct-play-profile(type=musicProfile&container=aac&audioCodec=aac&protocol=http)"
+        "+add-direct-play-profile(type=musicProfile&container=m4a&audioCodec=alac&protocol=http)"
+        "+add-direct-play-profile(type=musicProfile&container=ogg&audioCodec=vorbis&protocol=http)"
+        "+add-direct-play-profile(type=musicProfile&container=opus&audioCodec=opus&protocol=http)"
+        "+add-direct-play-profile(type=musicProfile&container=wav&audioCodec=pcm&protocol=http)";
+    return {{"X-Plex-Client-Profile-Name", "KoalaAmp"},
+            {"X-Plex-Client-Profile-Extra", extra}};
+}
+
+/// True when a PMS `version` is at least `minimum` (dotted numeric compare).
+inline bool plexVersionAtLeast(std::string_view version, std::string_view minimum) {
+    const auto part = [](std::string_view text, std::size_t index) -> int {
+        std::size_t start = 0;
+        for (std::size_t i = 0; i < index; ++i) {
+            start = text.find('.', start);
+            if (start == std::string_view::npos) {
+                return 0;
+            }
+            ++start;
+        }
+        int value = 0;
+        while (start < text.size() && text[start] >= '0' && text[start] <= '9') {
+            value = value * 10 + (text[start] - '0');
+            ++start;
+        }
+        return value;
+    };
+    for (std::size_t i = 0; i < 3; ++i) {
+        const int have = part(version, i);
+        const int need = part(minimum, i);
+        if (have != need) {
+            return have > need;
+        }
+    }
+    return true;
+}
+
 struct PlexServerInfo {
     std::string id; ///< machineIdentifier
     std::string name;
