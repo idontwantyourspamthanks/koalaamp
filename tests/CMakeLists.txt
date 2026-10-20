@@ -441,6 +441,18 @@ message(STATUS "KoalaAmp: SE-4 Part A window-set tests enabled")
 
 # SE-4 Part B: the snap/dock manager, keep-on-top and layout persistence.
 # Scripted offscreen drags against the real widgets.
+# LI-3: offscreen library-window render smoke across the corpus.
+add_executable(koalaamp_li3_window_tests li3_window_test.cpp)
+koalaamp_enable_warnings(koalaamp_li3_window_tests)
+target_link_libraries(koalaamp_li3_window_tests PRIVATE
+    Catch2::Catch2WithMain koalaamp_ui koalaamp_library)
+target_compile_definitions(koalaamp_li3_window_tests PRIVATE
+    "KOALAAMP_CORPUS_DIR=\"${CMAKE_SOURCE_DIR}/third_party/skins-corpus\"")
+catch_discover_tests(koalaamp_li3_window_tests PROPERTIES
+    DISCOVERY_MODE PRE_TEST
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    TIMEOUT 180)
+
 add_executable(koalaamp_se4_snap_tests se4_snap_test.cpp)
 koalaamp_enable_warnings(koalaamp_se4_snap_tests)
 target_link_libraries(koalaamp_se4_snap_tests PRIVATE Catch2::Catch2 koalaamp_ui Qt6::Test)

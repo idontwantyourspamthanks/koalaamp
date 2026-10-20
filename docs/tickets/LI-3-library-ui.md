@@ -1,6 +1,6 @@
 # LI-3 · Library UI (skinned) + smart views
 
-- **Milestone:** M2 · **Est:** 5d · **Depends:** LI-2, SE-3 · **Status:** in-review — functional; perf/corpus evidence pending
+- **Milestone:** M2 · **Est:** 5d · **Depends:** LI-2, SE-3 · **Status:** in-review — acceptance evidence recorded; exact genex font/widget fidelity and scroll-FPS measurement still open
 
 ## Story
 The Media Library window a Winamp user expects: artist/album tree, track grid, filters, and the smart views that made the classic ML useful — all rendered in skin chrome (`gen`/`genex` bitmaps with a designed fallback), with the Winamp query grammar driving saved views.
@@ -45,9 +45,22 @@ visible sort order; verified with three four-second WAVs where 01-One advanced
 to 02-TWO, and pinned by a `playList` regression test plus the SE-3 interaction
 suite.
 
-Still open for acceptance: 100k smart-view perf numbers, five-skin corpus
-screenshots, and exact variable-width font/genex widget-art fidelity (the
-current list/tree/table styling is palette-based, not per-sprite).
+## Acceptance evidence (2026-10-20)
+- 100k synthetic rows, 20 runs each, limit 5000:
+  `genre` p95 35.7 ms, `artist has` 19.4 ms, `album begins` 18.4 ms,
+  `title has` 8.3 ms; artist expansion p95 15.4 ms (`albumsForArtist` +
+  `artistTracks`) — all under the 100 ms budget.
+- `koalaamp_li3_window_tests` renders the null-skin fallback, five corpus skins
+  that carry `gen.bmp`, and one corpus skin without it (fallback frame); 66
+  assertions, offscreen, no crash.
+- Manual Xvfb pass: scan → 4 rows, artist filter, click-to-rate persisted
+  (rating=2), double-click played and advanced `01-One → 02-TWO`; playcounts
+  and lastplayed persisted.
+
+Still open: the grid's 60 fps scroll measurement on real hardware, row-for-row
+comparison against hand-written reference SQL, and exact variable-width
+gen-font/per-sprite genex widget art (the current list/tree/table styling is
+palette-based; the window chrome/title already uses the gen alphabet).
 
 ## Out of scope
 - Mass tag editing, album-art grid view, drag-to-playlist (drag reorder is SE-3's; cross-window DnD is a polish ticket later).

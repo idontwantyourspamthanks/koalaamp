@@ -246,6 +246,54 @@ TEST_CASE("100k rows stay within the search latency budget") {
     const double p95 = millis[static_cast<std::size_t>(millis.size() * 0.95)];
     CHECK(p95 < 100.0);
 
+    // LI-3 smart views on the same 100k rows. These are the queries the library
+    // window actually sends (limit 5000, fixed orders).
+    const struct {
+        const char* text;
+        const char* order;
+        const char* name;
+    } views[] = {
+        {R"(genre = "Genre")", "default", "genre"},
+        {R"(artist has "Artist 1")", "default", "artist"},
+        {R"(album begins "Album 9")", "default", "album"},
+        {R"(title has "Track 99")", "title", "title"},
+    };
+    for (const auto& view : views) {
+        const auto parsed = parseQuery(view.text);
+        REQUIRE(parsed.query.has_value());
+        std::vector<double> viewMillis;
+        for (int q = 0; q < 20; ++q) {
+            const auto started = std::chrono::steady_clock::now();
+            const auto rows = db.query(*parsed.query, 5000, view.order);
+            viewMillis.push_back(std::chrono::duration<double, std::milli>(
+                                     std::chrono::steady_clock::now() - started)
+                                     .count());
+            CHECK_FALSE(rows.empty());
+        }
+        std::sort(viewMillis.begin(), viewMillis.end());
+        const double viewP95 = viewMillis[static_cast<std::size_t>(viewMillis.size() * 0.95)];
+        INFO("smart view " << view.name << " p95=" << viewP95 << "ms");
+        CHECK(viewP95 < 100.0);
+    }
+
+    // Artist expansion and artist-track loading use the same 100k rows.
+    std::vector<double> expandMillis;
+    for (int q = 0; q < 20; ++q) {
+        const std::string artist = "Artist " + std::to_string(q % 100);
+        const auto started = std::chrono::steady_clock::now();
+        const auto albumsForArtist = db.albumsForArtist(artist);
+        const auto tracks = db.artistTracks(artist, 5000);
+        expandMillis.push_back(
+            std::chrono::duration<double, std::milli>(std::chrono::steady_clock::now() - started)
+                .count());
+        CHECK_FALSE(albumsForArtist.empty());
+        CHECK_FALSE(tracks.empty());
+    }
+    std::sort(expandMillis.begin(), expandMillis.end());
+    const double expandP95 = expandMillis[static_cast<std::size_t>(expandMillis.size() * 0.95)];
+    INFO("artist expand p95=" << expandP95 << "ms");
+    CHECK(expandP95 < 100.0);
+
     std::error_code error;
     fs::remove_all(dir, error);
 }
