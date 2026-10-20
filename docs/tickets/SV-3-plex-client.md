@@ -45,6 +45,21 @@ version-gated posture the 2025–26 Plex churn record demands.
   failure.
 - No token appears in any browsed/fixture URL (grep over fixtures + requests).
 
+## UI cutover (2026-10-20)
+- `ui/ServerBrowserWindow` is backend-neutral over `IServerBrowserSource`; the Jellyfin
+  and Plex adapters are `ui/JellyfinBrowserSource.*` and `ui/PlexBrowserSource.*`.
+- The connection dialog has a Plex PIN button beside QuickConnect: it shows the code and
+  plex.tv/link, polls every 2 s, lets the user pick among servers (local connection
+  preferred), validates the chosen PMS via `/identity`, and persists the token in the
+  keychain plus a `ServerBackend::Plex` book entry.
+- `main` selects the reporter and browser source from `ServerAuth::backend`; Plex playback
+  uses `PlexPlaybackReporter` and `PlexMediaSource`.
+- Fixture tests: Plex PIN dialog completion + browser adapter in
+  `jellyfin_browser_window_tests`; `plex_port_tests`, `plex_playback_tests`.
+- Live pass (pending, needs an account + reachable PMS): Servers… → Plex → enter the
+  code at plex.tv/link → pick the server → browse → play; confirm the PMS dashboard
+  shows the timeline/scrobble and that pause/seek/stop update it.
+
 ## Out of scope
 - Playback/timeline/scrobble/watched — SV-4.
 - Home users/kid switching, QuickConnect analogue, companion receiver, sonic analysis,

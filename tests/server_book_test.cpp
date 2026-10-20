@@ -15,12 +15,13 @@
 
 namespace {
 namespace fs = std::filesystem;
+using koalaamp::servers::forgetSession;
 using koalaamp::servers::MemorySecretStore;
+using koalaamp::servers::restoreSession;
 using koalaamp::servers::ServerAuth;
+using koalaamp::servers::ServerBackend;
 using koalaamp::servers::ServerBook;
 using koalaamp::servers::ServerEntry;
-using koalaamp::servers::forgetSession;
-using koalaamp::servers::restoreSession;
 using koalaamp::servers::sessionSecretKey;
 
 fs::path freshDir() {
@@ -115,6 +116,41 @@ TEST_CASE("a malformed book loads empty and reports why") {
     fs::remove_all(dir);
 }
 
+TEST_CASE("a Plex entry restores the Plex backend from its own key slot") {
+    const auto dir = freshDir();
+    ServerBook book(dir / "servers.json");
+    ServerEntry plex;
+    plex.serverId = "ps1";
+    plex.name = "Plex Box";
+    plex.baseUrl = "http://pms.local:32400";
+    plex.userId = "plex-user";
+    plex.userName = "tester";
+    plex.deviceId = "plex-client";
+    plex.backend = ServerBackend::Plex;
+    book.upsert(plex);
+    REQUIRE(book.save());
+
+    MemorySecretStore secrets;
+    // A Jellyfin token under the same id must not satisfy a Plex entry.
+    secrets.store(sessionSecretKey(ServerBackend::Jellyfin, "ps1", plex.baseUrl), "jellyfin-token");
+    CHECK_FALSE(restoreSession(book, secrets).has_value());
+
+    const std::string plexKey = sessionSecretKey(ServerBackend::Plex, "ps1", plex.baseUrl);
+    REQUIRE(secrets.store(plexKey, "plex-token"));
+    CHECK(plexKey == "plex/ps1");
+    const auto restored = restoreSession(book, secrets);
+    REQUIRE(restored.has_value());
+    CHECK(restored->backend == ServerBackend::Plex);
+    CHECK(restored->userName == "tester");
+    CHECK(restored->accessToken == "plex-token");
+    CHECK(restored->baseUrl == "http://pms.local:32400");
+
+    forgetSession(secrets, ServerBackend::Plex, "ps1", restored->baseUrl);
+    CHECK_FALSE(restoreSession(book, secrets).has_value());
+
+    fs::remove_all(dir);
+}
+
 TEST_CASE("the store never writes credentials") {
     const auto dir = freshDir();
     const auto file = dir / "servers.json";
@@ -142,7 +178,8 @@ TEST_CASE("a keychain token restores the active server and a forget drops it") {
     MemorySecretStore secrets;
     CHECK_FALSE(restoreSession(book, secrets).has_value());
 
-    const std::string key = sessionSecretKey("s1", "http://jellyfin.local:8096");
+    const std::string key =
+        sessionSecretKey(ServerBackend::Jellyfin, "s1", "http://jellyfin.local:8096");
     REQUIRE(secrets.store(key, "token-from-quick-connect"));
     const auto restored = restoreSession(book, secrets);
     REQUIRE(restored.has_value());
@@ -157,7 +194,7 @@ TEST_CASE("a keychain token restores the active server and a forget drops it") {
     const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
     CHECK(text.find("token-from-quick-connect") == std::string::npos);
 
-    forgetSession(secrets, "s1", restored->baseUrl);
+    forgetSession(secrets, ServerBackend::Jellyfin, "s1", restored->baseUrl);
     CHECK_FALSE(restoreSession(book, secrets).has_value());
 
     fs::remove_all(dir);

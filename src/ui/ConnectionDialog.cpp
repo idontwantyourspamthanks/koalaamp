@@ -6,26 +6,26 @@
 #include "servers/jellyfin/AuthHeaders.hpp"
 #include "servers/jellyfin/Discovery.hpp"
 #include "servers/jellyfin/JellyfinClient.hpp"
+#include "servers/plex/PlexAuth.hpp"
+#include "servers/plex/PlexClient.hpp"
 #include "ui/GenRenderer.hpp"
 
 #include <QApplication>
 #include <QColor>
-#include <QLabel>
 #include <QInputDialog>
+#include <QLabel>
 #include <QLineEdit>
+#include <QListWidget>
 #include <QMessageBox>
 #include <QMouseEvent>
-#include <QPointer>
-#include <QListWidget>
 #include <QPainter>
+#include <QPointer>
 #include <QPushButton>
 #include <QUrl>
-
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <thread>
-
-#include <algorithm>
 #include <variant>
 
 namespace koalaamp::ui {
@@ -62,10 +62,7 @@ QString displayHost(const std::string& baseUrl) {
 ConnectionDialog::ConnectionDialog(servers::jellyfin::IHttpTransport& transport,
                                    servers::ServerBook& book, std::string machineIdPath,
                                    QWidget* parent, servers::SecretStore* secrets)
-    : SkinnedWindow(parent),
-      m_transport(transport),
-      m_book(book),
-      m_secrets(secrets),
+    : SkinnedWindow(parent), m_transport(transport), m_book(book), m_secrets(secrets),
       m_machineId(servers::jellyfin::MachineIdStore(std::move(machineIdPath))) {
     m_contentSize = genSnapSize(QSize(420, 300));
     setFixedSize(m_contentSize);
@@ -115,9 +112,14 @@ ConnectionDialog::ConnectionDialog(servers::jellyfin::IHttpTransport& transport,
     m_browse->setGeometry(x + 3 * (width / 4), client.y() + 162, buttonWidth, 26);
     m_browse->setEnabled(false); // until a login succeeds
 
+    // Jellyfin QuickConnect and the Plex PIN link share the row.
     m_quickConnect = new QPushButton(QStringLiteral("QuickConnect"), this);
     m_quickConnect->setObjectName(QStringLiteral("quickConnectButton"));
-    m_quickConnect->setGeometry(x, client.y() + 192, width, 26);
+    m_quickConnect->setGeometry(x, client.y() + 192, width / 2 - 4, 26);
+
+    m_plex = new QPushButton(QStringLiteral("Plex"), this);
+    m_plex->setObjectName(QStringLiteral("plexButton"));
+    m_plex->setGeometry(x + width / 2 + 4, client.y() + 192, width / 2 - 4, 26);
 
     m_status = new QLabel(this);
     m_status->setObjectName(QStringLiteral("statusLabel"));
@@ -127,8 +129,7 @@ ConnectionDialog::ConnectionDialog(servers::jellyfin::IHttpTransport& transport,
     m_status->setStyleSheet(QStringLiteral("color: #e8e8e8;"));
     m_status->setText(QStringLiteral("No server selected"));
 
-    connect(m_list, &QListWidget::currentRowChanged, this,
-            [this](int) { fillFromSelection(); });
+    connect(m_list, &QListWidget::currentRowChanged, this, [this](int) { fillFromSelection(); });
     connect(m_password, &QLineEdit::returnPressed, this, &ConnectionDialog::login);
     connect(m_login, &QPushButton::clicked, this, &ConnectionDialog::login);
     connect(m_discover, &QPushButton::clicked, this, &ConnectionDialog::discover);
@@ -137,6 +138,9 @@ ConnectionDialog::ConnectionDialog(servers::jellyfin::IHttpTransport& transport,
     connect(m_quickConnect, &QPushButton::clicked, this, &ConnectionDialog::quickConnect);
     m_quickConnectTimer.setInterval(2000);
     connect(&m_quickConnectTimer, &QTimer::timeout, this, &ConnectionDialog::pollQuickConnect);
+    connect(m_plex, &QPushButton::clicked, this, &ConnectionDialog::plexLink);
+    m_plexTimer.setInterval(2000);
+    connect(&m_plexTimer, &QTimer::timeout, this, &ConnectionDialog::pollPlexLink);
 
     refreshList();
 }
@@ -149,9 +153,9 @@ void ConnectionDialog::setSkin(const skins::SkinSet* skin) {
 
 void ConnectionDialog::paintEvent(QPaintEvent*) {
     const skins::Skin& sheets = m_skin != nullptr ? m_skin->sheets : noSheets();
-    const QImage chrome = renderGenWindow(sheets, pleditIfShipped(m_skin), m_contentSize,
-                                          "CONNECTION MANAGER", isActiveWindow(), 1,
-                                          m_closePressed);
+    const QImage chrome =
+        renderGenWindow(sheets, pleditIfShipped(m_skin), m_contentSize, "CONNECTION MANAGER",
+                        isActiveWindow(), 1, m_closePressed);
     QPainter painter(this);
     painter.drawImage(0, 0, chrome);
 }
@@ -217,6 +221,10 @@ void ConnectionDialog::refreshList() {
 
 void ConnectionDialog::login() {
     using namespace koalaamp::servers::jellyfin;
+    if (m_selectedBackend == servers::ServerBackend::Plex) {
+        setStatus(QStringLiteral("Use the Plex button to sign in"));
+        return;
+    }
 
     std::string baseUrl = m_url->text().trimmed().toStdString();
     if (!baseUrl.empty() && baseUrl.find("://") == std::string::npos) {
@@ -268,17 +276,28 @@ void ConnectionDialog::fillFromSelection() {
         m_url->setText(QString::fromStdString(entry.baseUrl));
         m_user->setText(QString::fromStdString(entry.userName));
         m_password->clear();
+        m_selectedBackend = entry.backend;
+        if (entry.backend == servers::ServerBackend::Plex) {
+            if (m_session && m_session->serverId == entry.serverId &&
+                m_session->backend == servers::ServerBackend::Plex) {
+                return; // restored from the keychain above
+            }
+            m_plex->setFocus();
+            setStatus(QStringLiteral("Plex session expired — press Plex to link again"));
+            return;
+        }
         if (m_secrets != nullptr) {
-            if (const auto token =
-                    m_secrets->load(servers::sessionSecretKey(entry.serverId, entry.baseUrl));
+            if (const auto token = m_secrets->load(
+                    servers::sessionSecretKey(entry.backend, entry.serverId, entry.baseUrl));
                 token && !token->empty()) {
                 const bool changed = !m_session || m_session->accessToken != *token ||
                                      m_session->serverId != entry.serverId;
-                m_session = servers::ServerAuth{entry.baseUrl, entry.userId, *token, entry.deviceId,
-                                                entry.serverId};
+                m_session = servers::ServerAuth{entry.baseUrl,  entry.userId,   *token,
+                                                entry.deviceId, entry.serverId, entry.backend,
+                                                entry.userName};
                 m_browse->setEnabled(true);
-                setStatus(QStringLiteral("Signed in as %1")
-                              .arg(QString::fromStdString(entry.userName)));
+                setStatus(
+                    QStringLiteral("Signed in as %1").arg(QString::fromStdString(entry.userName)));
                 if (changed) {
                     emit sessionChanged();
                 }
@@ -301,7 +320,10 @@ void ConnectionDialog::finishLogin(const std::string& baseUrl,
                                    const servers::jellyfin::AuthSession& session,
                                    const std::string& deviceId) {
     const std::string serverId = session.serverId.empty() ? baseUrl : session.serverId;
-    m_session = servers::ServerAuth{baseUrl, session.userId, session.accessToken, deviceId, serverId};
+    m_session =
+        servers::ServerAuth{baseUrl,         session.userId, session.accessToken,
+                            deviceId,        serverId,       servers::ServerBackend::Jellyfin,
+                            session.userName};
     bool keyringSaved = true;
     if (m_secrets != nullptr) {
         keyringSaved = servers::rememberSession(*m_secrets, *m_session);
@@ -413,19 +435,21 @@ void ConnectionDialog::quickConnect() {
         }
         QMetaObject::invokeMethod(
             qApp,
-            [self, ok, secret, code, reason, requestBaseUrl = QString::fromStdString(requestBaseUrl),
+            [self, ok, secret, code, reason,
+             requestBaseUrl = QString::fromStdString(requestBaseUrl),
              deviceId = QString::fromStdString(deviceId)] {
                 if (self) {
-                    self->onQuickConnectInitiated(ok, secret, code, reason, requestBaseUrl, deviceId);
+                    self->onQuickConnectInitiated(ok, secret, code, reason, requestBaseUrl,
+                                                  deviceId);
                 }
             },
             Qt::QueuedConnection);
     }).detach();
 }
 
-void ConnectionDialog::onQuickConnectInitiated(bool ok, const QString& secret,
-                                               const QString& code, const QString& reason,
-                                               const QString& baseUrl, const QString& deviceId) {
+void ConnectionDialog::onQuickConnectInitiated(bool ok, const QString& secret, const QString& code,
+                                               const QString& reason, const QString& baseUrl,
+                                               const QString& deviceId) {
     m_quickConnectPending = false;
     if (!ok) {
         std::fprintf(stderr, "koalaamp: QuickConnect failed at %s: %s\n",
@@ -474,8 +498,7 @@ void ConnectionDialog::pollQuickConnect() {
             return;
         }
         if (std::holds_alternative<AuthInvalidCredentials>(auth)) {
-            setStatus(QString::fromStdString(
-                std::get<AuthInvalidCredentials>(auth).message));
+            setStatus(QString::fromStdString(std::get<AuthInvalidCredentials>(auth).message));
         } else if (std::holds_alternative<AuthUnreachable>(auth)) {
             setStatus(QStringLiteral("Server unreachable"));
         } else {
@@ -490,6 +513,170 @@ void ConnectionDialog::pollQuickConnect() {
     } else {
         stopQuickConnect(QString::fromStdString(std::get<ItemsFailed>(outcome).message));
     }
+}
+
+void ConnectionDialog::plexLink() {
+    using namespace koalaamp::servers;
+    using namespace koalaamp::servers::plex;
+
+    if (m_plexTimer.isActive()) {
+        m_plexTimer.stop();
+        m_plex->setText(QStringLiteral("Plex"));
+        setStatus(QStringLiteral("Plex link cancelled"));
+        return;
+    }
+
+    const std::string clientId =
+        koalaamp::servers::jellyfin::deriveDeviceId(m_machineId.machineId(), "plex");
+    PlexAuth auth(m_transport,
+                  PlexClientInfo{clientId, "KoalaAmp", "0.0.1", "KoalaAmp", "Generic"});
+    const PlexPinOutcome outcome = auth.createPin();
+    if (const auto* pin = std::get_if<PlexPin>(&outcome)) {
+        m_plexPinId = QString::fromStdString(pin->id);
+        m_plexClientId = QString::fromStdString(clientId);
+        m_plexPolls = 0;
+        m_plex->setText(QStringLiteral("Code %1 — cancel").arg(QString::fromStdString(pin->code)));
+        m_plexTimer.start();
+        setStatus(QStringLiteral("Enter code %1 at %2")
+                      .arg(QString::fromStdString(pin->code),
+                           QString::fromStdString(PlexAuth::linkUrl())));
+        return;
+    }
+    QString reason;
+    if (std::holds_alternative<PlexAuthUnreachable>(outcome)) {
+        reason = QStringLiteral("plex.tv unreachable");
+    } else {
+        reason = QString::fromStdString(std::get<PlexAuthFailed>(outcome).message);
+    }
+    m_plex->setText(QStringLiteral("Plex"));
+    setStatus(reason);
+    QMessageBox::warning(this, QStringLiteral("Plex"), reason);
+}
+
+void ConnectionDialog::pollPlexLink() {
+    using namespace koalaamp::servers;
+    using namespace koalaamp::servers::plex;
+    if (m_plexPinId.isEmpty()) {
+        return;
+    }
+    PlexAuth auth(m_transport, PlexClientInfo{m_plexClientId.toStdString(), "KoalaAmp", "0.0.1",
+                                              "KoalaAmp", "Generic"});
+    const PlexPollOutcome outcome = auth.pollPin(m_plexPinId.toStdString());
+    if (std::holds_alternative<PlexLinkPending>(outcome)) {
+        if (++m_plexPolls >= 60) {
+            m_plexTimer.stop();
+            m_plexPinId.clear();
+            m_plex->setText(QStringLiteral("Plex"));
+            setStatus(QStringLiteral("Plex link timed out"));
+        }
+        return;
+    }
+    if (std::holds_alternative<PlexLinkExpired>(outcome)) {
+        m_plexTimer.stop();
+        m_plexPinId.clear();
+        m_plex->setText(QStringLiteral("Plex"));
+        setStatus(QStringLiteral("Plex link expired — try again"));
+        return;
+    }
+    if (const auto* account = std::get_if<PlexAccount>(&outcome)) {
+        m_plexTimer.stop();
+        m_plexPinId.clear();
+        const PlexResourcesOutcome resources = auth.resources(account->token);
+        if (!std::holds_alternative<std::vector<PlexResource>>(resources)) {
+            m_plex->setText(QStringLiteral("Plex"));
+            const QString reason =
+                std::holds_alternative<PlexAuthUnreachable>(resources)
+                    ? QStringLiteral("plex.tv unreachable")
+                    : QString::fromStdString(std::get<PlexAuthFailed>(resources).message);
+            setStatus(reason);
+            QMessageBox::warning(this, QStringLiteral("Plex"), reason);
+            return;
+        }
+        const std::vector<PlexResource>& found = std::get<std::vector<PlexResource>>(resources);
+        if (found.empty()) {
+            m_plex->setText(QStringLiteral("Plex"));
+            setStatus(QStringLiteral("No Plex servers on this account"));
+            QMessageBox::warning(this, QStringLiteral("Plex"),
+                                 QStringLiteral("This account has no Plex Media Server."));
+            return;
+        }
+        PlexResource chosen = found.front();
+        if (found.size() > 1) {
+            QStringList labels;
+            for (const PlexResource& resource : found) {
+                labels << QString::fromStdString(resource.name);
+            }
+            bool accepted = false;
+            const QString picked = QInputDialog::getItem(this, QStringLiteral("Plex servers"),
+                                                         QStringLiteral("Choose a server:"), labels,
+                                                         0, false, &accepted);
+            if (!accepted) {
+                m_plex->setText(QStringLiteral("Plex"));
+                setStatus(QStringLiteral("Plex link cancelled"));
+                return;
+            }
+            const qsizetype index = labels.indexOf(picked);
+            if (index < 0 || static_cast<std::size_t>(index) >= found.size()) {
+                return;
+            }
+            chosen = found[static_cast<std::size_t>(index)];
+        }
+        const std::string uri = chosen.chooseUri();
+        if (uri.empty()) {
+            m_plex->setText(QStringLiteral("Plex"));
+            setStatus(QStringLiteral("The Plex server has no usable connection"));
+            return;
+        }
+        PlexClient client(m_transport,
+                          PlexClientInfo{m_plexClientId.toStdString(), "KoalaAmp", "0.0.1",
+                                         "KoalaAmp", "Generic"},
+                          uri, chosen.accessToken);
+        const auto identity = client.identity();
+        finishPlexLogin(uri, chosen.accessToken, identity ? identity->id : chosen.id,
+                        identity && !identity->name.empty() ? identity->name : chosen.name,
+                        account->userId, account->userName);
+        return;
+    }
+    m_plex->setText(QStringLiteral("Plex"));
+    const QString reason = std::holds_alternative<PlexAuthUnreachable>(outcome)
+                               ? QStringLiteral("plex.tv unreachable")
+                               : QString::fromStdString(std::get<PlexAuthFailed>(outcome).message);
+    setStatus(reason);
+    QMessageBox::warning(this, QStringLiteral("Plex"), reason);
+}
+
+void ConnectionDialog::finishPlexLogin(const std::string& baseUrl, const std::string& token,
+                                       const std::string& serverId, const std::string& serverName,
+                                       const std::string& userId, const std::string& userName) {
+    using namespace koalaamp::servers;
+    m_session = ServerAuth{
+        baseUrl, userId, token, m_plexClientId.toStdString(), serverId, ServerBackend::Plex,
+        userName};
+    bool keyringSaved = true;
+    if (m_secrets != nullptr) {
+        keyringSaved = rememberSession(*m_secrets, *m_session);
+    }
+
+    ServerEntry entry;
+    entry.serverId = serverId.empty() ? baseUrl : serverId;
+    entry.name = serverName.empty() ? "Plex" : serverName;
+    entry.baseUrl = baseUrl;
+    entry.userId = userId;
+    entry.userName = userName;
+    entry.deviceId = m_plexClientId.toStdString();
+    entry.backend = ServerBackend::Plex;
+    m_book.upsert(std::move(entry));
+    const bool saved = m_book.save();
+
+    m_plex->setText(QStringLiteral("Plex"));
+    refreshList();
+    m_browse->setEnabled(true);
+    m_browse->setFocus();
+    setStatus(keyringSaved && saved
+                  ? QStringLiteral("Plex: %1 — signed in").arg(QString::fromStdString(serverName))
+                  : QStringLiteral("Plex: %1 — signed in (storage warning)")
+                        .arg(QString::fromStdString(serverName)));
+    emit sessionChanged();
 }
 
 void ConnectionDialog::browseServer() {
@@ -521,14 +708,13 @@ void ConnectionDialog::discover() {
     labels.reserve(static_cast<qsizetype>(found.size()));
     for (const auto& server : found) {
         const QString name = QString::fromStdString(server.name);
-        labels << QStringLiteral("%1 — %2")
-                      .arg(name.isEmpty() ? QStringLiteral("Jellyfin") : name,
-                           QString::fromStdString(server.address));
+        labels << QStringLiteral("%1 — %2").arg(name.isEmpty() ? QStringLiteral("Jellyfin") : name,
+                                                QString::fromStdString(server.address));
     }
     bool accepted = false;
-    const QString chosen = QInputDialog::getItem(this, QStringLiteral("Discover servers"),
-                                                 QStringLiteral("Pick a server to use:"), labels,
-                                                 0, false, &accepted);
+    const QString chosen =
+        QInputDialog::getItem(this, QStringLiteral("Discover servers"),
+                              QStringLiteral("Pick a server to use:"), labels, 0, false, &accepted);
     if (!accepted) {
         setStatus(QStringLiteral("Discovery cancelled"));
         return;
@@ -549,9 +735,11 @@ void ConnectionDialog::removeSelected() {
     }
     const std::string serverId = item->data(Qt::UserRole).toString().toStdString();
     std::string baseUrl;
+    servers::ServerBackend backend = servers::ServerBackend::Jellyfin;
     for (const auto& entry : m_book.entries()) {
         if (entry.serverId == serverId) {
             baseUrl = entry.baseUrl;
+            backend = entry.backend;
             break;
         }
     }
@@ -560,7 +748,7 @@ void ConnectionDialog::removeSelected() {
         return;
     }
     if (m_secrets != nullptr) {
-        servers::forgetSession(*m_secrets, serverId, baseUrl);
+        servers::forgetSession(*m_secrets, backend, serverId, baseUrl);
     }
     m_book.save();
     m_session.reset();

@@ -492,7 +492,8 @@ if(KOALAAMP_HAS_GL_VISUALIZER)
     target_link_libraries(jellyfin_browser_window_tests PRIVATE
         Catch2::Catch2 koalaamp_ui Qt6::Test)
     target_compile_definitions(jellyfin_browser_window_tests PRIVATE
-        KOALAAMP_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/jellyfin")
+        KOALAAMP_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/jellyfin"
+        KOALAAMP_PLEX_FIXTURE_DIR="${CMAKE_SOURCE_DIR}/tests/fixtures/plex")
     catch_discover_tests(jellyfin_browser_window_tests PROPERTIES
         DISCOVERY_MODE PRE_TEST
         ENVIRONMENT "QT_QPA_PLATFORM=offscreen"

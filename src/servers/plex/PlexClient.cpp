@@ -3,9 +3,8 @@
 
 #include "servers/plex/PlexClient.hpp"
 
-#include <nlohmann/json.hpp>
-
 #include <algorithm>
+#include <nlohmann/json.hpp>
 #include <utility>
 
 namespace koalaamp::servers::plex {
@@ -92,9 +91,7 @@ std::string keyTail(std::string key) {
 
 PlexClient::PlexClient(jellyfin::IHttpTransport& transport, PlexClientInfo info,
                        std::string baseUrl, std::string token)
-    : transport_(transport),
-      info_(std::move(info)),
-      baseUrl_(baseNoSlash(std::move(baseUrl))),
+    : transport_(transport), info_(std::move(info)), baseUrl_(baseNoSlash(std::move(baseUrl))),
       token_(std::move(token)) {
     if (info_.deviceName.empty()) {
         info_.deviceName = info_.clientIdentifier;
@@ -152,6 +149,7 @@ HttpResponse PlexClient::put(std::string_view path,
 }
 
 bool PlexClient::ensureOk(const HttpResponse& response, const char* what) {
+    lastUnauthorized_ = response.transportOk() && response.status == 401;
     if (!response.transportOk()) {
         lastError_ = response.error;
         return false;
@@ -187,8 +185,7 @@ std::optional<PlexServerInfo> PlexClient::identity(const library::Cancellation& 
     }
 }
 
-std::optional<std::vector<PlexSection>> PlexClient::sections(
-    const library::Cancellation& cancel) {
+std::optional<std::vector<PlexSection>> PlexClient::sections(const library::Cancellation& cancel) {
     const HttpResponse response = get("/library/sections", {}, true, cancel);
     if (!ensureOk(response, "sections")) {
         return std::nullopt;
@@ -203,8 +200,8 @@ std::optional<std::vector<PlexSection>> PlexClient::sections(
                 if (!dto.is_object()) {
                     continue;
                 }
-                sections.push_back(PlexSection{keyTail(str(dto, "key")), str(dto, "title"),
-                                               str(dto, "type")});
+                sections.push_back(
+                    PlexSection{keyTail(str(dto, "key")), str(dto, "title"), str(dto, "type")});
             }
         }
         return sections;
@@ -214,14 +211,14 @@ std::optional<std::vector<PlexSection>> PlexClient::sections(
     }
 }
 
-std::optional<std::vector<PlexAlbum>> PlexClient::albums(
-    const std::string& sectionId, int start, int limit, const library::Cancellation& cancel) {
-    const HttpResponse response =
-        get("/library/sections/" + sectionId + "/all",
-            {{"type", "9"},
-             {"X-Plex-Container-Start", std::to_string(start)},
-             {"X-Plex-Container-Size", std::to_string(limit)}},
-            true, cancel);
+std::optional<std::vector<PlexAlbum>> PlexClient::albums(const std::string& sectionId, int start,
+                                                         int limit,
+                                                         const library::Cancellation& cancel) {
+    const HttpResponse response = get("/library/sections/" + sectionId + "/all",
+                                      {{"type", "9"},
+                                       {"X-Plex-Container-Start", std::to_string(start)},
+                                       {"X-Plex-Container-Size", std::to_string(limit)}},
+                                      true, cancel);
     if (!ensureOk(response, "albums")) {
         return std::nullopt;
     }
@@ -261,8 +258,8 @@ library::Track PlexClient::trackFromMetadata(const std::string& dtoJson) {
         track.trackNo = static_cast<int>(num(dto, "index"));
         track.discNo = static_cast<int>(num(dto, "parentIndex"));
         track.durationMs = num(dto, "duration");
-        if (const auto media = dto.find("Media"); media != dto.end() && media->is_array() &&
-                                                 !media->empty()) {
+        if (const auto media = dto.find("Media");
+            media != dto.end() && media->is_array() && !media->empty()) {
             const json& first = media->front();
             track.codec = str(first, "audioCodec");
             if (track.codec.empty()) {
@@ -280,10 +277,10 @@ library::Track PlexClient::trackFromMetadata(const std::string& dtoJson) {
     return track;
 }
 
-std::optional<std::vector<library::Track>> PlexClient::albumTracks(
-    const std::string& albumId, const library::Cancellation& cancel) {
-    const HttpResponse response = get("/library/metadata/" + albumId + "/children", {}, true,
-                                      cancel);
+std::optional<std::vector<library::Track>>
+PlexClient::albumTracks(const std::string& albumId, const library::Cancellation& cancel) {
+    const HttpResponse response =
+        get("/library/metadata/" + albumId + "/children", {}, true, cancel);
     if (!ensureOk(response, "album tracks")) {
         return std::nullopt;
     }
@@ -307,11 +304,11 @@ std::optional<std::vector<library::Track>> PlexClient::albumTracks(
     }
 }
 
-std::optional<std::vector<library::Track>> PlexClient::search(
-    std::string_view query, int limit, const library::Cancellation& cancel) {
+std::optional<std::vector<library::Track>> PlexClient::search(std::string_view query, int limit,
+                                                              const library::Cancellation& cancel) {
     const HttpResponse response =
-        get("/hubs/search",
-            {{"query", std::string(query)}, {"limit", std::to_string(limit)}}, true, cancel);
+        get("/hubs/search", {{"query", std::string(query)}, {"limit", std::to_string(limit)}}, true,
+            cancel);
     if (!ensureOk(response, "search")) {
         return std::nullopt;
     }
@@ -319,8 +316,7 @@ std::optional<std::vector<library::Track>> PlexClient::search(
         const json body = json::parse(response.body);
         const json& container = body.contains("MediaContainer") ? body["MediaContainer"] : body;
         std::vector<library::Track> tracks;
-        if (const auto hubs = container.find("Hub");
-            hubs != container.end() && hubs->is_array()) {
+        if (const auto hubs = container.find("Hub"); hubs != container.end() && hubs->is_array()) {
             for (const auto& hub : *hubs) {
                 if (!hub.is_object()) {
                     continue;
@@ -332,12 +328,10 @@ std::optional<std::vector<library::Track>> PlexClient::search(
                             continue;
                         }
                         library::Track track = trackFromMetadata(dto.dump());
-                        const bool duplicate =
-                            std::any_of(tracks.begin(), tracks.end(),
-                                        [&](const library::Track& existing) {
-                                            return !existing.id.empty() &&
-                                                   existing.id == track.id;
-                                        });
+                        const bool duplicate = std::any_of(
+                            tracks.begin(), tracks.end(), [&](const library::Track& existing) {
+                                return !existing.id.empty() && existing.id == track.id;
+                            });
                         if (!duplicate) {
                             tracks.push_back(std::move(track));
                         }
@@ -355,8 +349,8 @@ std::optional<std::vector<library::Track>> PlexClient::search(
     }
 }
 
-std::optional<std::string> PlexClient::artwork(const std::string& thumbPath, int width,
-                                               int height, const library::Cancellation& cancel) {
+std::optional<std::string> PlexClient::artwork(const std::string& thumbPath, int width, int height,
+                                               const library::Cancellation& cancel) {
     const HttpResponse response =
         (width > 0 || height > 0)
             ? get("/photo/:/transcode",
@@ -375,12 +369,11 @@ bool PlexClient::rate(const std::string& ratingKey, int stars,
                       const library::Cancellation& cancel) {
     const int clamped = stars < 0 ? 0 : (stars > 5 ? 5 : stars);
     const int rating = clamped <= 0 ? -1 : clamped * 2;
-    const HttpResponse response =
-        put("/:/rate",
-            {{"key", ratingKey},
-             {"identifier", "com.plexapp.plugins.library"},
-             {"rating", std::to_string(rating)}},
-            cancel);
+    const HttpResponse response = put("/:/rate",
+                                      {{"key", ratingKey},
+                                       {"identifier", "com.plexapp.plugins.library"},
+                                       {"rating", std::to_string(rating)}},
+                                      cancel);
     return ensureOk(response, "rating");
 }
 

@@ -21,13 +21,19 @@ ServerEntry entryFromJson(const json& j) {
     entry.userId = j.value("userId", std::string{});
     entry.userName = j.value("userName", std::string{});
     entry.deviceId = j.value("deviceId", std::string{});
+    entry.backend =
+        j.value("backend", std::string{}) == "plex" ? ServerBackend::Plex : ServerBackend::Jellyfin;
     return entry;
 }
 
 json entryToJson(const ServerEntry& entry) {
-    return json{{"serverId", entry.serverId}, {"name", entry.name},
-                {"baseUrl", entry.baseUrl},   {"userId", entry.userId},
-                {"userName", entry.userName}, {"deviceId", entry.deviceId}};
+    return json{{"serverId", entry.serverId},
+                {"name", entry.name},
+                {"baseUrl", entry.baseUrl},
+                {"userId", entry.userId},
+                {"userName", entry.userName},
+                {"deviceId", entry.deviceId},
+                {"backend", entry.backend == ServerBackend::Plex ? "plex" : "jellyfin"}};
 }
 
 std::string trimmedUrl(std::string url) {

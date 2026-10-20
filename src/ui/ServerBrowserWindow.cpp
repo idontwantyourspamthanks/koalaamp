@@ -11,27 +11,12 @@
 #include <QMenu>
 #include <QMouseEvent>
 #include <QPainter>
-
 #include <algorithm>
 #include <utility>
 #include <variant>
 
 namespace koalaamp::ui {
 namespace {
-
-using namespace koalaamp::servers;
-using namespace koalaamp::servers::jellyfin;
-
-template <typename Outcome>
-QString describeFailure(const Outcome& outcome) {
-    if (std::holds_alternative<ItemsUnauthorized>(outcome)) {
-        return QStringLiteral("The server rejected the token");
-    }
-    if (std::holds_alternative<ItemsUnreachable>(outcome)) {
-        return QStringLiteral("Server unreachable");
-    }
-    return QString::fromStdString(std::get<ItemsFailed>(outcome).message);
-}
 
 const skins::Skin& noSheets() {
     static const skins::Skin empty;
@@ -42,23 +27,15 @@ QString trackLabel(const library::Track& track) {
     if (track.artist.empty()) {
         return QString::fromStdString(track.title);
     }
-    return QStringLiteral("%1 — %2")
-        .arg(QString::fromStdString(track.title), QString::fromStdString(track.artist));
+    return QStringLiteral("%1 — %2").arg(QString::fromStdString(track.title),
+                                         QString::fromStdString(track.artist));
 }
 
 } // namespace
 
-ServerBrowserWindow::ServerBrowserWindow(IHttpTransport& transport, ServerAuth session,
-                                         PlayHandler play, QWidget* parent)
-    : SkinnedWindow(parent),
-      m_transport(transport),
-      m_session(std::move(session)),
-      m_client(transport, [] {
-          DeviceProfile profile;
-          profile.deviceName = defaultDeviceName();
-          return profile;
-      }()),
-      m_play(std::move(play)) {
+ServerBrowserWindow::ServerBrowserWindow(IServerBrowserSource& source, PlayHandler play,
+                                         QWidget* parent)
+    : SkinnedWindow(parent), m_source(source), m_play(std::move(play)) {
     m_contentSize = genSnapSize(QSize(700, 400));
     setFixedSize(m_contentSize);
 
@@ -72,8 +49,7 @@ ServerBrowserWindow::ServerBrowserWindow(IHttpTransport& transport, ServerAuth s
 
     const int leftWidth = 150;
     const int middleWidth = 190;
-    const int rightWidth =
-        client.width() - margin * 2 - leftWidth - middleWidth - gap * 2;
+    const int rightWidth = client.width() - margin * 2 - leftWidth - middleWidth - gap * 2;
     const int leftX = client.x() + margin;
     const int middleX = leftX + leftWidth + gap;
     const int rightX = middleX + middleWidth + gap;
@@ -112,8 +88,8 @@ ServerBrowserWindow::ServerBrowserWindow(IHttpTransport& transport, ServerAuth s
 
     m_status = new QLabel(this);
     m_status->setObjectName(QStringLiteral("browserStatus"));
-    m_status->setGeometry(leftX, listY + contentHeight + gap,
-                          client.width() - margin * 2, statusHeight);
+    m_status->setGeometry(leftX, listY + contentHeight + gap, client.width() - margin * 2,
+                          statusHeight);
     m_status->setStyleSheet(QStringLiteral("color: #e8e8e8;"));
     m_status->setText(QStringLiteral("Loading…"));
 
@@ -166,9 +142,8 @@ void ServerBrowserWindow::setSkin(const skins::SkinSet* skin) {
 
 void ServerBrowserWindow::paintEvent(QPaintEvent*) {
     const skins::Skin& sheets = m_skin != nullptr ? m_skin->sheets : noSheets();
-    const QImage chrome =
-        renderGenWindow(sheets, nullptr, m_contentSize, "SERVER BROWSER", isActiveWindow(), 1,
-                        m_closePressed);
+    const QImage chrome = renderGenWindow(sheets, nullptr, m_contentSize, "SERVER BROWSER",
+                                          isActiveWindow(), 1, m_closePressed);
     QPainter painter(this);
     painter.drawImage(0, 0, chrome);
 }
@@ -209,112 +184,89 @@ void ServerBrowserWindow::setStatus(const QString& text) {
     m_status->setText(text);
 }
 
-void ServerBrowserWindow::refreshLibraries() {
-    const LibrariesOutcome outcome =
-        m_client.musicLibraries(m_session.baseUrl, m_session.accessToken, m_session.deviceId,
-                                m_session.userId);
-    m_libraries->clear();
-    if (const auto* success = std::get_if<LibrariesSuccess>(&outcome)) {
-        int rows = 0;
-        for (const MusicLibrary& library : success->libraries) {
-            if (library.collectionType != "music") {
-                continue;
-            }
-            auto* item = new QListWidgetItem(QString::fromStdString(library.name), m_libraries);
-            item->setData(Qt::UserRole, QString::fromStdString(library.id));
-            ++rows;
-        }
-        if (rows == 0) {
-            setStatus(QStringLiteral("No music libraries on this server"));
-        } else {
-            m_libraries->setCurrentRow(0);
-            loadAlbums(m_libraries->item(0)->data(Qt::UserRole).toString());
-        }
-    } else {
-        setStatus(describeFailure(outcome));
-        if (std::holds_alternative<ItemsUnauthorized>(outcome)) {
-            emit sessionExpired();
-        }
+bool ServerBrowserWindow::checkError() {
+    if (m_source.error().empty()) {
+        return true;
     }
+    setStatus(QString::fromStdString(m_source.error()));
+    if (m_source.unauthorized()) {
+        emit sessionExpired();
+    }
+    return false;
+}
+
+void ServerBrowserWindow::refreshLibraries() {
+    m_libraries->clear();
+    const std::vector<BrowserItem> libraries = m_source.libraries();
+    if (!checkError()) {
+        return;
+    }
+    for (const BrowserItem& library : libraries) {
+        auto* item = new QListWidgetItem(QString::fromStdString(library.name), m_libraries);
+        item->setData(Qt::UserRole, QString::fromStdString(library.id));
+    }
+    if (m_libraries->count() == 0) {
+        setStatus(QStringLiteral("No music libraries on this server"));
+        return;
+    }
+    m_libraries->setCurrentRow(0);
+    loadAlbums(m_libraries->item(0)->data(Qt::UserRole).toString());
 }
 
 void ServerBrowserWindow::loadAlbums(const QString& libraryId) {
-    const ItemsOutcome outcome =
-        m_client.musicAlbumsWindow(m_session.baseUrl, m_session.accessToken, m_session.deviceId,
-                                   libraryId.toStdString(), 0, 500);
     m_albums->clear();
     m_tracks->clear();
     m_loadedTracks.clear();
-    if (const auto* success = std::get_if<ItemsSuccess>(&outcome)) {
-        for (const MediaItem& album : success->window.items) {
-            auto* item = new QListWidgetItem(QString::fromStdString(album.name), m_albums);
-            item->setData(Qt::UserRole, QString::fromStdString(album.id));
-            if (album.productionYear > 0) {
-                item->setToolTip(QString::number(album.productionYear));
-            }
-        }
-        setStatus(QStringLiteral("%1 albums").arg(m_albums->count()));
-    } else {
-        setStatus(describeFailure(outcome));
-        if (std::holds_alternative<ItemsUnauthorized>(outcome)) {
-            emit sessionExpired();
-        }
+    const std::vector<BrowserItem> albums = m_source.albums(libraryId.toStdString());
+    if (!checkError()) {
+        return;
     }
+    for (const BrowserItem& album : albums) {
+        auto* item = new QListWidgetItem(QString::fromStdString(album.name), m_albums);
+        item->setData(Qt::UserRole, QString::fromStdString(album.id));
+    }
+    setStatus(QStringLiteral("%1 albums").arg(m_albums->count()));
 }
 
 void ServerBrowserWindow::loadPlaylists() {
-    const NamedItemsOutcome outcome =
-        m_client.playlists(m_session.baseUrl, m_session.accessToken, m_session.deviceId);
     m_playlists->clear();
-    if (const auto* success = std::get_if<NamedItemsSuccess>(&outcome)) {
-        for (const NamedItem& playlist : success->items) {
-            auto* item = new QListWidgetItem(QString::fromStdString(playlist.name), m_playlists);
-            item->setData(Qt::UserRole, QString::fromStdString(playlist.id));
-        }
+    const std::vector<BrowserItem> playlists = m_source.playlists();
+    if (!checkError()) {
+        return;
+    }
+    for (const BrowserItem& playlist : playlists) {
+        auto* item = new QListWidgetItem(QString::fromStdString(playlist.name), m_playlists);
+        item->setData(Qt::UserRole, QString::fromStdString(playlist.id));
     }
 }
 
 void ServerBrowserWindow::loadAlbum(const QString& albumId) {
-    const TracksOutcome outcome =
-        m_client.albumTracks(m_session.baseUrl, m_session.accessToken, m_session.deviceId,
-                             albumId.toStdString());
     m_tracks->clear();
     m_loadedTracks.clear();
-    if (const auto* success = std::get_if<TracksSuccess>(&outcome)) {
-        m_loadedTracks = success->tracks;
-        for (const library::Track& track : m_loadedTracks) {
-            auto* item = new QListWidgetItem(trackLabel(track), m_tracks);
-            item->setToolTip(QString::fromStdString(track.album));
-        }
-        setStatus(QStringLiteral("%1 tracks").arg(m_tracks->count()));
-    } else {
-        setStatus(describeFailure(outcome));
-        if (std::holds_alternative<ItemsUnauthorized>(outcome)) {
-            emit sessionExpired();
-        }
+    m_loadedTracks = m_source.albumTracks(albumId.toStdString());
+    if (!checkError()) {
+        return;
     }
+    for (const library::Track& track : m_loadedTracks) {
+        auto* item = new QListWidgetItem(trackLabel(track), m_tracks);
+        item->setToolTip(QString::fromStdString(track.album));
+    }
+    setStatus(QStringLiteral("%1 tracks").arg(m_tracks->count()));
 }
 
 void ServerBrowserWindow::loadPlaylist(const QString& playlistId) {
-    const TracksOutcome outcome =
-        m_client.playlistItems(m_session.baseUrl, m_session.accessToken, m_session.deviceId,
-                               playlistId.toStdString(), m_session.userId);
     m_albums->clear();
     m_tracks->clear();
     m_loadedTracks.clear();
-    if (const auto* success = std::get_if<TracksSuccess>(&outcome)) {
-        m_loadedTracks = success->tracks;
-        for (const library::Track& track : m_loadedTracks) {
-            auto* item = new QListWidgetItem(trackLabel(track), m_tracks);
-            item->setToolTip(QString::fromStdString(track.album));
-        }
-        setStatus(QStringLiteral("Playlist: %1 tracks").arg(m_tracks->count()));
-    } else {
-        setStatus(describeFailure(outcome));
-        if (std::holds_alternative<ItemsUnauthorized>(outcome)) {
-            emit sessionExpired();
-        }
+    m_loadedTracks = m_source.playlistItems(playlistId.toStdString());
+    if (!checkError()) {
+        return;
     }
+    for (const library::Track& track : m_loadedTracks) {
+        auto* item = new QListWidgetItem(trackLabel(track), m_tracks);
+        item->setToolTip(QString::fromStdString(track.album));
+    }
+    setStatus(QStringLiteral("Playlist: %1 tracks").arg(m_tracks->count()));
 }
 
 void ServerBrowserWindow::playTrackRow(int row) {

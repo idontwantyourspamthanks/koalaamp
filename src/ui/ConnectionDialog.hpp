@@ -14,9 +14,9 @@
 
 #pragma once
 
-#include "servers/ServerBook.hpp"
-#include "servers/SecretStore.hpp"
 #include "servers/IServerSource.hpp"
+#include "servers/SecretStore.hpp"
+#include "servers/ServerBook.hpp"
 #include "servers/jellyfin/DeviceIdentity.hpp"
 #include "servers/jellyfin/HttpTransport.hpp"
 #include "skins/SkinSet.hpp"
@@ -26,7 +26,6 @@
 #include <QSize>
 #include <QString>
 #include <QTimer>
-
 #include <optional>
 
 namespace koalaamp::servers::jellyfin {
@@ -70,6 +69,8 @@ signals:
 private slots:
     /// One QuickConnect poll; also invoked by the test after clicking the button.
     void pollQuickConnect();
+    /// One Plex PIN poll (timer-driven; tests invoke it directly).
+    void pollPlexLink();
 
 private:
     void paintEvent(QPaintEvent* event) override;
@@ -84,12 +85,16 @@ private:
     void browseServer();
     /// Starts (or cancels) the QuickConnect handshake.
     void quickConnect();
+    void plexLink();
+    void finishPlexLogin(const std::string& baseUrl, const std::string& token,
+                         const std::string& serverId, const std::string& serverName,
+                         const std::string& userId, const std::string& userName);
     /// Completion marshalled from the initiate worker (GUI thread).
     void onQuickConnectInitiated(bool ok, const QString& secret, const QString& code,
                                  const QString& reason, const QString& baseUrl,
                                  const QString& deviceId);
-    void finishLogin(const std::string& baseUrl,
-                     const servers::jellyfin::AuthSession& session, const std::string& deviceId);
+    void finishLogin(const std::string& baseUrl, const servers::jellyfin::AuthSession& session,
+                     const std::string& deviceId);
     void stopQuickConnect(const QString& message);
     /// Fills URL/user from the selected saved server and focuses the password.
     void fillFromSelection();
@@ -112,6 +117,7 @@ private:
     QPushButton* m_remove = nullptr;
     QPushButton* m_browse = nullptr;
     QPushButton* m_quickConnect = nullptr;
+    QPushButton* m_plex = nullptr;
     QLabel* m_status = nullptr;
 
     QTimer m_quickConnectTimer;
@@ -120,6 +126,12 @@ private:
     QString m_quickConnectSecret;
     int m_quickConnectPolls = 0;
     bool m_quickConnectPending = false;
+    servers::ServerBackend m_selectedBackend{servers::ServerBackend::Jellyfin};
+
+    QTimer m_plexTimer;
+    QString m_plexPinId;
+    QString m_plexClientId;
+    int m_plexPolls = 0;
 
     QSize m_contentSize{420, 260};
     bool m_closePressed = false;

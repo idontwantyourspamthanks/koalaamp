@@ -9,15 +9,12 @@
 
 #pragma once
 
-#include "servers/IServerSource.hpp"
-#include "servers/jellyfin/HttpTransport.hpp"
-#include "servers/jellyfin/JellyfinClient.hpp"
 #include "skins/SkinSet.hpp"
+#include "ui/ServerBrowserSource.hpp"
 #include "ui/SkinnedWindow.hpp"
 
 #include <QPoint>
 #include <QSize>
-
 #include <cstddef>
 #include <functional>
 #include <string>
@@ -39,8 +36,7 @@ public:
     using PlayHandler = std::function<void(const std::vector<library::Track>& tracks,
                                            std::size_t startIndex, bool enqueueNext)>;
 
-    ServerBrowserWindow(servers::jellyfin::IHttpTransport& transport,
-                        servers::ServerAuth session, PlayHandler play, QWidget* parent = nullptr);
+    ServerBrowserWindow(IServerBrowserSource& source, PlayHandler play, QWidget* parent = nullptr);
 
     /// The skin the chrome and labels come from; nullptr paints the fallback.
     void setSkin(const skins::SkinSet* skin);
@@ -58,6 +54,8 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override;
 
 private:
+    /// Surfaces `m_source.error()`; returns false when the call failed.
+    bool checkError();
     void refreshLibraries();
     void loadAlbums(const QString& libraryId);
     void loadPlaylists();
@@ -67,9 +65,7 @@ private:
     void setStatus(const QString& text);
     bool closeHit(const QPoint& point) const;
 
-    servers::jellyfin::IHttpTransport& m_transport;
-    servers::ServerAuth m_session;
-    servers::jellyfin::JellyfinClient m_client;
+    IServerBrowserSource& m_source;
     PlayHandler m_play;
     const skins::SkinSet* m_skin = nullptr;
 

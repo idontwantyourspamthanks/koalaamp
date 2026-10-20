@@ -102,8 +102,13 @@ if(TARGET Qt6::OpenGLWidgets)
         VisualizerWindow.cpp
         ConnectionDialog.cpp
         ConnectionDialog.hpp
+        JellyfinBrowserSource.cpp
+        JellyfinBrowserSource.hpp
+        PlexBrowserSource.cpp
+        PlexBrowserSource.hpp
         ServerBrowserWindow.cpp
         ServerBrowserWindow.hpp
+        ServerBrowserSource.hpp
         VisualizerWindow.hpp)
     # koalaamp_interop is only for the seam header's include path: the canvas takes
     # its engine from the caller, so this module never links the rendering back end
@@ -112,7 +117,8 @@ if(TARGET Qt6::OpenGLWidgets)
     # (`GenRenderer`). It is the one UI file that needs the Jellyfin gateway, which
     # brings curl through its own target.
     target_link_libraries(koalaamp_ui PUBLIC Qt6::OpenGLWidgets
-                          PRIVATE koalaamp_interop koalaamp_jellyfin koalaamp_servers)
+                          PRIVATE koalaamp_interop koalaamp_jellyfin koalaamp_servers
+                                  koalaamp_plex)
     target_compile_definitions(koalaamp_ui PUBLIC KOALAAMP_HAS_GL_VISUALIZER=1)
     set(KOALAAMP_HAS_GL_VISUALIZER TRUE CACHE INTERNAL "Qt OpenGLWidgets present (VZ-1)")
     message(STATUS "KoalaAmp: Qt OpenGLWidgets found - the visualizer canvas is enabled")

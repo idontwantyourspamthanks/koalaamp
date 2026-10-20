@@ -2,9 +2,13 @@
 // SV-5 — the server browser window against the fixture transport: library
 // filtering, album/playlist loading, track loading and the play callback.
 
-#include "servers/jellyfin/FixtureTransport.hpp"
+#include "servers/SecretStore.hpp"
 #include "servers/ServerBook.hpp"
+#include "servers/jellyfin/AuthHeaders.hpp"
+#include "servers/jellyfin/FixtureTransport.hpp"
 #include "ui/ConnectionDialog.hpp"
+#include "ui/JellyfinBrowserSource.hpp"
+#include "ui/PlexBrowserSource.hpp"
 #include "ui/ServerBrowserWindow.hpp"
 
 #include <QApplication>
@@ -13,13 +17,11 @@
 #include <QListWidget>
 #include <QPushButton>
 #include <QTest>
-
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
-
 #include <filesystem>
-#include <system_error>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace {
@@ -27,9 +29,10 @@ namespace {
 using namespace koalaamp::servers;
 using namespace koalaamp::servers::jellyfin;
 using koalaamp::library::Track;
-using koalaamp::ui::ServerBrowserWindow;
-using koalaamp::ui::ConnectionDialog;
 using koalaamp::servers::ServerBook;
+using koalaamp::ui::ConnectionDialog;
+using koalaamp::ui::JellyfinBrowserSource;
+using koalaamp::ui::ServerBrowserWindow;
 
 constexpr const char* kFixtureDir = KOALAAMP_FIXTURE_DIR;
 
@@ -50,13 +53,15 @@ TEST_CASE("the browser loads libraries, albums, playlists and plays tracks") {
     std::vector<Track> played;
     std::size_t startedAt = 999;
     bool enqueued = true;
-    ServerBrowserWindow window{transport, auth,
-                               [&](const std::vector<Track>& tracks, std::size_t start,
-                                   bool enqueueNext) {
-                                   played = tracks;
-                                   startedAt = start;
-                                   enqueued = enqueueNext;
-                               }};
+    JellyfinBrowserSource source{
+        transport,
+        koalaamp::servers::jellyfin::DeviceProfile{"KoalaAmp", "0.0.1", "device-under-test"}, auth};
+    ServerBrowserWindow window{
+        source, [&](const std::vector<Track>& tracks, std::size_t start, bool enqueueNext) {
+            played = tracks;
+            startedAt = start;
+            enqueued = enqueueNext;
+        }};
 
     auto* libraries = window.findChild<QListWidget*>(QStringLiteral("libraryList"));
     auto* albums = window.findChild<QListWidget*>(QStringLiteral("albumList"));
@@ -94,7 +99,10 @@ TEST_CASE("selecting a playlist loads its items into the track column") {
     FixtureTransport transport{std::filesystem::path(kFixtureDir)};
     const ServerAuth auth{"http://jellyfin.local:8096", "user-1", "fixture-token-1",
                           "device-under-test"};
-    ServerBrowserWindow window{transport, auth, [](const std::vector<Track>&, std::size_t, bool) {}};
+    JellyfinBrowserSource source{
+        transport,
+        koalaamp::servers::jellyfin::DeviceProfile{"KoalaAmp", "0.0.1", "device-under-test"}, auth};
+    ServerBrowserWindow window{source, [](const std::vector<Track>&, std::size_t, bool) {}};
 
     auto* playlists = window.findChild<QListWidget*>(QStringLiteral("playlistList"));
     auto* albums = window.findChild<QListWidget*>(QStringLiteral("albumList"));
@@ -140,8 +148,7 @@ TEST_CASE("the connection dialog offers Browse once signed in") {
     CHECK_FALSE(browse->isEnabled());
 
     bool requested = false;
-    QObject::connect(&dialog, &ConnectionDialog::browseRequested,
-                     [&] { requested = true; });
+    QObject::connect(&dialog, &ConnectionDialog::browseRequested, [&] { requested = true; });
 
     url->setText(QStringLiteral("http://jellyfin.local:8096"));
     user->setText(QStringLiteral("tester"));
@@ -222,4 +229,76 @@ TEST_CASE("QuickConnect signs in from the connection dialog") {
     CHECK(browse->isEnabled());
 
     fs::remove_all(dir, ec);
+}
+
+TEST_CASE("Plex signs in through the dialog's PIN link") {
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / "koalaamp-dialog-plex-test";
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir, ec);
+
+    FixtureTransport transport{fs::path(KOALAAMP_PLEX_FIXTURE_DIR)};
+    ServerBook book{(dir / "servers.json").string()};
+    koalaamp::servers::MemorySecretStore secrets;
+    ConnectionDialog dialog{transport, book, (dir / "machine-id").string(), nullptr, &secrets};
+
+    auto* plex = dialog.findChild<QPushButton*>(QStringLiteral("plexButton"));
+    auto* status = dialog.findChild<QLabel*>(QStringLiteral("statusLabel"));
+    auto* browse = dialog.findChild<QPushButton*>(QStringLiteral("browseButton"));
+    REQUIRE(plex != nullptr);
+    REQUIRE(status != nullptr);
+    REQUIRE(browse != nullptr);
+
+    plex->click();
+    CHECK(status->text().contains(QStringLiteral("ABCD")));
+    CHECK(plex->text().contains(QStringLiteral("ABCD")));
+
+    // First poll is pending, the second completes and resolves the server.
+    QMetaObject::invokeMethod(&dialog, "pollPlexLink", Qt::DirectConnection);
+    CHECK_FALSE(dialog.session().has_value());
+    QMetaObject::invokeMethod(&dialog, "pollPlexLink", Qt::DirectConnection);
+
+    REQUIRE(dialog.session().has_value());
+    CHECK(dialog.session()->backend == koalaamp::servers::ServerBackend::Plex);
+    CHECK(dialog.session()->baseUrl == "http://192.168.1.10:32400");
+    CHECK(dialog.session()->accessToken == "pms-token");
+    CHECK(dialog.session()->serverId == "server-1");
+    CHECK(dialog.session()->userName == "tester");
+    CHECK(browse->isEnabled());
+
+    const auto* active = book.active();
+    REQUIRE(active != nullptr);
+    CHECK(active->backend == koalaamp::servers::ServerBackend::Plex);
+    CHECK(active->serverId == "server-1");
+    const auto stored = secrets.load(koalaamp::servers::sessionSecretKey(
+        koalaamp::servers::ServerBackend::Plex, "server-1", "http://192.168.1.10:32400"));
+    REQUIRE(stored.has_value());
+    CHECK(*stored == "pms-token");
+
+    fs::remove_all(dir, ec);
+}
+
+TEST_CASE("the Plex browser adapter exposes sections, albums and tracks") {
+    FixtureTransport transport{std::filesystem::path(KOALAAMP_PLEX_FIXTURE_DIR)};
+    koalaamp::ui::PlexBrowserSource source{
+        transport,
+        koalaamp::servers::plex::PlexClientInfo{"client-id", "KoalaAmp", "0.0.1", "tester",
+                                                "Generic"},
+        koalaamp::servers::plex::PlexSession{"http://plex.local:32400", "pms-token", "server-1",
+                                             "user-uuid", "tester"}};
+    const auto libraries = source.libraries();
+    REQUIRE(libraries.size() == 1);
+    CHECK(libraries[0].name == "Music");
+
+    const auto albums = source.albums(libraries[0].id);
+    REQUIRE(albums.size() == 1);
+    CHECK(albums[0].name == "Plex Album");
+
+    const auto tracks = source.albumTracks(albums[0].id);
+    REQUIRE(tracks.size() == 2);
+    CHECK(tracks[0].title == "First Track");
+    CHECK(tracks[0].path == "/library/parts/555/123/file.flac");
+    CHECK(source.playlists().empty());
+    CHECK(source.error().empty());
 }

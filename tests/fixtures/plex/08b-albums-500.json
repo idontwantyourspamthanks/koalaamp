@@ -1,0 +1,31 @@
+{
+  "request": {
+    "method": "GET",
+    "url": "http://plex.local:32400/library/sections/1/all?type=9&X-Plex-Container-Start=0&X-Plex-Container-Size=500",
+    "headers": [],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": {
+      "MediaContainer": {
+        "Metadata": [
+          {
+            "ratingKey": "100",
+            "title": "Plex Album",
+            "parentTitle": "Plex Artist",
+            "year": 2021,
+            "thumb": "/library/metadata/100/thumb/1"
+          }
+        ]
+      }
+    },
+    "error": ""
+  }
+}

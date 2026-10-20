@@ -13,6 +13,8 @@
 
 #pragma once
 
+#include "servers/IServerSource.hpp"
+
 #include <cstddef>
 #include <filesystem>
 #include <string>
@@ -32,6 +34,8 @@ struct ServerEntry {
     /// Per-(machine, user) DeviceId. Kept so a reconnect re-binds the same device
     /// and Jellyfin does not invalidate the previous token (koalapaw's trap).
     std::string deviceId;
+    /// The backend that issued this session (Jellyfin or Plex).
+    ServerBackend backend{ServerBackend::Jellyfin};
 
     bool operator==(const ServerEntry&) const = default;
 };

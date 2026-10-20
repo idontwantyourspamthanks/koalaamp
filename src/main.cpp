@@ -12,31 +12,41 @@
 //
 // Usage: koalaamp [--skin <file.wsz|dir>] [--null-audio] [--always-on-top]
 //                 [--self-test]
-#include "ui/MainWindow.hpp"
-#include "ui/PlaylistWindow.hpp"
-#include "ui/ConnectionDialog.hpp"
-
 #include "audio/AlbumEqStore.hpp"
 #include "audio/DspPipeline.hpp"
 #include "audio/RgTags.hpp"
+#include "servers/SecretStore.hpp"
+#include "ui/ConnectionDialog.hpp"
 #include "ui/DspEqSink.hpp"
 #include "ui/EqWindow.hpp"
-#include "servers/SecretStore.hpp"
+#include "ui/MainWindow.hpp"
+#include "ui/PlaylistWindow.hpp"
 #include "ui/ServerBrowserWindow.hpp"
 #include "ui/WindowPlatform.hpp"
+#include "ui/WindowSet.hpp"
+
 #include <QCursor>
 #include <QFileDialog>
 #include <QMenu>
-
-#include "ui/WindowSet.hpp"
 #if defined(KOALAAMP_HAS_GL_VISUALIZER)
 #include "ui/PresetCycler.hpp"
 #include "ui/PresetSoak.hpp"
 #include "ui/PresetStore.hpp"
 #include "ui/VisualizerWindow.hpp"
 #endif
+#include "skins/SkinDb.hpp"
+#include "skins/SkinSet.hpp"
 #include "ui/PcmFanout.hpp"
 
+#include <QApplication>
+#include <QCommandLineParser>
+#include <QCoreApplication>
+#include <QFileDialog>
+#include <QPointer>
+#include <QStandardPaths>
+#include <QString>
+#include <QTimer>
+#include <chrono>
 #include <cstdio>
 #include <filesystem>
 #include <memory>
@@ -44,40 +54,30 @@
 #include <string_view>
 #include <vector>
 
-#include <QApplication>
-#include <QCommandLineParser>
-#include <chrono>
-#include <QCoreApplication>
-#include <QFileDialog>
-#include <QPointer>
-#include <QStandardPaths>
-#include <QString>
-#include <QTimer>
-
-#include "skins/SkinDb.hpp"
-#include "skins/SkinSet.hpp"
-
 #ifdef KOALAAMP_HAS_PLAYBACK_CORE
 #include "playback/PlaybackCore.hpp"
 #include "servers/jellyfin/JellyfinClient.hpp"
 #include "servers/jellyfin/JellyfinPlayback.hpp"
 #include "servers/jellyfin/JellyfinPlaybackReporter.hpp"
+#include "servers/plex/PlexMediaSource.hpp"
+#include "servers/plex/PlexTimeline.hpp"
+#include "ui/JellyfinBrowserSource.hpp"
 #include "ui/PlaybackCoreTransport.hpp"
+#include "ui/PlexBrowserSource.hpp"
 #endif
 
 namespace {
 
 /// The skin DB path under the app config dir (empty when there is none).
 std::string skinDbPath() {
-    const QString configDir =
-        QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
+    const QString configDir = QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation);
     if (configDir.isEmpty()) {
         return {};
     }
     return (configDir + QStringLiteral("/skindb.txt")).toStdString();
 }
 
-}  // namespace
+} // namespace
 
 int main(int argc, char** argv) {
     // Native Wayland cannot position or mask the window set, so request
@@ -123,9 +123,9 @@ int main(int argc, char** argv) {
         QStringLiteral("soak-presets"),
         QStringLiteral("Soak: hold every preset in DIR in turn, logging frames and fps"),
         QStringLiteral("dir"));
-    const QCommandLineOption soakHoldOption(
-        QStringLiteral("soak-hold-ms"), QStringLiteral("Soak: hold each preset for N ms"),
-        QStringLiteral("ms"));
+    const QCommandLineOption soakHoldOption(QStringLiteral("soak-hold-ms"),
+                                            QStringLiteral("Soak: hold each preset for N ms"),
+                                            QStringLiteral("ms"));
     parser.addOption(soakPresetsOption);
     parser.addOption(soakHoldOption);
 #endif
@@ -149,7 +149,7 @@ int main(int argc, char** argv) {
     koalaamp::skins::SkinDb skinDb;
     const bool hasDbPath = !dbPath.empty();
     if (hasDbPath) {
-        skinDb.loadFrom(dbPath);  // missing file is not an error
+        skinDb.loadFrom(dbPath); // missing file is not an error
     }
 
     std::filesystem::path skinPath = parser.value(skinOption).toStdString();
@@ -189,11 +189,10 @@ int main(int argc, char** argv) {
     }
     if (skinSet.has_value()) {
     } else {
-        std::fprintf(stderr,
-                     "koalaamp: no skin loaded — pass --skin <file.wsz>\n"
-                     "          bundled skins: skins/KoalaAmp-Aqua.wsz,\n"
-                     "          skins/KoalaAmp-Laser.wsz, skins/KoalaAmp-Riot.wsz,\n"
-                     "          skins/KoalaAmp-Starz.wsz\n");
+        std::fprintf(stderr, "koalaamp: no skin loaded — pass --skin <file.wsz>\n"
+                             "          bundled skins: skins/KoalaAmp-Aqua.wsz,\n"
+                             "          skins/KoalaAmp-Laser.wsz, skins/KoalaAmp-Riot.wsz,\n"
+                             "          skins/KoalaAmp-Starz.wsz\n");
     }
 
 #if defined(KOALAAMP_HAS_GL_VISUALIZER)
@@ -209,7 +208,6 @@ int main(int argc, char** argv) {
     QObject::connect(&visualizer, &koalaamp::ui::VisualizerWindow::closeRequested, &windowSet,
                      [&windowSet] { windowSet.setVisualizerVisible(false); });
 
-
     // The preset library (task 3): scanning, the watcher, and the selection. The
     // cycling *policy* is task 4's — this only makes the folder's presets available,
     // loads the first one, and follows the selection when it moves.
@@ -224,9 +222,9 @@ int main(int argc, char** argv) {
     const auto defaultPresetDir = [] {
         const QByteArray xdg = qgetenv("XDG_DATA_HOME");
         const std::string home = qgetenv("HOME").toStdString();
-        std::filesystem::path base =
-            xdg.isEmpty() ? std::filesystem::path(home) / ".local" / "share"
-                          : std::filesystem::path(xdg.toStdString());
+        std::filesystem::path base = xdg.isEmpty()
+                                         ? std::filesystem::path(home) / ".local" / "share"
+                                         : std::filesystem::path(xdg.toStdString());
         std::filesystem::path dir = base / "koalaamp" / "presets";
         std::error_code ec;
         std::filesystem::create_directories(dir, ec);
@@ -273,7 +271,7 @@ int main(int argc, char** argv) {
         // silently soak a different corpus than the one the caller asked for.
         presetStore.setRoots({parser.value(soakPresetsOption).toStdString()});
         presetStore.setWatching(true);
-        windowSet.setVisualizerVisible(true);  // nothing renders while hidden
+        windowSet.setVisualizerVisible(true); // nothing renders while hidden
         soak = std::make_unique<koalaamp::ui::PresetSoak>(
             presetStore, presetCycler, [&visualizer] { return visualizer.framesRendered(); });
         int holdMs = 10000;
@@ -300,8 +298,9 @@ int main(int argc, char** argv) {
 
 #ifdef KOALAAMP_HAS_PLAYBACK_CORE
     koalaamp::playback::PlaybackConfig config;
-    config.output = parser.isSet(nullAudioOption) ? koalaamp::playback::PlaybackConfig::Output::Null
-                                                  : koalaamp::playback::PlaybackConfig::Output::Device;
+    config.output = parser.isSet(nullAudioOption)
+                        ? koalaamp::playback::PlaybackConfig::Output::Null
+                        : koalaamp::playback::PlaybackConfig::Output::Device;
     auto core = std::make_unique<koalaamp::playback::PlaybackCore>(config);
 
     // AU-1's DSP sits between the engine's PCM tap and the vis feed: the tap
@@ -486,22 +485,26 @@ int main(int argc, char** argv) {
 #endif
 
 #if defined(KOALAAMP_HAS_GL_VISUALIZER) && defined(KOALAAMP_HAS_PLAYBACK_CORE)
-    // SV-2: report the signed-in server session's playback to Jellyfin. The
-    // reporter is inert until a server media plays; the timer exists so the 10 s
-    // heartbeat does not depend on position ticks (which stop while paused).
+    // SV-2/SV-4: report the signed-in session's playback. Jellyfin uses the
+    // Sessions/Playing reporter; Plex uses /:/timeline. The timer keeps the
+    // heartbeat independent of position ticks (which stop while paused).
     struct ServerReporting {
         koalaamp::playback::PlaybackCore* core{nullptr};
-        std::unique_ptr<koalaamp::servers::jellyfin::JellyfinClient> client;
-        std::unique_ptr<koalaamp::servers::jellyfin::JellyfinPlaybackReporter> reporter;
+        std::unique_ptr<koalaamp::servers::jellyfin::JellyfinClient> jellyfinClient;
+        std::unique_ptr<koalaamp::servers::jellyfin::JellyfinPlaybackReporter> jellyfinReporter;
+        std::unique_ptr<koalaamp::servers::plex::PlexPlaybackReporter> plexReporter;
 
         ServerReporting() {
             timer.setInterval(1000);
             QObject::connect(&timer, &QTimer::timeout, &timer, [this] {
-                if (reporter) {
-                    const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
-                                         std::chrono::steady_clock::now().time_since_epoch())
-                                         .count();
-                    reporter->tick(now);
+                const auto now = std::chrono::duration_cast<std::chrono::milliseconds>(
+                                     std::chrono::steady_clock::now().time_since_epoch())
+                                     .count();
+                if (jellyfinReporter) {
+                    jellyfinReporter->tick(now);
+                }
+                if (plexReporter) {
+                    plexReporter->tick(now);
                 }
             });
         }
@@ -511,28 +514,46 @@ int main(int argc, char** argv) {
                     koalaamp::servers::jellyfin::IHttpTransport& http,
                     const koalaamp::servers::ServerAuth& auth) {
             detach();
-            koalaamp::servers::jellyfin::DeviceProfile profile;
-            profile.deviceName = koalaamp::servers::jellyfin::defaultDeviceName();
-            client = std::make_unique<koalaamp::servers::jellyfin::JellyfinClient>(http, profile);
-            reporter = std::make_unique<koalaamp::servers::jellyfin::JellyfinPlaybackReporter>(
-                *client, auth.baseUrl, auth.accessToken, auth.deviceId);
             core = &playback;
-            core->addObserver(reporter.get());
+            if (auth.backend == koalaamp::servers::ServerBackend::Plex) {
+                koalaamp::servers::plex::PlexClientInfo info{auth.deviceId, "KoalaAmp", "0.0.1",
+                                                             "KoalaAmp", "Generic"};
+                koalaamp::servers::plex::PlexSession session{
+                    auth.baseUrl, auth.accessToken, auth.serverId, auth.userId, auth.userName};
+                plexReporter = std::make_unique<koalaamp::servers::plex::PlexPlaybackReporter>(
+                    http, std::move(info), std::move(session));
+                core->addObserver(plexReporter.get());
+            } else {
+                koalaamp::servers::jellyfin::DeviceProfile profile;
+                profile.deviceName = koalaamp::servers::jellyfin::defaultDeviceName();
+                jellyfinClient =
+                    std::make_unique<koalaamp::servers::jellyfin::JellyfinClient>(http, profile);
+                jellyfinReporter =
+                    std::make_unique<koalaamp::servers::jellyfin::JellyfinPlaybackReporter>(
+                        *jellyfinClient, auth.baseUrl, auth.accessToken, auth.deviceId);
+                core->addObserver(jellyfinReporter.get());
+            }
             timer.start();
         }
 
-        /// The id the planner must embed in a transcode URL for this session.
+        /// The id the Jellyfin planner must embed in a transcode URL.
         std::string playSessionId() const {
-            return reporter ? reporter->playSessionId() : std::string{};
+            return jellyfinReporter ? jellyfinReporter->playSessionId() : std::string{};
         }
 
         void detach() {
             timer.stop();
-            if (core != nullptr && reporter != nullptr) {
-                core->removeObserver(reporter.get());
+            if (core != nullptr) {
+                if (jellyfinReporter) {
+                    core->removeObserver(jellyfinReporter.get());
+                }
+                if (plexReporter) {
+                    core->removeObserver(plexReporter.get());
+                }
             }
-            reporter.reset();
-            client.reset();
+            jellyfinReporter.reset();
+            jellyfinClient.reset();
+            plexReporter.reset();
             core = nullptr;
         }
 
@@ -544,6 +565,7 @@ int main(int argc, char** argv) {
     }
 
     QPointer<koalaamp::ui::ServerBrowserWindow> serverBrowser;
+    std::unique_ptr<koalaamp::ui::IServerBrowserSource> browserSource;
 
     const auto openServerBrowser = [&] {
         if (!activeServer) {
@@ -555,26 +577,60 @@ int main(int argc, char** argv) {
             serverBrowser->activateWindow();
             return;
         }
+        const auto& auth = *activeServer;
+        if (auth.backend == koalaamp::servers::ServerBackend::Plex) {
+            koalaamp::servers::plex::PlexClientInfo info{auth.deviceId, "KoalaAmp", "0.0.1",
+                                                         "KoalaAmp", "Generic"};
+            browserSource = std::make_unique<koalaamp::ui::PlexBrowserSource>(
+                serverTransport, std::move(info),
+                koalaamp::servers::plex::PlexSession{auth.baseUrl, auth.accessToken, auth.serverId,
+                                                     auth.userId, auth.userName});
+        } else {
+            koalaamp::servers::jellyfin::DeviceProfile profile;
+            profile.deviceName = koalaamp::servers::jellyfin::defaultDeviceName();
+            browserSource = std::make_unique<koalaamp::ui::JellyfinBrowserSource>(serverTransport,
+                                                                                  profile, auth);
+        }
         serverBrowser = new koalaamp::ui::ServerBrowserWindow(
-            serverTransport, *activeServer,
+            *browserSource,
             [&](const std::vector<koalaamp::library::Track>& tracks, std::size_t start,
                 bool enqueueNext) {
                 if (!activeServer || tracks.empty() || start >= tracks.size()) {
+                    return;
+                }
+                const auto& session = *activeServer;
+                if (session.backend == koalaamp::servers::ServerBackend::Plex) {
+                    koalaamp::servers::plex::PlexClientInfo info{session.deviceId, "KoalaAmp",
+                                                                 "0.0.1", "KoalaAmp", "Generic"};
+                    const auto make = [&](const koalaamp::library::Track& track) {
+                        return koalaamp::servers::plex::makePlexMedia(
+                            serverTransport, info, session.baseUrl, session.accessToken, track);
+                    };
+                    if (enqueueNext) {
+                        core->enqueueNext(make(tracks[start]));
+                        return;
+                    }
+                    for (std::size_t i = start; i < tracks.size(); ++i) {
+                        if (i == start) {
+                            core->play(make(tracks[i]));
+                        } else {
+                            core->enqueue(make(tracks[i]));
+                        }
+                    }
                     return;
                 }
                 koalaamp::servers::jellyfin::DeviceProfile profile;
                 profile.deviceName = koalaamp::servers::jellyfin::defaultDeviceName();
                 koalaamp::servers::jellyfin::JellyfinPlayback planner{serverTransport, profile};
                 const std::string sessionId = serverReporting.playSessionId();
-                const auto& auth = *activeServer;
                 if (enqueueNext) {
-                    auto plan = planner.plan(auth.baseUrl, auth.accessToken, auth.deviceId,
+                    auto plan = planner.plan(session.baseUrl, session.accessToken, session.deviceId,
                                              tracks[start], sessionId);
                     core->enqueueNext(std::move(plan.media));
                     return;
                 }
                 for (std::size_t i = start; i < tracks.size(); ++i) {
-                    auto plan = planner.plan(auth.baseUrl, auth.accessToken, auth.deviceId,
+                    auto plan = planner.plan(session.baseUrl, session.accessToken, session.deviceId,
                                              tracks[i], sessionId);
                     if (i == start) {
                         core->play(plan.media);
@@ -588,18 +644,19 @@ int main(int argc, char** argv) {
         serverBrowser->setSkin(skinSet ? &*skinSet : nullptr);
         // A stale token sends the user back to the connection manager rather
         // than leaving a browser that answers every click with 401.
-        QObject::connect(serverBrowser, &koalaamp::ui::ServerBrowserWindow::sessionExpired,
-                         &window, [&] {
-                             if (serverBrowser) {
-                                 serverBrowser->close();
-                             }
-                             if (activeServer) {
-                                 koalaamp::servers::forgetSession(*secretStore, activeServer->serverId,
-                                                                  activeServer->baseUrl);
-                             }
-                             activeServer.reset();
-                             serverReporting.detach();
-                         });
+        QObject::connect(
+            serverBrowser, &koalaamp::ui::ServerBrowserWindow::sessionExpired, &window, [&] {
+                if (serverBrowser) {
+                    serverBrowser->close();
+                }
+                if (activeServer) {
+                    koalaamp::servers::forgetSession(*secretStore, activeServer->backend,
+                                                     activeServer->serverId, activeServer->baseUrl);
+                }
+                activeServer.reset();
+                browserSource.reset();
+                serverReporting.detach();
+            });
         serverBrowser->show();
         serverBrowser->raise();
         serverBrowser->activateWindow();
@@ -628,6 +685,7 @@ int main(int argc, char** argv) {
                                  if (serverBrowser) {
                                      serverBrowser->close();
                                  }
+                                 browserSource.reset();
                                  serverReporting.detach();
                                  if (activeServer) {
                                      serverReporting.attach(*core, serverTransport, *activeServer);
@@ -659,8 +717,7 @@ int main(int argc, char** argv) {
         QAction* choose = presets->addAction(QStringLiteral("Choose preset folder…"));
         QObject::connect(choose, &QAction::triggered, &window, [&] {
             const auto& roots = presetStore.roots();
-            const QString start =
-                roots.empty() ? QString() : QString::fromStdString(roots.front());
+            const QString start = roots.empty() ? QString() : QString::fromStdString(roots.front());
             const QString dir = QFileDialog::getExistingDirectory(
                 &window, QStringLiteral("MilkDrop preset folder"), start);
             if (!dir.isEmpty()) {
@@ -676,7 +733,7 @@ int main(int argc, char** argv) {
         } else {
             QAction* current = presets->addAction(QString::fromStdString(
                 koalaamp::ui::PresetStore::presetDisplayName(presetStore.current())));
-            current->setEnabled(false);  // the name the overlay just announced
+            current->setEnabled(false); // the name the overlay just announced
             presets->addSeparator();
             QAction* previous = presets->addAction(QStringLiteral("Previous preset"));
             QObject::connect(previous, &QAction::triggered, &window,
@@ -703,7 +760,7 @@ int main(int argc, char** argv) {
         const auto addSkin = [&](const std::filesystem::path& path) {
             const QString name = QString::fromStdString(path.stem().string());
             if (name.isEmpty() || offered.contains(name)) {
-                return;  // the bundled folder and the recent list can name one skin
+                return; // the bundled folder and the recent list can name one skin
             }
             offered << name;
             QAction* action = skins->addAction(name);

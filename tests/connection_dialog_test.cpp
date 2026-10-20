@@ -12,14 +12,13 @@
 #include "ui/ConnectionDialog.hpp"
 #include "ui/GenRenderer.hpp"
 
-#include <catch2/catch_session.hpp>
-#include <catch2/catch_test_macros.hpp>
 #include <QApplication>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMouseEvent>
 #include <QPushButton>
-
+#include <catch2/catch_session.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -29,6 +28,7 @@ namespace {
 
 namespace fs = std::filesystem;
 using koalaamp::servers::MemorySecretStore;
+using koalaamp::servers::ServerBackend;
 using koalaamp::servers::ServerBook;
 using koalaamp::servers::sessionSecretKey;
 using koalaamp::servers::jellyfin::FixtureTransport;
@@ -161,7 +161,7 @@ TEST_CASE("a sign-in is restored from the secret store on the next dialog") {
     REQUIRE(active != nullptr);
     const std::string serverId = active->serverId;
     const std::string baseUrl = active->baseUrl;
-    const auto saved = secrets.load(sessionSecretKey(serverId, baseUrl));
+    const auto saved = secrets.load(sessionSecretKey(ServerBackend::Jellyfin, serverId, baseUrl));
     REQUIRE(saved.has_value());
     CHECK(*saved == "fixture-token-1");
 
@@ -179,7 +179,8 @@ TEST_CASE("a sign-in is restored from the secret store on the next dialog") {
 
     click(again, "removeButton");
     CHECK_FALSE(again.session().has_value());
-    CHECK_FALSE(secrets.load(sessionSecretKey(serverId, baseUrl)).has_value());
+    CHECK_FALSE(
+        secrets.load(sessionSecretKey(ServerBackend::Jellyfin, serverId, baseUrl)).has_value());
 
     fs::remove_all(dir);
 }

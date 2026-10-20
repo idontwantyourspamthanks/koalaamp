@@ -20,7 +20,8 @@
 namespace koalaamp::servers {
 
 /// Opaque credential slot. `jellyfin/<server id>` is the key for one account.
-std::string sessionSecretKey(std::string_view serverId, std::string_view baseUrl);
+std::string sessionSecretKey(ServerBackend backend, std::string_view serverId,
+                             std::string_view baseUrl);
 
 class SecretStore {
 public:
@@ -63,7 +64,8 @@ private:
 bool rememberSession(SecretStore& store, const ServerAuth& auth);
 
 /// Drops the key for this session. Missing entries are not an error.
-void forgetSession(SecretStore& store, std::string_view serverId, std::string_view baseUrl);
+void forgetSession(SecretStore& store, ServerBackend backend, std::string_view serverId,
+                   std::string_view baseUrl);
 
 /// The active book's identity plus the keychain token, or nullopt when either is
 /// missing. Does not contact the server — a later 401 drops the key.

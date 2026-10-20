@@ -4,7 +4,6 @@
 #include "servers/plex/PlexAuth.hpp"
 
 #include <nlohmann/json.hpp>
-
 #include <utility>
 
 namespace koalaamp::servers::plex {
@@ -89,8 +88,7 @@ bool providesServer(const json& resource) {
     }
     if (provides->is_array()) {
         for (const auto& entry : *provides) {
-            if (entry.is_string() &&
-                entry.get<std::string>().find("server") != std::string::npos) {
+            if (entry.is_string() && entry.get<std::string>().find("server") != std::string::npos) {
                 return true;
             }
         }
@@ -100,9 +98,9 @@ bool providesServer(const json& resource) {
 
 } // namespace
 
-PlexAuth::PlexAuth(jellyfin::IHttpTransport& transport, PlexClientInfo info,
-                   std::string plexTvBase)
-    : transport_(transport), info_(std::move(info)), plexTvBase_(baseNoSlash(std::move(plexTvBase))) {
+PlexAuth::PlexAuth(jellyfin::IHttpTransport& transport, PlexClientInfo info, std::string plexTvBase)
+    : transport_(transport), info_(std::move(info)),
+      plexTvBase_(baseNoSlash(std::move(plexTvBase))) {
     if (info_.deviceName.empty()) {
         info_.deviceName = info_.clientIdentifier;
     }
@@ -118,19 +116,22 @@ HttpResponse PlexAuth::get(const std::string& url, const std::string& token,
     request.method = "GET";
     request.url = url;
     request.headers = plexHeaders(info_, token);
+    request.connectTimeout = std::chrono::seconds(5);
+    request.totalTimeout = std::chrono::seconds(8);
     return transport_.perform(request, cancel);
 }
 
 HttpResponse PlexAuth::post(const std::string& url,
                             const std::vector<std::pair<std::string, std::string>>& headers,
-                            const std::string& body,
-                            const library::Cancellation& cancel) {
+                            const std::string& body, const library::Cancellation& cancel) {
     HttpRequest request;
     request.method = "POST";
     request.url = url;
     request.headers = headers;
     request.headers.emplace_back("Content-Type", "application/x-www-form-urlencoded");
     request.body = body;
+    request.connectTimeout = std::chrono::seconds(5);
+    request.totalTimeout = std::chrono::seconds(8);
     return transport_.perform(request, cancel);
 }
 
@@ -159,8 +160,7 @@ PlexPinOutcome PlexAuth::createPin(const library::Cancellation& cancel) {
     }
 }
 
-PlexPollOutcome PlexAuth::pollPin(const std::string& pinId,
-                                  const library::Cancellation& cancel) {
+PlexPollOutcome PlexAuth::pollPin(const std::string& pinId, const library::Cancellation& cancel) {
     const HttpResponse response =
         get(plexTvBase_ + "/api/v2/pins/" + encodeQuery(pinId), {}, cancel);
     if (!response.transportOk()) {
@@ -212,8 +212,7 @@ PlexPollOutcome PlexAuth::pollPin(const std::string& pinId,
 PlexResourcesOutcome PlexAuth::resources(const std::string& accountToken,
                                          const library::Cancellation& cancel) {
     const HttpResponse response =
-        get(plexTvBase_ + "/api/v2/resources?includeHttps=1&includeRelay=1", accountToken,
-            cancel);
+        get(plexTvBase_ + "/api/v2/resources?includeHttps=1&includeRelay=1", accountToken, cancel);
     if (!response.transportOk()) {
         lastError_ = response.error;
         return PlexAuthUnreachable{};
