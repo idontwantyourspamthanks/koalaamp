@@ -85,6 +85,7 @@ ServerBrowserWindow::ServerBrowserWindow(IHttpTransport& transport, ServerAuth s
         label->setObjectName(QStringLiteral("browserHeader"));
         label->setGeometry(x, headerY, width, headerHeight);
         label->setAlignment(Qt::AlignLeft | Qt::AlignVCenter);
+        label->setStyleSheet(QStringLiteral("color: #e8e8e8;"));
     };
     addHeader(leftX, leftWidth, QStringLiteral("LIBRARIES"));
     addHeader(middleX, middleWidth, QStringLiteral("ALBUMS"));
@@ -113,6 +114,7 @@ ServerBrowserWindow::ServerBrowserWindow(IHttpTransport& transport, ServerAuth s
     m_status->setObjectName(QStringLiteral("browserStatus"));
     m_status->setGeometry(leftX, listY + contentHeight + gap,
                           client.width() - margin * 2, statusHeight);
+    m_status->setStyleSheet(QStringLiteral("color: #e8e8e8;"));
     m_status->setText(QStringLiteral("Loading…"));
 
     connect(m_libraries, &QListWidget::itemActivated, this, [this](QListWidgetItem* item) {

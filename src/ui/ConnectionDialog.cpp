@@ -8,6 +8,7 @@
 #include "servers/jellyfin/JellyfinClient.hpp"
 #include "ui/GenRenderer.hpp"
 
+#include <QApplication>
 #include <QColor>
 #include <QLabel>
 #include <QInputDialog>
@@ -117,6 +118,9 @@ ConnectionDialog::ConnectionDialog(servers::jellyfin::IHttpTransport& transport,
     m_status = new QLabel(this);
     m_status->setObjectName(QStringLiteral("statusLabel"));
     m_status->setGeometry(x, client.y() + 222, width, 20);
+    // The gen client area is dark; the default label colour is black, which made
+    // every status message (QuickConnect codes included) invisible.
+    m_status->setStyleSheet(QStringLiteral("color: #e8e8e8;"));
     m_status->setText(QStringLiteral("No server selected"));
 
     connect(m_list, &QListWidget::currentRowChanged, this,
@@ -304,6 +308,7 @@ void ConnectionDialog::stopQuickConnect(const QString& message) {
 void ConnectionDialog::quickConnect() {
     using namespace koalaamp::servers::jellyfin;
 
+    std::fprintf(stderr, "koalaamp: QuickConnect clicked\n");
     if (m_quickConnectTimer.isActive()) {
         stopQuickConnect(QStringLiteral("QuickConnect cancelled"));
         return;
@@ -315,8 +320,17 @@ void ConnectionDialog::quickConnect() {
     }
     if (baseUrl.empty()) {
         setStatus(QStringLiteral("A server URL is required"));
+        QMessageBox::warning(this, QStringLiteral("QuickConnect"),
+                             QStringLiteral("Enter the server URL first."));
+        m_url->setFocus();
         return;
     }
+
+    // Visible acknowledgement before the blocking HTTP call: a click that
+    // changes nothing reads as a broken button.
+    m_quickConnect->setText(QStringLiteral("QuickConnect…"));
+    m_quickConnect->repaint();
+    QApplication::processEvents();
 
     // QuickConnect is pre-auth: there is no user yet, so the device id is
     // derived from the machine alone and stays stable for the token's lifetime.
@@ -355,6 +369,7 @@ void ConnectionDialog::quickConnect() {
     }
     std::fprintf(stderr, "koalaamp: QuickConnect failed at %s: %s\n", baseUrl.c_str(),
                  reason.toStdString().c_str());
+    m_quickConnect->setText(QStringLiteral("QuickConnect"));
     setStatus(reason);
     QMessageBox::warning(this, QStringLiteral("QuickConnect"), reason);
 }
