@@ -8,6 +8,7 @@
 #include "ui/ServerBrowserWindow.hpp"
 
 #include <QApplication>
+#include <QLabel>
 #include <QLineEdit>
 #include <QListWidget>
 #include <QPushButton>
@@ -179,6 +180,41 @@ TEST_CASE("the connection dialog offers Browse once signed in") {
     login2->click();
     CHECK(restarted.session().has_value());
     CHECK(browse2->isEnabled());
+
+    fs::remove_all(dir, ec);
+}
+
+TEST_CASE("QuickConnect signs in from the connection dialog") {
+    namespace fs = std::filesystem;
+    const fs::path dir = fs::temp_directory_path() / "koalaamp-dialog-quickconnect-test";
+    std::error_code ec;
+    fs::remove_all(dir, ec);
+    fs::create_directories(dir, ec);
+
+    FixtureTransport transport{fs::path(kFixtureDir)};
+    ServerBook book{(dir / "servers.json").string()};
+    ConnectionDialog dialog{transport, book, (dir / "machine-id").string()};
+
+    auto* url = dialog.findChild<QLineEdit*>(QStringLiteral("urlField"));
+    auto* quick = dialog.findChild<QPushButton*>(QStringLiteral("quickConnectButton"));
+    auto* status = dialog.findChild<QLabel*>(QStringLiteral("statusLabel"));
+    auto* browse = dialog.findChild<QPushButton*>(QStringLiteral("browseButton"));
+    REQUIRE(url != nullptr);
+    REQUIRE(quick != nullptr);
+    REQUIRE(status != nullptr);
+    REQUIRE(browse != nullptr);
+
+    url->setText(QStringLiteral("http://jellyfin.local:8096"));
+    quick->click();
+    CHECK(status->text().contains(QStringLiteral("123456")));
+    CHECK_FALSE(dialog.session().has_value());
+    CHECK_FALSE(browse->isEnabled());
+
+    // The timer polls in the app; invoke one poll directly so the test is fast.
+    QMetaObject::invokeMethod(&dialog, "pollQuickConnect", Qt::DirectConnection);
+    REQUIRE(dialog.session().has_value());
+    CHECK(dialog.session()->accessToken == "qc-token-1");
+    CHECK(browse->isEnabled());
 
     fs::remove_all(dir, ec);
 }

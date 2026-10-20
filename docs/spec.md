@@ -239,7 +239,7 @@ Smart views: Winamp grammar (`artist has "x" && rating > 3`, `[1 week ago]`) →
 
 ### 8.2 Jellyfin (from koalapaw `jellyfin-api` + servers.md §1)
 - Auth: `POST /Users/AuthenticateByName` with `Authorization: MediaBrowser Client="KoalaAmp" Device=... DeviceId=<per-user-derived> Version=...`; **no** `X-Emby-Token`, **no `api_key` query param** (both removed in server 12.0). Per-user DeviceId = hash(machineId+userId). Refresh on 401.
-- Discovery: UDP broadcast (koalapaw `UdpServerDiscovery`) + manual URL; QuickConnect as secondary flow (koalapaw implements it).
+- Discovery: UDP broadcast (koalapaw `UdpServerDiscovery`) + manual URL. **QuickConnect is a required secondary sign-in flow** (promoted from optional; koalapaw implements it): the client shows the server's code, polls for approval, and exchanges the secret for a token — no stored password and no persisted token.
 - Browsing: `/Items` by `IncludeItemTypes=MusicArtist|MusicAlbum|Audio`, `ParentId`, `SortBy`, `Recursive`; music windows (koalapaw `musicAlbumsWindow`/`musicArtistsWindow`/A-to-Z offsets) port directly; artwork via `/Items/{id}/Images/Primary`.
 - Playback: **direct play** `/Audio/{id}/stream?static=true` through our libcurl layer with the MediaBrowser header (not a tokened URL); HLS fallback `/Audio/{id}/master.m3u8` when transcode needed. `PlayMethod` reported correctly.
 - Progress: `/Sessions/Playing` on start, `/Sessions/Playing/Progress` every 10s + on events, `/Sessions/Playing/Stopped` at end; `PlaySessionId` per queue.

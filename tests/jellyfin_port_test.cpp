@@ -423,6 +423,38 @@ TEST_CASE("the media source opens, reads and seeks through libvlc's callback sha
     CHECK(*headerValue(transport.requests()[1], "Range") == "bytes=20-");
 }
 
+TEST_CASE("QuickConnect initiates, polls and exchanges the secret") {
+    FixtureTransport transport{std::filesystem::path(kFixtureDir)};
+    JellyfinClient client{transport, testProfile()};
+
+    CHECK(client.quickConnectEnabled(kBaseUrl, kDeviceId));
+
+    const QuickConnectStartOutcome started = client.initiateQuickConnect(kBaseUrl, kDeviceId);
+    const auto* start = std::get_if<QuickConnectStart>(&started);
+    REQUIRE(start != nullptr);
+    CHECK(start->secret == "sec-abc");
+    CHECK(start->code == "123456");
+
+    const QuickConnectStateOutcome state =
+        client.quickConnectState(kBaseUrl, kDeviceId, "sec-abc");
+    const auto* polled = std::get_if<QuickConnectState>(&state);
+    REQUIRE(polled != nullptr);
+    CHECK(polled->authenticated);
+
+    const AuthOutcome auth =
+        client.authenticateWithQuickConnect(kBaseUrl, "sec-abc", kDeviceId);
+    const auto* session = std::get_if<AuthSuccess>(&auth);
+    REQUIRE(session != nullptr);
+    CHECK(session->session.accessToken == "qc-token-1");
+    CHECK(session->session.userName == "tester");
+
+    REQUIRE(transport.requests().size() == 4);
+    CHECK(transport.requests()[1].url == kBaseUrl + "/QuickConnect/Initiate");
+    CHECK(transport.requests()[2].url == kBaseUrl + "/QuickConnect/Connect?secret=sec-abc");
+    CHECK(transport.requests()[3].url == kBaseUrl + "/Users/AuthenticateWithQuickConnect");
+    CHECK(contains(transport.requests()[3].body, "\"Secret\":\"sec-abc\""));
+}
+
 TEST_CASE("an auth 401 carries the server's own reason") {
     FixtureTransport transport{kAuthRejectedDir};
     JellyfinClient client(transport, testProfile());

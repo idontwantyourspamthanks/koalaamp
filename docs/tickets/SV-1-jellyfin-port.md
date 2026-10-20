@@ -1,9 +1,9 @@
 # SV-1 · Jellyfin client port (auth / browse / search)
 
 - **Milestone:** M3 · **Est:** 4d · **Depends:** LI-2, FE-5 · **Status:** in progress — header
-  discipline, `AuthenticateByName`, discovery, browse (albums + artists + A–Z offsets) and
-  `/Items` search onto `Track` have landed and are fixture-replayed. Open: artwork cache, the
-  `IServerSource` seam, the connection-manager UI, live-container fixtures.
+  discipline, `AuthenticateByName`, QuickConnect, discovery, browse (albums + artists + A–Z offsets)
+  and `/Items` search onto `Track` have landed and are fixture-replayed. Open: artwork cache,
+  the connection-manager UI (live behaviour), live-container fixtures.
 
 ## Story
 A C++ Jellyfin `ITrackSource` that authenticates, discovers servers, and browses/searches music libraries — ported from the maintainer's field-tested koalapaw Android code rather than written against the API docs from scratch. This is transliteration work: the wire contracts, error handling, and header discipline are already solved in Kotlin; our job is a faithful C++ rendering of them.
@@ -12,7 +12,7 @@ A C++ Jellyfin `ITrackSource` that authenticates, discovers servers, and browses
 - [x] Port `AuthInterceptor` logic: `Authorization: MediaBrowser Client="KoalaAmp" Device=... DeviceId=<hash(machineId,userId)> Version=...` on every request; 401 → re-auth; **no** `X-Emby-Token`, **no `api_key` query param — anywhere, including the WS handshake**. — `AuthHeaders` builds the one header (`Token` appended only when a token exists); the static test greps the module for both forbidden transports. 401 surfaces as `*Unauthorized` for the caller's re-auth policy (token refresh is SV-2's).
 - [x] Port `POST /Users/AuthenticateByName` flow (username/password → `AccessToken`, `ServerId`, session info). — `JellyfinClient::authenticate`, with the stable per-user DeviceId trap covered by the "re-login loop" test.
 - [x] Port `UdpServerDiscovery` (broadcast probe + response parse) + manual-URL fallback. — `Discovery`: the probe constant, lenient reply parsing (fixture-tested), broadcast collection with a listen window and cancellation; the manual fallback is the caller passing `baseUrl` directly.
-- [ ] Optional: QuickConnect flow (koalapaw implements it — port if cheap, else defer).
+- [x] **Required:** QuickConnect flow (koalapaw implements it — promoted from optional). — `JellyfinClient::{quickConnectEnabled,initiateQuickConnect,quickConnectState,authenticateWithQuickConnect}` port the four endpoints; the connection dialog's **QuickConnect** button shows the code, polls every 2 s (2-minute timeout) and finishes through the same login path as password auth. Fixtures 21-24; the dialog test drives it end to end. Password auth remains available for servers with QuickConnect disabled.
 - [x] Browse: port `musicAlbumsWindow` / `musicArtistsWindow` / A-to-Z letter-offsets (koalapaw `JellyfinGateway.kt:689-721` has the exact query shapes: `IncludeItemTypes`, `Recursive`, `SortBy`, paging). — `musicAlbumsWindow` and `musicArtistsWindow` share `atoZWindow` (one item type, SortName ascending, paging, user data); `letterOffsets` ports `atoZLetterOffsets` plus `letterOffsetsFrom` (first index per bucket wins, digits/symbols/blank → "#"). Both fixture-replayed.
 - [x] Search: `/Items` queries with `SearchTerm`; map results to our `Track` model. — `JellyfinClient::search`: `searchTerm`, recursive, caller-chosen item types, mapped to `library::Track` (RunTimeTicks/10000 → ms; `Artists[0]`, falling back to `AlbumArtist`). Fixture-replayed.
 - [x] Artwork: `/Items/{id}/Images/Primary` fetch + disk cache (respect server cache headers). — `ArtworkCache`: files keyed by item + `ImageTags.Primary` tag (the server's own cache-busting key), one sidecar each holding the fetch time, the parsed `Cache-Control` max-age and the extension implied by `Content-Type`; reused within max-age, `no-store`/`no-cache` (and a missing header) always refetch. `HttpResponse` gained response headers for this, and the fixture format serialises them.

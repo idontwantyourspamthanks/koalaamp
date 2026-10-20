@@ -149,7 +149,7 @@ tokens (the smoke's `--record DIR` produces them and they are **not** committed)
 - Discovery de-duplicates replies; koalapaw emits per datagram.
 - `parentId` is omitted from `/Items` when empty (top-level browse); koalapaw
   always passes a library-view id.
-- Not ported (out of scope): QuickConnect, user listing, letter-offset rail,
+- Not ported at spike time (QuickConnect has since landed as a required SV-1 flow): user listing, letter-offset rail,
   progress/scrobble, stream open, WS remote control.
 - SV-1 must decide the session object (token refresh on 401, one cached
   transport) and whether `userKey` keys on the user id once known.

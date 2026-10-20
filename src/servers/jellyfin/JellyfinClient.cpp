@@ -116,26 +116,8 @@ library::Track trackFromDto(const json& dto) {
     return track;
 }
 
-} // namespace
-
-JellyfinClient::JellyfinClient(IHttpTransport& transport, DeviceProfile profile)
-    : transport_(transport), profile_(std::move(profile)) {
-    if (profile_.deviceName.empty()) {
-        profile_.deviceName = defaultDeviceName();
-    }
-}
-
-AuthOutcome JellyfinClient::authenticate(const std::string& baseUrl, const std::string& username,
-                                         const std::string& password, const std::string& deviceId,
-                                         const library::Cancellation& cancel) {
-    HttpRequest request;
-    request.method = "POST";
-    request.url = baseUrlNoSlash(baseUrl) + "/Users/AuthenticateByName";
-    request.headers = baseHeaders(profile_, deviceId, /*token=*/{});
-    request.headers.emplace_back("Content-Type", "application/json");
-    request.body = json{{"Username", username}, {"Pw", password}}.dump();
-
-    const HttpResponse response = transport_.perform(request, cancel);
+/// Shared mapping for the two auth endpoints (password + QuickConnect).
+AuthOutcome parseAuthResponse(const HttpResponse& response) {
     if (!response.transportOk()) {
         return AuthUnreachable{};
     }
@@ -181,6 +163,116 @@ AuthOutcome JellyfinClient::authenticate(const std::string& baseUrl, const std::
     } catch (const std::exception& e) {
         return AuthFailed{std::string{"Malformed login response: "} + e.what()};
     }
+}
+
+} // namespace
+
+JellyfinClient::JellyfinClient(IHttpTransport& transport, DeviceProfile profile)
+    : transport_(transport), profile_(std::move(profile)) {
+    if (profile_.deviceName.empty()) {
+        profile_.deviceName = defaultDeviceName();
+    }
+}
+
+AuthOutcome JellyfinClient::authenticate(const std::string& baseUrl, const std::string& username,
+                                         const std::string& password, const std::string& deviceId,
+                                         const library::Cancellation& cancel) {
+    HttpRequest request;
+    request.method = "POST";
+    request.url = baseUrlNoSlash(baseUrl) + "/Users/AuthenticateByName";
+    request.headers = baseHeaders(profile_, deviceId, /*token=*/{});
+    request.headers.emplace_back("Content-Type", "application/json");
+    request.body = json{{"Username", username}, {"Pw", password}}.dump();
+
+    const HttpResponse response = transport_.perform(request, cancel);
+    return parseAuthResponse(response);
+}
+
+bool JellyfinClient::quickConnectEnabled(const std::string& baseUrl, const std::string& deviceId,
+                                           const library::Cancellation& cancel) {
+    HttpRequest request;
+    request.method = "GET";
+    request.url = baseUrlNoSlash(baseUrl) + "/QuickConnect/Enabled";
+    request.headers = baseHeaders(profile_, deviceId, /*token=*/{});
+    const HttpResponse response = transport_.perform(request, cancel);
+    return response.httpOk() && response.body.find("true") != std::string::npos;
+}
+
+QuickConnectStartOutcome JellyfinClient::initiateQuickConnect(const std::string& baseUrl, const std::string& deviceId,
+                                     const library::Cancellation& cancel) {
+    HttpRequest request;
+    request.method = "POST";
+    request.url = baseUrlNoSlash(baseUrl) + "/QuickConnect/Initiate";
+    request.headers = baseHeaders(profile_, deviceId, /*token=*/{});
+
+    const HttpResponse response = transport_.perform(request, cancel);
+    if (!response.transportOk()) {
+        return ItemsUnreachable{};
+    }
+    if (response.status == 401) {
+        return ItemsUnauthorized{};
+    }
+    if (!response.httpOk()) {
+        return ItemsFailed{"QuickConnect is not available (HTTP " +
+                           std::to_string(response.status) + ")"};
+    }
+    try {
+        const json body = json::parse(response.body);
+        QuickConnectStart start{str(body, "Secret"), str(body, "Code")};
+        if (start.secret.empty() || start.code.empty()) {
+            return ItemsFailed{"QuickConnect response missing secret/code"};
+        }
+        return start;
+    } catch (const std::exception& e) {
+        return ItemsFailed{std::string{"Malformed QuickConnect response: "} + e.what()};
+    }
+}
+
+QuickConnectStateOutcome JellyfinClient::quickConnectState(const std::string& baseUrl, const std::string& deviceId,
+                                  const std::string& secret,
+                                  const library::Cancellation& cancel) {
+    HttpRequest request;
+    request.method = "GET";
+    request.url =
+        baseUrlNoSlash(baseUrl) + "/QuickConnect/Connect?secret=" + encodeQuery(secret);
+    request.headers = baseHeaders(profile_, deviceId, /*token=*/{});
+
+    const HttpResponse response = transport_.perform(request, cancel);
+    if (!response.transportOk()) {
+        return ItemsUnreachable{};
+    }
+    if (response.status == 401) {
+        return ItemsUnauthorized{};
+    }
+    if (!response.httpOk()) {
+        return ItemsFailed{"QuickConnect poll failed (HTTP " +
+                           std::to_string(response.status) + ")"};
+    }
+    try {
+        const json body = json::parse(response.body);
+        QuickConnectState state;
+        state.authenticated = body.value("Authenticated", false);
+        state.secret = str(body, "Secret");
+        state.code = str(body, "Code");
+        return state;
+    } catch (const std::exception& e) {
+        return ItemsFailed{std::string{"Malformed QuickConnect state: "} + e.what()};
+    }
+}
+
+AuthOutcome JellyfinClient::authenticateWithQuickConnect(const std::string& baseUrl,
+                                                         const std::string& secret,
+                                                         const std::string& deviceId,
+                                                         const library::Cancellation& cancel) {
+    HttpRequest request;
+    request.method = "POST";
+    request.url = baseUrlNoSlash(baseUrl) + "/Users/AuthenticateWithQuickConnect";
+    request.headers = baseHeaders(profile_, deviceId, /*token=*/{});
+    request.headers.emplace_back("Content-Type", "application/json");
+    request.body = json{{"Secret", secret}}.dump();
+
+    const HttpResponse response = transport_.perform(request, cancel);
+    return parseAuthResponse(response);
 }
 
 ItemsOutcome JellyfinClient::atoZWindow(const std::string& baseUrl, const std::string& token,

@@ -1,0 +1,40 @@
+{
+  "request": {
+    "method": "POST",
+    "url": "http://jellyfin.local:8096/Users/AuthenticateWithQuickConnect",
+    "headers": [
+      [
+        "Authorization",
+        "MediaBrowser Client=\"KoalaAmp\", Device=\"device-under-test\", DeviceId=\"device-under-test\", Version=\"0.0.1\""
+      ],
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Accept",
+        "application/json"
+      ]
+    ],
+    "body": ""
+  },
+  "response": {
+    "status": 200,
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ]
+    ],
+    "body": {
+      "User": {
+        "Name": "tester",
+        "ServerId": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f",
+        "Id": "11111111111111111111111111111111"
+      },
+      "AccessToken": "qc-token-1",
+      "ServerId": "0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f0f"
+    },
+    "error": ""
+  }
+}

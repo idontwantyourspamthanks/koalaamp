@@ -163,7 +163,7 @@
 ## M3 — Servers, Scrobbling, v1.0 Polish (≈ 4 wks — reduced by koalapaw port)
 
 ### SV-1 · Jellyfin client port (auth/browse/search) — *4d*
-- **Tasks:** complete the FE-5 port: gateway interfaces; music windows (albums/artists/A-to-Z); search; artwork caching; connection manager UI; token refresh on 401; QuickConnect optional.
+- **Tasks:** complete the FE-5 port: gateway interfaces; music windows (albums/artists/A-to-Z); search; artwork caching; connection manager UI; token refresh on 401; QuickConnect (required).
 - **Acceptance:** vs Jellyfin 10.10 + 10.12 containers: auth, browse, search, art; fixtures recorded for CI; MediaBrowser headers only (assert: no `X-Emby-Token`, no `api_key` anywhere, incl. WS handshake).
 - **Depends:** LI-2, FE-5
 

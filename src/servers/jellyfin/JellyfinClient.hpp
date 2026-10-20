@@ -158,6 +158,24 @@ struct DiscoveredServer {
     std::string address;
 };
 
+/// QuickConnect handshake results (`POST /QuickConnect/Initiate` /
+/// `GET /QuickConnect/Connect`). The code is what the user approves in another
+/// Jellyfin client; the secret is then exchanged for a token.
+struct QuickConnectStart {
+    std::string secret;
+    std::string code;
+};
+using QuickConnectStartOutcome =
+    std::variant<QuickConnectStart, ItemsUnauthorized, ItemsUnreachable, ItemsFailed>;
+
+struct QuickConnectState {
+    bool authenticated{false};
+    std::string secret;
+    std::string code;
+};
+using QuickConnectStateOutcome =
+    std::variant<QuickConnectState, ItemsUnauthorized, ItemsUnreachable, ItemsFailed>;
+
 /// The Jellyfin gateway: authenticates and browses, mapping everything onto the
 /// outcome variants above. Holds no per-request state — token/device are passed
 /// in, exactly as koalapaw's pinned-client methods do.
@@ -170,6 +188,34 @@ public:
     AuthOutcome authenticate(const std::string& baseUrl, const std::string& username,
                              const std::string& password, const std::string& deviceId,
                              const library::Cancellation& cancel = NoCancellation{});
+
+    /// QuickConnect availability (`GET /QuickConnect/Enabled`). False on any
+    /// failure — callers treat it as "not offered", not as a transport error.
+    bool quickConnectEnabled(const std::string& baseUrl, const std::string& deviceId,
+                             const library::Cancellation& cancel = NoCancellation{});
+
+    /// Starts a QuickConnect handshake (`POST /QuickConnect/Initiate`). The
+    /// returned code is what the user types/approves in their own Jellyfin app;
+    /// the secret is then polled and exchanged for a token.
+    QuickConnectStartOutcome initiateQuickConnect(const std::string& baseUrl,
+                                                  const std::string& deviceId,
+                                                  const library::Cancellation& cancel =
+                                                      NoCancellation{});
+
+    /// Poll (`GET /QuickConnect/Connect?secret=…`): true once the user approved
+    /// the request in another Jellyfin client.
+    QuickConnectStateOutcome quickConnectState(const std::string& baseUrl,
+                                               const std::string& deviceId,
+                                               const std::string& secret,
+                                               const library::Cancellation& cancel =
+                                                   NoCancellation{});
+
+    /// Exchanges an approved secret for the same session shape as password auth
+    /// (`POST /Users/AuthenticateWithQuickConnect`, MediaBrowser headers only).
+    AuthOutcome authenticateWithQuickConnect(const std::string& baseUrl, const std::string& secret,
+                                             const std::string& deviceId,
+                                             const library::Cancellation& cancel =
+                                                 NoCancellation{});
 
     /// One album page: GET /Items?IncludeItemTypes=MusicAlbum&Recursive=true…
     /// (koalapaw `musicAlbumsWindow` → `atoZWindow`).

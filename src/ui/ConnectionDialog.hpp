@@ -22,8 +22,14 @@
 
 #include <QPoint>
 #include <QSize>
+#include <QString>
+#include <QTimer>
 
 #include <optional>
+
+namespace koalaamp::servers::jellyfin {
+struct AuthSession;
+}
 
 class QLabel;
 class QLineEdit;
@@ -57,6 +63,10 @@ signals:
     /// The user asked to browse the signed-in server (the Browse button).
     void browseRequested();
 
+private slots:
+    /// One QuickConnect poll; also invoked by the test after clicking the button.
+    void pollQuickConnect();
+
 private:
     void paintEvent(QPaintEvent* event) override;
     bool isTitleBarAt(const QPoint& point) const override;
@@ -68,6 +78,11 @@ private:
     void discover();
     void removeSelected();
     void browseServer();
+    /// Starts (or cancels) the QuickConnect handshake.
+    void quickConnect();
+    void finishLogin(const std::string& baseUrl,
+                     const servers::jellyfin::AuthSession& session, const std::string& deviceId);
+    void stopQuickConnect(const QString& message);
     /// Fills URL/user from the selected saved server and focuses the password.
     void fillFromSelection();
     void refreshList();
@@ -87,7 +102,14 @@ private:
     QPushButton* m_discover = nullptr;
     QPushButton* m_remove = nullptr;
     QPushButton* m_browse = nullptr;
+    QPushButton* m_quickConnect = nullptr;
     QLabel* m_status = nullptr;
+
+    QTimer m_quickConnectTimer;
+    QString m_quickConnectBaseUrl;
+    QString m_quickConnectDeviceId;
+    QString m_quickConnectSecret;
+    int m_quickConnectPolls = 0;
 
     QSize m_contentSize{420, 260};
     bool m_closePressed = false;

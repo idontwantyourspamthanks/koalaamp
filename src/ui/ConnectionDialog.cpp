@@ -61,7 +61,7 @@ ConnectionDialog::ConnectionDialog(servers::jellyfin::IHttpTransport& transport,
       m_transport(transport),
       m_book(book),
       m_machineId(servers::jellyfin::MachineIdStore(std::move(machineIdPath))) {
-    m_contentSize = genSnapSize(QSize(420, 260));
+    m_contentSize = genSnapSize(QSize(420, 300));
     setFixedSize(m_contentSize);
 
     const GenLayout layout = genLayout(m_contentSize);
@@ -109,9 +109,13 @@ ConnectionDialog::ConnectionDialog(servers::jellyfin::IHttpTransport& transport,
     m_browse->setGeometry(x + 3 * (width / 4), client.y() + 162, buttonWidth, 26);
     m_browse->setEnabled(false); // until a login succeeds
 
+    m_quickConnect = new QPushButton(QStringLiteral("QuickConnect"), this);
+    m_quickConnect->setObjectName(QStringLiteral("quickConnectButton"));
+    m_quickConnect->setGeometry(x, client.y() + 192, width, 26);
+
     m_status = new QLabel(this);
     m_status->setObjectName(QStringLiteral("statusLabel"));
-    m_status->setGeometry(x, client.y() + 192, width, 20);
+    m_status->setGeometry(x, client.y() + 222, width, 20);
     m_status->setText(QStringLiteral("No server selected"));
 
     connect(m_list, &QListWidget::currentRowChanged, this,
@@ -121,6 +125,9 @@ ConnectionDialog::ConnectionDialog(servers::jellyfin::IHttpTransport& transport,
     connect(m_discover, &QPushButton::clicked, this, &ConnectionDialog::discover);
     connect(m_remove, &QPushButton::clicked, this, &ConnectionDialog::removeSelected);
     connect(m_browse, &QPushButton::clicked, this, &ConnectionDialog::browseServer);
+    connect(m_quickConnect, &QPushButton::clicked, this, &ConnectionDialog::quickConnect);
+    m_quickConnectTimer.setInterval(2000);
+    connect(&m_quickConnectTimer, &QTimer::timeout, this, &ConnectionDialog::pollQuickConnect);
 
     refreshList();
 }
@@ -221,27 +228,7 @@ void ConnectionDialog::login() {
 
     const AuthOutcome outcome = client.authenticate(baseUrl, user, password, deviceId);
     if (const auto* success = std::get_if<AuthSuccess>(&outcome)) {
-        m_session = servers::ServerAuth{baseUrl, success->session.userId,
-                                        success->session.accessToken, deviceId};
-
-        servers::ServerEntry entry;
-        entry.serverId = success->session.serverId.empty() ? baseUrl : success->session.serverId;
-        entry.name = displayHost(baseUrl).toStdString();
-        entry.baseUrl = baseUrl;
-        entry.userId = success->session.userId;
-        entry.userName = success->session.userName;
-        entry.deviceId = deviceId;
-        m_book.upsert(std::move(entry));
-        const bool saved = m_book.save();
-
-        refreshList();
-        m_password->clear();
-        m_browse->setEnabled(true);
-        m_browse->setFocus(); // Enter opens the library right after signing in
-        setStatus(saved ? QStringLiteral("Signed in as %1 — saved")
-                              .arg(QString::fromStdString(success->session.userName))
-                        : QStringLiteral("Signed in, but the server list could not be saved"));
-        emit sessionChanged();
+        finishLogin(baseUrl, success->session, deviceId);
         return;
     }
     if (std::holds_alternative<AuthInvalidCredentials>(outcome)) {
@@ -276,6 +263,131 @@ void ConnectionDialog::fillFromSelection() {
         setStatus(QStringLiteral("Enter the password for %1")
                       .arg(QString::fromStdString(entry.userName)));
         return;
+    }
+}
+
+void ConnectionDialog::finishLogin(const std::string& baseUrl,
+                                   const servers::jellyfin::AuthSession& session,
+                                   const std::string& deviceId) {
+    m_session = servers::ServerAuth{baseUrl, session.userId, session.accessToken, deviceId};
+
+    servers::ServerEntry entry;
+    entry.serverId = session.serverId.empty() ? baseUrl : session.serverId;
+    entry.name = displayHost(baseUrl).toStdString();
+    entry.baseUrl = baseUrl;
+    entry.userId = session.userId;
+    entry.userName = session.userName;
+    entry.deviceId = deviceId;
+    m_book.upsert(std::move(entry));
+    const bool saved = m_book.save();
+
+    refreshList();
+    m_password->clear();
+    m_browse->setEnabled(true);
+    m_browse->setFocus(); // Enter opens the library right after signing in
+    setStatus(saved ? QStringLiteral("Signed in as %1 — saved")
+                          .arg(QString::fromStdString(session.userName))
+                    : QStringLiteral("Signed in, but the server list could not be saved"));
+    emit sessionChanged();
+}
+
+void ConnectionDialog::stopQuickConnect(const QString& message) {
+    m_quickConnectTimer.stop();
+    m_quickConnectSecret.clear();
+    m_quickConnect->setText(QStringLiteral("QuickConnect"));
+    if (!message.isEmpty()) {
+        setStatus(message);
+    }
+}
+
+void ConnectionDialog::quickConnect() {
+    using namespace koalaamp::servers::jellyfin;
+
+    if (m_quickConnectTimer.isActive()) {
+        stopQuickConnect(QStringLiteral("QuickConnect cancelled"));
+        return;
+    }
+
+    std::string baseUrl = m_url->text().trimmed().toStdString();
+    if (!baseUrl.empty() && baseUrl.find("://") == std::string::npos) {
+        baseUrl = "http://" + baseUrl;
+    }
+    if (baseUrl.empty()) {
+        setStatus(QStringLiteral("A server URL is required"));
+        return;
+    }
+
+    // QuickConnect is pre-auth: there is no user yet, so the device id is
+    // derived from the machine alone and stays stable for the token's lifetime.
+    const std::string deviceId = deriveDeviceId(m_machineId.machineId(), "");
+    JellyfinClient client(m_transport, DeviceProfile{});
+
+    if (!client.quickConnectEnabled(baseUrl, deviceId)) {
+        setStatus(QStringLiteral("QuickConnect is disabled on this server"));
+        return;
+    }
+
+    const QuickConnectStartOutcome outcome = client.initiateQuickConnect(baseUrl, deviceId);
+    if (const auto* start = std::get_if<QuickConnectStart>(&outcome)) {
+        m_quickConnectBaseUrl = QString::fromStdString(baseUrl);
+        m_quickConnectDeviceId = QString::fromStdString(deviceId);
+        m_quickConnectSecret = QString::fromStdString(start->secret);
+        m_quickConnectPolls = 0;
+        m_quickConnect->setText(QStringLiteral("Cancel QuickConnect"));
+        m_quickConnectTimer.start();
+        setStatus(QStringLiteral("QuickConnect code %1 — approve it in Jellyfin")
+                      .arg(QString::fromStdString(start->code)));
+        return;
+    }
+    if (std::holds_alternative<ItemsUnauthorized>(outcome)) {
+        setStatus(QStringLiteral("The server rejected the request"));
+    } else if (std::holds_alternative<ItemsUnreachable>(outcome)) {
+        setStatus(QStringLiteral("Server unreachable"));
+    } else {
+        setStatus(QString::fromStdString(std::get<ItemsFailed>(outcome).message));
+    }
+}
+
+void ConnectionDialog::pollQuickConnect() {
+    using namespace koalaamp::servers::jellyfin;
+    if (m_quickConnectSecret.isEmpty()) {
+        return;
+    }
+    const std::string baseUrl = m_quickConnectBaseUrl.toStdString();
+    const std::string deviceId = m_quickConnectDeviceId.toStdString();
+    const std::string secret = m_quickConnectSecret.toStdString();
+
+    JellyfinClient client(m_transport, DeviceProfile{});
+    const QuickConnectStateOutcome outcome = client.quickConnectState(baseUrl, deviceId, secret);
+    if (const auto* state = std::get_if<QuickConnectState>(&outcome)) {
+        if (!state->authenticated) {
+            if (++m_quickConnectPolls >= 60) { // two minutes
+                stopQuickConnect(QStringLiteral("QuickConnect timed out"));
+            }
+            return;
+        }
+        stopQuickConnect(QString());
+        const AuthOutcome auth = client.authenticateWithQuickConnect(baseUrl, secret, deviceId);
+        if (const auto* success = std::get_if<AuthSuccess>(&auth)) {
+            finishLogin(baseUrl, success->session, deviceId);
+            return;
+        }
+        if (std::holds_alternative<AuthInvalidCredentials>(auth)) {
+            setStatus(QString::fromStdString(
+                std::get<AuthInvalidCredentials>(auth).message));
+        } else if (std::holds_alternative<AuthUnreachable>(auth)) {
+            setStatus(QStringLiteral("Server unreachable"));
+        } else {
+            setStatus(QString::fromStdString(std::get<AuthFailed>(auth).message));
+        }
+        return;
+    }
+    if (std::holds_alternative<ItemsUnreachable>(outcome)) {
+        stopQuickConnect(QStringLiteral("Server unreachable"));
+    } else if (std::holds_alternative<ItemsUnauthorized>(outcome)) {
+        stopQuickConnect(QStringLiteral("The server rejected the request"));
+    } else {
+        stopQuickConnect(QString::fromStdString(std::get<ItemsFailed>(outcome).message));
     }
 }
 
