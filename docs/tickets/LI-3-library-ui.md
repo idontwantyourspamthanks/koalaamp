@@ -73,6 +73,8 @@ suite.
   Xvfb/X11 (not offscreen): median **2.4 ms**, p95 **2.6–3.5 ms** across
   three runs (worst observed 5.5 ms) per full window render with 100k rows
   (budget 16.7 ms for 60 fps). Offscreen p95 was **2.9 ms**.
+- CI run `39691385336` green on all six jobs (Linux/macOS ctest, Windows
+  build); local suite 364/364.
 - **Reference SQL:** the 100k fixture is patterned with deterministic
   rating/playcount/dateadded/lastplayed/mtime values, then all six smart-view
   queries (including Recently modified) are compared row-for-row against
