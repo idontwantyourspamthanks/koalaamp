@@ -34,7 +34,7 @@
     },
     {
       "name": "windows-msvc",
-      "displayName": "Windows x64 · MSVC · RelWithDebInfo",
+      "displayName": "Windows x64 · MSVC · Release",
       "inherits": "base",
       "generator": "Visual Studio 17 2022",
       "architecture": "x64",
@@ -54,7 +54,7 @@
   "buildPresets": [
     { "name": "linux-gcc", "configurePreset": "linux-gcc" },
     { "name": "linux-clang", "configurePreset": "linux-clang" },
-    { "name": "windows-msvc", "configurePreset": "windows-msvc", "configuration": "RelWithDebInfo" },
+    { "name": "windows-msvc", "configurePreset": "windows-msvc", "configuration": "Release" },
     { "name": "macos-clang", "configurePreset": "macos-clang" }
   ],
   "testPresets": [
@@ -71,7 +71,7 @@
     {
       "name": "windows-msvc",
       "configurePreset": "windows-msvc",
-      "configuration": "RelWithDebInfo",
+      "configuration": "Release",
       "output": { "outputOnFailure": true }
     },
     {
