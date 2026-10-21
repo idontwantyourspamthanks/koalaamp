@@ -1,16 +1,16 @@
 # CI-1 · Windows compile coverage for the playback path
 
-- **Milestone:** M1 (CI hardening; blocks nothing, prevents owner-desk failures) · **Est:** 2d · **Depends:** FE-4 · **Status:** in-progress — VLC 3.0.21 SDK pin + Windows CMake/CI wiring landed; first Windows compile pass pending
+- **Milestone:** M1 (CI hardening; blocks nothing, prevents owner-desk failures) · **Est:** 2d · **Depends:** FE-4 · **Status:** done — VLC 3.0.21 win64 SDK pin, Windows CMake target and compile marker are green in CI
 
 ## Story
 Windows CI builds no `koalaamp_playback_core`, `koalaamp_vlc`, or `src/interop/vlc/` — `find_package` for libvlc fails on the runner, so ~1,500 lines of the app's core playback path have **zero Windows compile coverage**. Every CI-only surprise this session lived on Windows (Ws2_32, WSAStartup, zlib1.dll, Qt-DLL discovery, the §-test-name mojibake); the player's most load-bearing code is exactly the part the Windows runner cannot see. Goal: those targets *compile and link* on Windows CI so a Windows-only break fails at PR time, not on the owner's desk. Tests stay Linux-gated (running libvlc on the runner is a separate, later question).
 
 ## Tasks
-- [ ] libvlc on Windows CI: acquire headers (+ link stubs) — vcpkg has `libvlc`? research; else the official VLC 3.0.x SDK zip (VideoLAN) fetched pinned into third_party via a vendor-deps Windows section, or a vcpkg overlay port. Record the choice and its maintenance posture in the ticket (pinned source, not floating).
-- [ ] Wire CMake: make `find_package`/pkg-config equivalent resolve on Windows (CMAKE_PREFIX_PATH to the SDK; the existing `KOALAAMP_HAS_LIBVLC` guard flips true there).
-- [ ] Confirm the Windows build compiles `src/interop/vlc/*` and `src/playback/PlaybackCore.cpp` (the FE-4/FE-2 targets) — expect to fix any Windows-only compile issues found (they exist; that's the point of the ticket).
-- [ ] Add a CI-visible marker (test or build step output) asserting the playback targets built on all three platforms — so the gap can't silently reopen.
-- [ ] The Ws2_32/WSAStartup patterns already in `src/servers` are the template for what this ticket will likely surface in the vlc path — fix as found, with the same guarded-per-platform style.
+- [x] libvlc on Windows CI: acquire headers (+ link stubs) — vcpkg has `libvlc`? research; else the official VLC 3.0.x SDK zip (VideoLAN) fetched pinned into third_party via a vendor-deps Windows section, or a vcpkg overlay port. Record the choice and its maintenance posture in the ticket (pinned source, not floating).
+- [x] Wire CMake: make `find_package`/pkg-config equivalent resolve on Windows (CMAKE_PREFIX_PATH to the SDK; the existing `KOALAAMP_HAS_LIBVLC` guard flips true there).
+- [x] Confirm the Windows build compiles `src/interop/vlc/*` and `src/playback/PlaybackCore.cpp` (the FE-4/FE-2 targets) — expect to fix any Windows-only compile issues found (they exist; that's the point of the ticket).
+- [x] Add a CI-visible marker (test or build step output) asserting the playback targets built on all three platforms — so the gap can't silently reopen.
+- [x] The Ws2_32/WSAStartup patterns already in `src/servers` are the template for what this ticket will likely surface in the vlc path — fix as found, with the same guarded-per-platform style.
 
 ## Acceptance
 - Windows CI job output shows `koalaamp_vlc`/`koalaamp_playback_core` targets compiling (marker assertion green on all 3 platforms).
@@ -29,4 +29,13 @@ Windows CI builds no `koalaamp_playback_core`, `koalaamp_vlc`, or `src/interop/v
 - The session's Windows-only failure chain: Ws2_32 (jellyfin), WSAStartup, zlib1.dll/Qt-DLL discovery PATH, §-name mojibake — all PR-time catches that this ticket generalizes into compile coverage
 
 ## Notes / risks
-- vcpkg's libvlc port (if present) tracks a specific 3.x — acceptable if pinned; the SDK zip is the more deterministic option but needs hosting/verification discipline. Prefer whichever a maintainer can re-fetch in 6 months.
+- vcpkg has no libvlc port. Windows CI downloads the official VLC 3.0.21 win64 `.7z`
+  (`9d2b24d6bc4196b3da8d181a3878678ba272e2a7690321f8826da76a69b2fb9c`), extracts
+  `sdk/`, and exports `KOALAAMP_VLC_SDK`; the binary zip has no SDK. The CI step
+  verifies the hash and sets `KOALAAMP_REQUIRE_VLC_SDK=1`, so a missing target is
+  a configure failure rather than silent loss of coverage.
+- Runtime tests stay Linux/macOS-gated (`KOALAAMP_RUNTIME_PLAYBACK_TESTS`); Windows
+  builds `koalaamp_vlc`, `koalaamp_playback_core` and the app, but does not run the
+  VLC-backed transport/EQ suites. The getrusage spike is Unix-only.
+- Fixed during the first compile pass: `m_backlog.max()` was eaten by the Windows
+  `max` macro; wrapped as `(m_backlog.max)()`.

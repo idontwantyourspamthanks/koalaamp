@@ -19,7 +19,7 @@ well — rather than a second mechanism.
 | Platform | Qt | Native deps (libvlc/TagLib/projectM/SQLite/libcurl) | Test framework |
 |---|---|---|---|
 | **Linux** (ubuntu-24.04, dev) | distro packages / CI `install-qt-action` | distro packages (`libvlc-dev`, `libtag1-dev`, `libsqlite3-dev`, `libcurl4-openssl-dev`); projectM from source | FetchContent |
-| **Windows** (windows-2022) | `install-qt-action` (prebuilt MSVC) | **vcpkg manifest** (all of them), DLLs copied next to the exe | FetchContent |
+| **Windows** (windows-2022) | `install-qt-action` (prebuilt MSVC) | **vcpkg manifest** for TagLib/SQLite/curl/zlib; **official VLC 3.0.21 win64 SDK** for libvlc (vcpkg has no port), DLLs/plugins staged next to the exe | FetchContent |
 | **macOS** (macos-14) | `install-qt-action` (prebuilt clang) | Homebrew (`vlc`, `taglib`, `projectm`, `sqlite`, `curl`) | FetchContent |
 
 **Why not vcpkg everywhere?** vcpkg's Qt port is heavyweight and its LGPL Qt
@@ -88,7 +88,8 @@ versions live in `deps/dependencies.json` and are acquired per the table above.
 `third_party/` is empty in the committed tree by design.
 
 Deferred to FE-2/FE-5/FE-14: adding libvlc/TagLib/projectM sources + hashes to
-the script once their build wiring exists.
+the script once their build wiring exists. CI-1 now fetches the pinned Windows VLC
+3.0.21 SDK in `ci.yml`; the official binary zip has no SDK, the `.7z` does.
 
 ## Decision: ccache, style, warnings
 

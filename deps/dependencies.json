@@ -42,11 +42,11 @@
     },
     {
       "name": "libvlc",
-      "version": "3.0.x",
+      "version": "3.0.x (Linux/macOS distro/brew; Windows 3.0.21 SDK)",
       "license": "LGPL-2.1-or-later",
       "link": "dynamic",
       "source": "https://code.videolan.org/videolan/vlc",
-      "note": "Raw C API headers; no libvlcpp wrapper (avoids compiling an LGPL header into the binary). Linux: distro libvlc-dev (apt), verified/installed by scripts/vendor-deps.sh; nothing vendored into the tree."
+      "note": "Raw C API headers; no libvlcpp wrapper. Linux: libvlc-dev; macOS: Homebrew; Windows CI: official vlc-3.0.21-win64.7z SDK, SHA-256 pinned in ci.yml."
     },
     {
       "name": "TagLib",
