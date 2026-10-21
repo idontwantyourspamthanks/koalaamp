@@ -65,7 +65,7 @@ MigrationDialog::MigrationDialog(std::string databasePath, PathCallback openPlay
                                  PathCallback importPresets, QWidget* parent)
     : SkinnedWindow(parent), m_databasePath(std::move(databasePath)),
       m_openPlaylist(std::move(openPlaylist)), m_importPresets(std::move(importPresets)) {
-    m_contentSize = genSnapSize(QSize(500, 350));
+    m_contentSize = genSnapSize(QSize(500, 420));
     setFixedSize(m_contentSize);
     const QRect client = genLayout(m_contentSize).client;
     const int x = client.x() + 8;
@@ -96,25 +96,35 @@ MigrationDialog::MigrationDialog(std::string databasePath, PathCallback openPlay
     m_ratings->setChecked(true);
     m_ratings->setGeometry(x, client.y() + 14, width, 24);
 
+    m_history = new QCheckBox(QStringLiteral("Play history (recent.dat)"), this);
+    m_history->setObjectName(QStringLiteral("winampHistory"));
+    m_history->setChecked(true);
+    m_history->setGeometry(x, client.y() + 42, width, 24);
+
     m_playlist = new QCheckBox(QStringLiteral("Current Winamp playlist (M3U/M3U8)"), this);
     m_playlist->setObjectName(QStringLiteral("winampPlaylist"));
     m_playlist->setChecked(true);
-    m_playlist->setGeometry(x, client.y() + 42, width, 24);
+    m_playlist->setGeometry(x, client.y() + 70, width, 24);
 
     m_presets = new QCheckBox(QStringLiteral("Equalizer presets (winamp.q1)"), this);
     m_presets->setObjectName(QStringLiteral("winampPresets"));
     m_presets->setChecked(true);
-    m_presets->setGeometry(x, client.y() + 70, width, 24);
+    m_presets->setGeometry(x, client.y() + 98, width, 24);
 
     m_mlPlaylists = new QCheckBox(QStringLiteral("Media Library playlists (playlists.xml)"), this);
     m_mlPlaylists->setObjectName(QStringLiteral("winampMlPlaylists"));
     m_mlPlaylists->setChecked(true);
-    m_mlPlaylists->setGeometry(x, client.y() + 98, width, 24);
+    m_mlPlaylists->setGeometry(x, client.y() + 126, width, 24);
 
     m_skins = new QCheckBox(QStringLiteral("Classic skins (copy .wsz files)"), this);
     m_skins->setObjectName(QStringLiteral("winampSkins"));
     m_skins->setChecked(true);
-    m_skins->setGeometry(x, client.y() + 126, width, 24);
+    m_skins->setGeometry(x, client.y() + 154, width, 24);
+
+    m_bookmarks = new QCheckBox(QStringLiteral("Bookmarks (winamp.bm)"), this);
+    m_bookmarks->setObjectName(QStringLiteral("winampBookmarks"));
+    m_bookmarks->setChecked(true);
+    m_bookmarks->setGeometry(x, client.y() + 182, width, 24);
 
     m_back = new QPushButton(QStringLiteral("Back"), this);
     m_back->setObjectName(QStringLiteral("winampBack"));
@@ -130,11 +140,11 @@ MigrationDialog::MigrationDialog(std::string databasePath, PathCallback openPlay
     m_report->setObjectName(QStringLiteral("winampReport"));
     m_report->setWordWrap(true);
     m_report->setTextInteractionFlags(Qt::TextSelectableByMouse);
-    m_report->setGeometry(x, client.y() + 10, width, 88);
+    m_report->setGeometry(x, client.y() + 10, width, 150);
 
     m_unmatchedList = new QListWidget(this);
     m_unmatchedList->setObjectName(QStringLiteral("winampUnmatched"));
-    m_unmatchedList->setGeometry(x, client.y() + 102, width, client.height() - 190);
+    m_unmatchedList->setGeometry(x, client.y() + 166, width, client.height() - 256);
     m_unmatchedList->setSelectionMode(QAbstractItemView::NoSelection);
 
     m_export = new QPushButton(QStringLiteral("Export unmatched…"), this);
@@ -213,14 +223,16 @@ void MigrationDialog::showStep(int step) {
                           step == 0 ? m_status->y() : genLayout(m_contentSize).client.bottom() - 70,
                           m_status->width(), 26);
     m_ratings->setVisible(step == 1);
+    m_history->setVisible(step == 1);
     m_playlist->setVisible(step == 1);
     m_presets->setVisible(step == 1);
     m_mlPlaylists->setVisible(step == 1);
     m_skins->setVisible(step == 1);
+    m_bookmarks->setVisible(step == 1);
     m_back->setVisible(step == 1);
     m_import->setVisible(step == 1);
     m_report->setVisible(step == 2);
-    m_unmatchedList->setVisible(step == 2);
+    m_unmatchedList->setVisible(step == 2 && !m_unmatched.empty());
     m_export->setVisible(step == 2);
     m_close->setVisible(step == 2);
 }
@@ -245,6 +257,7 @@ void MigrationDialog::nextStep() {
         m_presetPath.reset();
         m_indexPath.reset();
         m_skinsPath.reset();
+        m_bookmarksPath.reset();
         const std::filesystem::path q1 = paths.winampDir / "winamp.q1";
         std::error_code error;
         if (std::filesystem::exists(q1, error)) {
@@ -257,6 +270,13 @@ void MigrationDialog::nextStep() {
         }
         if (std::filesystem::is_directory(paths.skinsDir, error)) {
             m_skinsPath = paths.skinsDir.string();
+        }
+        const std::filesystem::path bm8 = paths.winampDir / "winamp.bm8";
+        const std::filesystem::path bm = paths.winampDir / "winamp.bm";
+        if (std::filesystem::exists(bm8, error)) {
+            m_bookmarksPath = bm8.string();
+        } else if (std::filesystem::exists(bm, error)) {
+            m_bookmarksPath = bm.string();
         }
         const QString detail = QStringLiteral("Found %1. Choose what to bring across.")
                                    .arg(QString::fromStdString(paths.winampDir.string()));
@@ -278,27 +298,48 @@ void MigrationDialog::runImport() {
     }
 
     QApplication::setOverrideCursor(Qt::WaitCursor);
+    MigrationOptions options;
+    options.winampDir = paths.winampDir;
+    options.databasePath = m_databasePath;
+    options.importRatings = m_ratings->isChecked();
+    options.importHistory = m_history->isChecked();
     MigrationReport report;
     report.paths = paths;
     report.state = readWinampState(paths.iniFile);
+    if (options.importRatings || options.importHistory) {
+        report = runMigration(options);
+    }
+    QApplication::restoreOverrideCursor();
+    m_unmatched = report.unmatchedPaths;
+
     QString ratingsLine = QStringLiteral("Ratings: not selected");
     if (m_ratings->isChecked()) {
-        MigrationOptions options;
-        options.winampDir = paths.winampDir;
-        options.databasePath = m_databasePath;
-        report = runMigration(options);
         if (!report.ok()) {
-            // A missing/corrupt NDE database must not block the playlist and
-            // preset imports that share the same folder.
             ratingsLine = QStringLiteral("Ratings: %1").arg(QString::fromStdString(report.error));
+        } else if (!report.ratingsError.empty()) {
+            ratingsLine =
+                QStringLiteral("Ratings: %1").arg(QString::fromStdString(report.ratingsError));
         } else {
             ratingsLine = QStringLiteral("Library records read: %1 (matched %2)")
                               .arg(report.records)
                               .arg(report.matched);
         }
     }
-    QApplication::restoreOverrideCursor();
-    m_unmatched = report.unmatchedPaths;
+    QString historyLine = QStringLiteral("History: not selected");
+    if (m_history->isChecked()) {
+        if (!report.ok()) {
+            historyLine = QStringLiteral("History: %1").arg(QString::fromStdString(report.error));
+        } else if (!report.historyError.empty()) {
+            historyLine =
+                QStringLiteral("History: %1").arg(QString::fromStdString(report.historyError));
+        } else if (report.historyRecords == 0) {
+            historyLine = QStringLiteral("History: no recent.dat found");
+        } else {
+            historyLine = QStringLiteral("History: %1 new of %2 events")
+                              .arg(report.historyImported)
+                              .arg(report.historyRecords);
+        }
+    }
 
     QString playlistLine = QStringLiteral("Playlist: not selected");
     if (m_playlist->isChecked() && m_playlistPath.has_value()) {
@@ -332,17 +373,32 @@ void MigrationDialog::runImport() {
     } else if (m_skins->isChecked()) {
         skinsLine = QStringLiteral("Skins: none found");
     }
+    QString bookmarksLine = QStringLiteral("Bookmarks: not selected");
+    if (m_bookmarks->isChecked() && m_bookmarksPath.has_value()) {
+        const bool imported = m_importBookmarks != nullptr && m_importBookmarks(*m_bookmarksPath);
+        bookmarksLine = imported ? QStringLiteral("Bookmarks: loaded")
+                                 : QStringLiteral("Bookmarks: none loaded");
+    } else if (m_bookmarks->isChecked()) {
+        bookmarksLine = QStringLiteral("Bookmarks: none saved");
+    }
 
     const QString text = QStringLiteral("%1\n"
-                                        "Unmatched paths: %2\n"
-                                        "Unknown fields skipped: %3\n"
-                                        "Volume: %4 · EQ: %5\n\n%6\n%7\n%8\n%9")
+                                        "%2\n"
+                                        "Unmatched paths: %3\n"
+                                        "Unknown fields skipped: %4\n"
+                                        "Volume: %5 · EQ: %6\n\n"
+                                        "%7\n%8\n%9\n%10\n%11")
                              .arg(ratingsLine)
+                             .arg(historyLine)
                              .arg(report.unmatched)
                              .arg(report.skippedFields)
                              .arg(report.state.volume)
                              .arg(report.state.useEq ? QStringLiteral("on") : QStringLiteral("off"))
-                             .arg(playlistLine, presetLine, indexLine, skinsLine);
+                             .arg(playlistLine)
+                             .arg(presetLine)
+                             .arg(indexLine)
+                             .arg(skinsLine)
+                             .arg(bookmarksLine);
     m_report->setText(text);
     m_unmatchedList->clear();
     for (const std::string& path : m_unmatched) {

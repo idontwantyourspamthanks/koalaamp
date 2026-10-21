@@ -2,6 +2,7 @@
 // MI-1 — generated NDE data/index fixtures for the read-only reader.
 
 #include "library/LibraryDb.hpp"
+#include "migration/Bookmarks.hpp"
 #include "migration/Migration.hpp"
 #include "migration/NDE.hpp"
 #include "migration/WinampConfig.hpp"
@@ -58,7 +59,12 @@ BuiltNde buildNde(const std::vector<std::vector<FieldSpec>>& records) {
         for (std::size_t i = 0; i < fields.size(); ++i) {
             const FieldSpec& field = fields[i];
             std::vector<unsigned char> payload;
-            if (field.type == NdeType::String) {
+            if (field.type == NdeType::Column) {
+                payload.push_back(static_cast<unsigned char>(NdeType::String));
+                payload.push_back(0);
+                payload.push_back(static_cast<unsigned char>(field.text.size()));
+                payload.insert(payload.end(), field.text.begin(), field.text.end());
+            } else if (field.type == NdeType::String) {
                 put16(payload, static_cast<std::uint16_t>(field.text.size()));
                 payload.insert(payload.end(), field.text.begin(), field.text.end());
             } else if (field.type == NdeType::Integer || field.type == NdeType::DateTime ||
@@ -376,4 +382,144 @@ TEST_CASE("end-to-end NDE migration updates a matching library row idempotently"
     CHECK(again.dateAdded == after.dateAdded);
     CHECK(again.genre == after.genre);
     CHECK(again.comment == after.comment);
+}
+
+TEST_CASE("bookmark parser reads title|filename, bare paths and BOM text") {
+    const std::string text = "Winamp Bookmark file v1.0\r\n"
+                             "\r\n"
+                             "# comment\r\n"
+                             "My Song|C:\\Music\\a.mp3\r\n"
+                             "C:\\Music\\b.mp3|Other title\r\n"
+                             "/music/c.flac\r\n"
+                             "A \\| B|/music/d.mp3\r\n"
+                             "|/music/e.mp3\r\n";
+    const BookmarkFile file = parseBookmarks(text);
+    REQUIRE(file.ok());
+    REQUIRE(file.bookmarks.size() == 5);
+    CHECK(file.bookmarks[0].title == "My Song");
+    CHECK(file.bookmarks[0].filename == "C:\\Music\\a.mp3");
+    CHECK(file.bookmarks[1].title == "Other title");
+    CHECK(file.bookmarks[1].filename == "C:\\Music\\b.mp3");
+    CHECK(file.bookmarks[2].title == "c");
+    CHECK(file.bookmarks[2].filename == "/music/c.flac");
+    CHECK(file.bookmarks[3].title == "A | B");
+    CHECK(file.bookmarks[3].filename == "/music/d.mp3");
+    CHECK(file.bookmarks[4].title == "e");
+    CHECK(file.bookmarks[4].filename == "/music/e.mp3");
+
+    std::string utf16;
+    utf16.push_back(static_cast<char>(0xff));
+    utf16.push_back(static_cast<char>(0xfe));
+    for (char ch : std::string("Utf16|/music/u.mp3\n")) {
+        utf16.push_back(ch);
+        utf16.push_back('\0');
+    }
+    const BookmarkFile wide = parseBookmarks(utf16);
+    REQUIRE(wide.ok());
+    REQUIRE(wide.bookmarks.size() == 1);
+    CHECK(wide.bookmarks[0].title == "Utf16");
+    CHECK(wide.bookmarks[0].filename == "/music/u.mp3");
+
+    CHECK_FALSE(parseBookmarks(std::string("bad\0text", 8)).ok());
+}
+
+TEST_CASE("history projection resolves recent.dat column names") {
+    Fixture fixture;
+    const BuiltNde built = buildNde({
+        {{0, NdeType::Column, "filename"},
+         {1, NdeType::Column, "title"},
+         {2, NdeType::Column, "artist"},
+         {3, NdeType::Column, "album"},
+         {4, NdeType::Column, "lastplay"}},
+        {{0, NdeType::String, "/music/history.flac"},
+         {1, NdeType::String, "History"},
+         {2, NdeType::String, "Artist"},
+         {3, NdeType::String, "Album"},
+         {4, NdeType::DateTime, "", 1700000000}},
+    });
+    writeFile(fixture.data(), built.data);
+    writeFile(fixture.index(), built.index);
+
+    const NdeDatabase db = readNde(fixture.data(), fixture.index());
+    REQUIRE(db.ok());
+    REQUIRE(db.columns.size() == 5);
+    REQUIRE(db.records.size() == 2); // column definitions + one data record
+    const auto history = ndeHistory(db);
+    REQUIRE(history.size() == 1);
+    CHECK(history[0].filename == "/music/history.flac");
+    CHECK(history[0].title == "History");
+    CHECK(history[0].artist == "Artist");
+    CHECK(history[0].album == "Album");
+    CHECK(history[0].playedAt == 1700000000);
+}
+
+TEST_CASE("NDE strings decode UTF-16LE BOM payloads") {
+    Fixture fixture;
+    std::string wide;
+    wide.push_back(static_cast<char>(0xff));
+    wide.push_back(static_cast<char>(0xfe));
+    for (char ch : std::string("C:\\Music\\wide.mp3")) {
+        wide.push_back(ch);
+        wide.push_back('\0');
+    }
+    const BuiltNde built = buildNde({{{0, NdeType::String, wide}, {1, NdeType::String, wide}}});
+    writeFile(fixture.data(), built.data);
+    writeFile(fixture.index(), built.index);
+    const NdeDatabase db = readNde(fixture.data(), fixture.index());
+    REQUIRE(db.ok());
+    const auto tracks = ndeTracks(db);
+    REQUIRE(tracks.size() == 1);
+    CHECK(tracks[0].filename == "C:\\Music\\wide.mp3");
+    CHECK(tracks[0].title == "C:\\Music\\wide.mp3");
+}
+
+TEST_CASE("end-to-end recent.dat import fills play history idempotently") {
+    Fixture fixture;
+    const BuiltNde recent = buildNde({
+        {{0, NdeType::Column, "filename"},
+         {1, NdeType::Column, "title"},
+         {2, NdeType::Column, "artist"},
+         {3, NdeType::Column, "album"},
+         {4, NdeType::Column, "lastplay"}},
+        {{0, NdeType::String, "/music/played.flac"},
+         {1, NdeType::String, "Played"},
+         {2, NdeType::String, "Artist"},
+         {3, NdeType::String, "Album"},
+         {4, NdeType::DateTime, "", 1700000001}},
+    });
+    fs::create_directories(fixture.dir / "Plugins" / "ml");
+    writeFile(fixture.dir / "Plugins" / "ml" / "recent.dat", recent.data);
+    writeFile(fixture.dir / "Plugins" / "ml" / "recent.idx", recent.index);
+    std::ofstream(fixture.dir / "winamp.ini") << "[Winamp]\n";
+
+    MigrationOptions options;
+    options.winampDir = fixture.dir;
+    options.databasePath = fixture.dir / "library.db";
+    options.importRatings = false;
+    options.importHistory = true;
+    const MigrationReport first = runMigration(options);
+    REQUIRE(first.ok());
+    CHECK(first.records == 0);
+    CHECK(first.historyRecords == 1);
+    CHECK(first.historyImported == 1);
+
+    {
+        koalaamp::library::LibraryDb db(fixture.dir / "library.db");
+        REQUIRE(db.open());
+        const auto history = db.history();
+        REQUIRE(history.size() == 1);
+        CHECK(history[0].path == "/music/played.flac");
+        CHECK(history[0].title == "Played");
+        CHECK(history[0].playedAt == 1700000001);
+        CHECK(history[0].source == "winamp");
+    }
+    const MigrationReport second = runMigration(options);
+    REQUIRE(second.ok());
+    CHECK(second.historyRecords == 1);
+    CHECK(second.historyImported == 0);
+    {
+        koalaamp::library::LibraryDb db(fixture.dir / "library.db");
+        REQUIRE(db.open());
+        CHECK(db.historyCount() == 1);
+    }
 }

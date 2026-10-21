@@ -30,6 +30,7 @@ struct Fixture {
         fs::create_directories(dir);
         std::ofstream(dir / "winamp.ini") << "[Winamp]\nconfig_volume=180\n";
         std::ofstream(dir / "winamp.m3u") << "#EXTM3U\n" << (dir / "track.flac").string() << "\n";
+        std::ofstream(dir / "winamp.bm") << "Bookmarked|/music/bookmark.flac\n";
         fs::create_directories(dir / "plugins" / "ml" / "playlists");
         fs::create_directories(dir / "Skins");
         std::ofstream(dir / "Skins" / "test.wsz") << "not-a-real-skin";
@@ -58,6 +59,7 @@ TEST_CASE("migration wizard validates a folder and routes the selected imports")
     std::string playlistPath;
     std::string indexPath;
     std::string skinsPath;
+    std::string bookmarkPath;
     int presetCalls = 0;
     MigrationDialog dialog((fixture.dir / "library.db").string(),
                            [&](const std::string& path) {
@@ -77,6 +79,10 @@ TEST_CASE("migration wizard validates a folder and routes the selected imports")
         skinsPath = path;
         return true;
     });
+    dialog.setBookmarkImporter([&](const std::string& path) {
+        bookmarkPath = path;
+        return true;
+    });
 
     child<QLineEdit>(dialog, "winampFolder")->setText(QString::fromStdString(fixture.dir.string()));
     child<QPushButton>(dialog, "winampNext")->click();
@@ -86,11 +92,15 @@ TEST_CASE("migration wizard validates a folder and routes the selected imports")
     auto* presets = child<QCheckBox>(dialog, "winampPresets");
     auto* mlPlaylists = child<QCheckBox>(dialog, "winampMlPlaylists");
     auto* skins = child<QCheckBox>(dialog, "winampSkins");
+    auto* history = child<QCheckBox>(dialog, "winampHistory");
+    auto* bookmarks = child<QCheckBox>(dialog, "winampBookmarks");
     CHECK(ratings->isVisible());
     CHECK(playlist->isVisible());
     CHECK(presets->isVisible());
     CHECK(mlPlaylists->isVisible());
     CHECK(skins->isVisible());
+    CHECK(history->isVisible());
+    CHECK(bookmarks->isVisible());
 
     // The NDE path is already exercised end to end in migration_tests; here the
     // wizard must still run with ratings off and route the two file imports.
@@ -107,6 +117,8 @@ TEST_CASE("migration wizard validates a folder and routes the selected imports")
     CHECK(report->text().contains(QStringLiteral("Playlist: imported")));
     CHECK(report->text().contains(QStringLiteral("ML playlists: imported")));
     CHECK(report->text().contains(QStringLiteral("Skins: copied")));
+    CHECK(report->text().contains(QStringLiteral("Bookmarks: loaded")));
+    CHECK(report->text().contains(QStringLiteral("History: no recent.dat found")));
     CHECK(child<QPushButton>(dialog, "winampClose")->isVisible());
 }
 

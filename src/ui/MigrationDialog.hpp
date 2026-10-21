@@ -17,6 +17,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 class QCheckBox;
@@ -45,6 +46,8 @@ public:
     /// Copies classic `.wsz` skins from the Winamp folder into the app's skin
     /// folder (the Skins menu scans it on its next open).
     void setSkinImporter(PathCallback importer) { m_importSkins = std::move(importer); }
+    /// Appends `winamp.bm` bookmarks to the live playlist.
+    void setBookmarkImporter(PathCallback importer) { m_importBookmarks = std::move(importer); }
 
     void setSkin(const skins::SkinSet* skin);
     QSize contentSize() const { return m_contentSize; }
@@ -68,6 +71,7 @@ private:
     PathCallback m_importPresets;
     PathCallback m_importIndex;
     PathCallback m_importSkins;
+    PathCallback m_importBookmarks;
     const skins::SkinSet* m_skin = nullptr;
     QSize m_contentSize;
 
@@ -79,10 +83,12 @@ private:
     QPushButton* m_export = nullptr;
     QPushButton* m_close = nullptr;
     QCheckBox* m_ratings = nullptr;
+    QCheckBox* m_history = nullptr;
     QCheckBox* m_playlist = nullptr;
     QCheckBox* m_presets = nullptr;
     QCheckBox* m_mlPlaylists = nullptr;
     QCheckBox* m_skins = nullptr;
+    QCheckBox* m_bookmarks = nullptr;
     QLabel* m_status = nullptr;
     QLabel* m_report = nullptr;
     QListWidget* m_unmatchedList = nullptr;
@@ -93,6 +99,7 @@ private:
     std::optional<std::string> m_presetPath;
     std::optional<std::string> m_indexPath;
     std::optional<std::string> m_skinsPath;
+    std::optional<std::string> m_bookmarksPath;
     std::vector<std::string> m_unmatched;
 };
 

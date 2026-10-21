@@ -15,6 +15,8 @@ namespace koalaamp::migration {
 struct MigrationOptions {
     std::filesystem::path winampDir; ///< empty = auto-detect
     std::filesystem::path databasePath;
+    bool importRatings{true}; ///< main.dat/main.idx -> tracks
+    bool importHistory{true}; ///< recent.dat/recent.idx -> play_history
 };
 
 struct MigrationReport {
@@ -25,8 +27,12 @@ struct MigrationReport {
     std::size_t unmatched{0};
     std::size_t skippedFields{0};
     std::size_t skippedRecords{0};
+    std::size_t historyRecords{0};
+    std::size_t historyImported{0};
     std::vector<std::string> unmatchedPaths;
-    std::string error;
+    std::string ratingsError; ///< missing/corrupt main.dat; other imports continue
+    std::string historyError; ///< missing/corrupt recent.dat; non-fatal
+    std::string error;        ///< fatal: no folder/database
 
     bool ok() const { return error.empty(); }
 };

@@ -3,6 +3,8 @@
 add_library(koalaamp_migration STATIC
     NDE.cpp
     NDE.hpp
+    Bookmarks.cpp
+    Bookmarks.hpp
     Migration.cpp
     Migration.hpp
     WinampConfig.cpp

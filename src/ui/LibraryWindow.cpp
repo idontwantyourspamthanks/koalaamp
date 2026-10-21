@@ -412,6 +412,9 @@ void LibraryWindow::reloadArtists() {
     auto* all = new QTreeWidgetItem(m_tree);
     all->setText(0, QStringLiteral("All tracks"));
     all->setData(0, Qt::UserRole, static_cast<int>(NodeKind::All));
+    auto* history = new QTreeWidgetItem(m_tree);
+    history->setText(0, QStringLiteral("History"));
+    history->setData(0, Qt::UserRole, static_cast<int>(NodeKind::History));
     for (const library::ArtistRow& artist : m_db.artists()) {
         auto* item = new QTreeWidgetItem(m_tree);
         item->setText(0, QString::fromStdString(artist.name));
@@ -497,6 +500,24 @@ void LibraryWindow::reloadTracks() {
     if (!m_db.ready()) {
         return;
     }
+    const QTreeWidgetItem* selected = m_tree->currentItem();
+    if (selected != nullptr &&
+        static_cast<NodeKind>(selected->data(0, Qt::UserRole).toInt()) == NodeKind::History &&
+        m_views->currentData(Qt::UserRole).toString().isEmpty() &&
+        m_search->text().trimmed().isEmpty()) {
+        std::vector<library::Track> rows;
+        for (const library::PlayHistoryEntry& entry : m_db.history(5000)) {
+            library::Track track;
+            track.path = entry.path;
+            track.title = entry.title;
+            track.artist = entry.artist;
+            track.album = entry.album;
+            track.lastPlayed = entry.playedAt;
+            rows.push_back(std::move(track));
+        }
+        fillTable(std::move(rows));
+        return;
+    }
     std::string search = m_search->text().trimmed().toStdString();
     bool grammar = false;
     if (search.rfind("query:", 0) == 0) {
@@ -542,6 +563,10 @@ void LibraryWindow::selectNode(QTreeWidgetItem* item) {
     if (!m_views->currentData(Qt::UserRole).toString().isEmpty()) {
         const QSignalBlocker blocker(m_views);
         m_views->setCurrentIndex(0);
+    }
+    if (static_cast<NodeKind>(item->data(0, Qt::UserRole).toInt()) == NodeKind::History) {
+        const QSignalBlocker blocker(m_search);
+        m_search->clear();
     }
     reloadTracks();
 }

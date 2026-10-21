@@ -71,6 +71,7 @@
 #ifdef KOALAAMP_HAS_PLAYBACK_CORE
 #include "library/LibraryDb.hpp"
 #include "library/Scanner.hpp"
+#include "migration/Bookmarks.hpp"
 #include "playback/PlaybackCore.hpp"
 #include "playlist/Playlist.hpp"
 #include "scrobble/CurlTransport.hpp"
@@ -972,6 +973,25 @@ int main(int argc, char** argv) {
                 playlist.addEntries(std::move(rows));
                 return true;
             };
+            const auto importBookmarks = [&playlist](const std::string& file) {
+                const auto parsed = koalaamp::migration::readBookmarks(file);
+                if (!parsed.ok()) {
+                    return false;
+                }
+                std::vector<koalaamp::ui::PleditEntry> rows;
+                rows.reserve(parsed.bookmarks.size());
+                for (const auto& bookmark : parsed.bookmarks) {
+                    koalaamp::ui::PleditEntry row;
+                    row.title = bookmark.title;
+                    row.filename = bookmark.filename;
+                    rows.push_back(std::move(row));
+                }
+                if (rows.empty()) {
+                    return false;
+                }
+                playlist.addEntries(std::move(rows));
+                return true;
+            };
             auto* dialog = new koalaamp::ui::MigrationDialog(
                 libraryDbPath.toStdString(),
                 [&playlist](const std::string& path) { return playlist.openPlaylist(path); },
@@ -980,6 +1000,7 @@ int main(int argc, char** argv) {
                 },
                 &window);
             dialog->setIndexImporter(importMlPlaylists);
+            dialog->setBookmarkImporter(importBookmarks);
             dialog->setSkinImporter([](const std::string& source) {
                 const QString userSkins =
                     QStandardPaths::writableLocation(QStandardPaths::AppDataLocation) +

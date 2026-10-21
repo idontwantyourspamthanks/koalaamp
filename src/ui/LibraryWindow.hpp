@@ -53,7 +53,7 @@ protected:
     void mouseReleaseEvent(QMouseEvent* event) override;
 
 private:
-    enum class NodeKind { All, Artist, Album };
+    enum class NodeKind { All, History, Artist, Album };
     static constexpr int kNodeKindRole = Qt::UserRole;
     static constexpr int kNodeNameRole = Qt::UserRole + 1;
     static constexpr int kNodeAlbumArtistRole = Qt::UserRole + 2;

@@ -69,6 +69,20 @@ CREATE TRIGGER IF NOT EXISTS tracks_au AFTER UPDATE ON tracks BEGIN
 END;
 )sql";
 
+constexpr const char* kHistorySchema = R"sql(
+CREATE TABLE IF NOT EXISTS play_history(
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    path TEXT NOT NULL,
+    title TEXT,
+    artist TEXT,
+    album TEXT,
+    played_at INTEGER NOT NULL,
+    source TEXT NOT NULL DEFAULT 'winamp',
+    UNIQUE(path, played_at, source)
+);
+CREATE INDEX IF NOT EXISTS play_history_played ON play_history(played_at DESC);
+)sql";
+
 constexpr const char* kUpsert = R"sql(
 INSERT INTO tracks(
     path, mtime, size, format, samplerate, channels, bitrate, duration_ms,
@@ -239,13 +253,22 @@ bool LibraryDb::migrate() {
         if (!exec("BEGIN")) {
             return false;
         }
-        if (!exec(kSchema) || !exec("PRAGMA user_version = 1") || !exec("COMMIT")) {
+        if (!exec(kSchema) || !exec(kHistorySchema) || !exec("PRAGMA user_version = 2") ||
+            !exec("COMMIT")) {
             exec("ROLLBACK");
             return false;
         }
         return true;
     }
-    if (version != 1) {
+    if (version == 1) {
+        if (!exec("BEGIN") || !exec(kHistorySchema) || !exec("PRAGMA user_version = 2") ||
+            !exec("COMMIT")) {
+            exec("ROLLBACK");
+            return false;
+        }
+        return true;
+    }
+    if (version != 2) {
         lastError_ = "unsupported library schema version " + std::to_string(version);
         return false;
     }
@@ -755,6 +778,84 @@ bool LibraryDb::applyMigration(std::string_view path, const MigrationStats& stat
     const bool matched = sqlite3_step(fallback) == SQLITE_DONE && sqlite3_changes(db_) > 0;
     sqlite3_finalize(fallback);
     return matched;
+}
+
+bool LibraryDb::addHistory(const PlayHistoryEntry& entry) {
+    if (db_ == nullptr || entry.path.empty() || entry.playedAt <= 0) {
+        return false;
+    }
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(db_,
+                           "INSERT OR IGNORE INTO play_history("
+                           "path, title, artist, album, played_at, source) "
+                           "VALUES(?, ?, ?, ?, ?, ?)",
+                           -1, &statement, nullptr) != SQLITE_OK) {
+        setError("addHistory");
+        return false;
+    }
+    const std::string source = entry.source.empty() ? "winamp" : entry.source;
+    sqlite3_bind_text(statement, 1, entry.path.data(), static_cast<int>(entry.path.size()),
+                      SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 2, entry.title.data(), static_cast<int>(entry.title.size()),
+                      SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 3, entry.artist.data(), static_cast<int>(entry.artist.size()),
+                      SQLITE_TRANSIENT);
+    sqlite3_bind_text(statement, 4, entry.album.data(), static_cast<int>(entry.album.size()),
+                      SQLITE_TRANSIENT);
+    sqlite3_bind_int64(statement, 5, entry.playedAt);
+    sqlite3_bind_text(statement, 6, source.data(), static_cast<int>(source.size()),
+                      SQLITE_TRANSIENT);
+    const bool inserted = sqlite3_step(statement) == SQLITE_DONE && sqlite3_changes(db_) > 0;
+    sqlite3_finalize(statement);
+    return inserted;
+}
+
+std::vector<PlayHistoryEntry> LibraryDb::history(int limit, int offset) {
+    std::vector<PlayHistoryEntry> entries;
+    if (db_ == nullptr) {
+        return entries;
+    }
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(db_,
+                           "SELECT path, title, artist, album, played_at, source "
+                           "FROM play_history ORDER BY played_at DESC, id DESC "
+                           "LIMIT ? OFFSET ?",
+                           -1, &statement, nullptr) != SQLITE_OK) {
+        setError("history prepare");
+        return entries;
+    }
+    sqlite3_bind_int(statement, 1, limit > 0 ? limit : -1);
+    sqlite3_bind_int(statement, 2, offset > 0 ? offset : 0);
+    while (sqlite3_step(statement) == SQLITE_ROW) {
+        PlayHistoryEntry entry;
+        entry.path = columnText(statement, 0);
+        entry.title = columnText(statement, 1);
+        entry.artist = columnText(statement, 2);
+        entry.album = columnText(statement, 3);
+        entry.playedAt = sqlite3_column_int64(statement, 4);
+        entry.source = columnText(statement, 5);
+        entries.push_back(std::move(entry));
+    }
+    sqlite3_finalize(statement);
+    return entries;
+}
+
+std::size_t LibraryDb::historyCount() {
+    if (db_ == nullptr) {
+        return 0;
+    }
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(db_, "SELECT COUNT(*) FROM play_history", -1, &statement, nullptr) !=
+        SQLITE_OK) {
+        setError("historyCount");
+        return 0;
+    }
+    std::size_t count = 0;
+    if (sqlite3_step(statement) == SQLITE_ROW) {
+        count = static_cast<std::size_t>(sqlite3_column_int64(statement, 0));
+    }
+    sqlite3_finalize(statement);
+    return count;
 }
 
 bool LibraryDb::begin() {

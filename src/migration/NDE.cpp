@@ -4,10 +4,12 @@
 #include "migration/NDE.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <cstring>
 #include <fstream>
 #include <iterator>
 #include <set>
+#include <string_view>
 #include <utility>
 
 namespace koalaamp::migration {
@@ -52,6 +54,82 @@ bool readFile(const std::filesystem::path& path, std::vector<unsigned char>& out
 
 bool hasSignature(const std::vector<unsigned char>& bytes, const char* signature) {
     return bytes.size() >= 8 && std::memcmp(bytes.data(), signature, 8) == 0;
+}
+
+void appendUtf8(std::string& out, std::uint32_t codepoint) {
+    if (codepoint <= 0x7f) {
+        out.push_back(static_cast<char>(codepoint));
+    } else if (codepoint <= 0x7ff) {
+        out.push_back(static_cast<char>(0xc0 | (codepoint >> 6)));
+        out.push_back(static_cast<char>(0x80 | (codepoint & 0x3f)));
+    } else if (codepoint <= 0xffff) {
+        out.push_back(static_cast<char>(0xe0 | (codepoint >> 12)));
+        out.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3f)));
+        out.push_back(static_cast<char>(0x80 | (codepoint & 0x3f)));
+    } else {
+        out.push_back(static_cast<char>(0xf0 | (codepoint >> 18)));
+        out.push_back(static_cast<char>(0x80 | ((codepoint >> 12) & 0x3f)));
+        out.push_back(static_cast<char>(0x80 | ((codepoint >> 6) & 0x3f)));
+        out.push_back(static_cast<char>(0x80 | (codepoint & 0x3f)));
+    }
+}
+
+std::string utf16ToUtf8(const unsigned char* data, std::size_t bytes, bool littleEndian) {
+    std::string out;
+    out.reserve(bytes);
+    const auto unit = [&](std::size_t offset) -> std::uint32_t {
+        return littleEndian ? static_cast<std::uint32_t>(data[offset]) |
+                                  (static_cast<std::uint32_t>(data[offset + 1]) << 8)
+                            : (static_cast<std::uint32_t>(data[offset]) << 8) |
+                                  static_cast<std::uint32_t>(data[offset + 1]);
+    };
+    for (std::size_t i = 0; i + 1 < bytes; i += 2) {
+        std::uint32_t codepoint = unit(i);
+        if (codepoint >= 0xd800 && codepoint <= 0xdbff && i + 3 < bytes) {
+            const std::uint32_t low = unit(i + 2);
+            if (low >= 0xdc00 && low <= 0xdfff) {
+                codepoint = 0x10000 + ((codepoint - 0xd800) << 10) + (low - 0xdc00);
+                i += 2;
+            }
+        }
+        if (codepoint >= 0xdc00 && codepoint <= 0xdfff) {
+            codepoint = 0xfffd; // lone low surrogate
+        }
+        appendUtf8(out, codepoint);
+    }
+    return out;
+}
+
+/// NDE strings are a u16 byte count followed by either UTF-8/ANSI bytes or a
+/// UTF-16LE/BE BOM-prefixed string. `available` is the payload after the u16.
+std::string decodeString(const unsigned char* data, std::size_t available, std::size_t length) {
+    const std::size_t bytes = std::min(available, length);
+    if (bytes >= 2 && data[0] == 0xff && data[1] == 0xfe) {
+        return utf16ToUtf8(data + 2, bytes - 2, true);
+    }
+    if (bytes >= 2 && data[0] == 0xfe && data[1] == 0xff) {
+        return utf16ToUtf8(data + 2, bytes - 2, false);
+    }
+    return std::string(reinterpret_cast<const char*>(data), bytes);
+}
+
+std::string lower(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(),
+                   [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return value;
+}
+
+int columnId(const NdeDatabase& database, std::initializer_list<std::string_view> names,
+             int fallback) {
+    for (const auto& [id, column] : database.columns) {
+        const std::string name = lower(column.name);
+        for (std::string_view wanted : names) {
+            if (name == wanted) {
+                return id;
+            }
+        }
+    }
+    return fallback;
 }
 
 } // namespace
@@ -117,16 +195,31 @@ NdeDatabase readNde(const std::filesystem::path& dataFile, const std::filesystem
             NdeField field;
             field.type = type;
             bool decoded = true;
+            bool store = true;
             switch (type) {
-            case NdeType::String: {
+            case NdeType::Column: {
+                store = false;
+                if (size < 3) {
+                    decoded = false;
+                    break;
+                }
+                const auto declared = static_cast<NdeType>(data[payload]);
+                const std::size_t nameLength = data[payload + 2];
+                const std::size_t available = size - 3;
+                database.columns[column] = {
+                    std::string(reinterpret_cast<const char*>(data.data() + payload + 3),
+                                std::min(nameLength, available)),
+                    declared};
+                break;
+            }
+            case NdeType::String:
+            case NdeType::Filename: {
                 if (size < 2) {
                     decoded = false;
                     break;
                 }
                 const std::uint16_t length = u16(data.data() + payload);
-                const std::size_t available = size - 2;
-                field.text.assign(reinterpret_cast<const char*>(data.data() + payload + 2),
-                                  std::min<std::size_t>(length, available));
+                field.text = decodeString(data.data() + payload + 2, size - 2, length);
                 break;
             }
             case NdeType::Integer:
@@ -159,7 +252,6 @@ NdeDatabase readNde(const std::filesystem::path& dataFile, const std::filesystem
                 }
                 field.number = s64(data.data() + payload);
                 break;
-            case NdeType::Column:
             case NdeType::Index:
             case NdeType::Redirector:
             case NdeType::Binary:
@@ -172,9 +264,9 @@ NdeDatabase readNde(const std::filesystem::path& dataFile, const std::filesystem
                 decoded = false;
                 break;
             }
-            if (decoded) {
+            if (decoded && store) {
                 record.fields.emplace(column, std::move(field));
-            } else {
+            } else if (!decoded) {
                 ++database.skippedFields;
             }
             if (next == 0) {
@@ -240,6 +332,54 @@ std::vector<NdeTrack> ndeTracks(const NdeDatabase& database) {
         tracks.push_back(std::move(track));
     }
     return tracks;
+}
+
+std::vector<NdeHistoryEntry> ndeHistory(const NdeDatabase& database) {
+    const int filenameId = columnId(database, {"filename", "file", "path", "location", "url"}, 0);
+    const int titleId = columnId(database, {"title", "name"}, 1);
+    const int artistId = columnId(database, {"artist"}, 2);
+    const int albumId = columnId(database, {"album"}, 3);
+    const int playedId = columnId(database,
+                                  {"lastplay", "lastplayed", "last_played", "played", "playtime",
+                                   "playdate", "date", "timestamp"},
+                                  11);
+
+    const auto text = [](const NdeRecord& record, int column) -> std::string {
+        const auto it = record.fields.find(column);
+        if (it == record.fields.end()) {
+            return {};
+        }
+        if (it->second.type == NdeType::String || it->second.type == NdeType::Filename) {
+            return it->second.text;
+        }
+        return {};
+    };
+    const auto number = [](const NdeRecord& record, int column) -> std::int64_t {
+        const auto it = record.fields.find(column);
+        return it == record.fields.end() ? 0 : it->second.number;
+    };
+
+    std::vector<NdeHistoryEntry> history;
+    history.reserve(database.records.size());
+    for (const NdeRecord& record : database.records) {
+        NdeHistoryEntry entry;
+        entry.filename = text(record, filenameId);
+        if (entry.filename.empty()) {
+            continue;
+        }
+        entry.title = text(record, titleId);
+        entry.artist = text(record, artistId);
+        entry.album = text(record, albumId);
+        entry.playedAt = number(record, playedId);
+        if (entry.playedAt <= 0) {
+            continue; // a history row without a timestamp cannot be ordered
+        }
+        if (entry.title.empty()) {
+            entry.title = std::filesystem::path(entry.filename).stem().string();
+        }
+        history.push_back(std::move(entry));
+    }
+    return history;
 }
 
 } // namespace koalaamp::migration

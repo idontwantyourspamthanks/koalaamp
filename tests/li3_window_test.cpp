@@ -14,6 +14,7 @@
 #include <QPixmap>
 #include <QStandardPaths>
 #include <QTableWidget>
+#include <QTreeWidget>
 #include <algorithm>
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
@@ -87,6 +88,13 @@ TEST_CASE("LI-3 library window renders its fallback and five corpus skins",
             scanned.size = 100;
             REQUIRE(db.upsert(scanned));
         }
+        koalaamp::library::PlayHistoryEntry history;
+        history.path = (dir / "0.flac").string();
+        history.title = "Title 0";
+        history.artist = "Artist 0";
+        history.album = "Album";
+        history.playedAt = 1'700'000'000;
+        REQUIRE(db.addHistory(history));
     }
 
     LibraryWindow window(dbPath.string(), [](const auto&, std::size_t) {});
@@ -95,6 +103,21 @@ TEST_CASE("LI-3 library window renders its fallback and five corpus skins",
     auto* table = window.findChild<QTableWidget*>(QStringLiteral("libraryTracks"));
     REQUIRE(table != nullptr);
     CHECK(table->rowCount() == 5);
+
+    auto* tree = window.findChild<QTreeWidget*>(QStringLiteral("libraryTree"));
+    REQUIRE(tree != nullptr);
+    QTreeWidgetItem* historyItem = nullptr;
+    for (int i = 0; i < tree->topLevelItemCount(); ++i) {
+        if (tree->topLevelItem(i)->text(0) == QStringLiteral("History")) {
+            historyItem = tree->topLevelItem(i);
+            break;
+        }
+    }
+    REQUIRE(historyItem != nullptr);
+    tree->setCurrentItem(historyItem);
+    QApplication::processEvents();
+    CHECK(table->rowCount() == 1);
+    CHECK(table->item(0, 0)->text() == QStringLiteral("Title 0"));
 
     const QImage fallback = render(window);
     CHECK(fallback.size() == window.size());

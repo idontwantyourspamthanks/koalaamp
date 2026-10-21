@@ -6,9 +6,15 @@
 #include "library/LibraryDb.hpp"
 #include "migration/NDE.hpp"
 
+#include <optional>
 #include <utility>
 
 namespace koalaamp::migration {
+
+namespace {
+void applyTracks(library::LibraryDb& database, const std::vector<NdeTrack>& tracks,
+                 MigrationReport& report);
+}
 
 MigrationReport runMigration(const MigrationOptions& options) {
     MigrationReport report;
@@ -31,16 +37,65 @@ MigrationReport runMigration(const MigrationOptions& options) {
 
     const std::filesystem::path data = report.paths.winampDir / "main.dat";
     const std::filesystem::path index = report.paths.winampDir / "main.idx";
-    const NdeDatabase nde = readNde(data, index);
-    if (!nde.ok()) {
-        report.error = nde.error;
-        return report;
+    if (options.importRatings) {
+        const NdeDatabase nde = readNde(data, index);
+        if (!nde.ok()) {
+            report.ratingsError = nde.error;
+        } else {
+            report.skippedFields = nde.skippedFields;
+            report.skippedRecords = nde.skippedRecords;
+            const std::vector<NdeTrack> tracks = ndeTracks(nde);
+            report.records = tracks.size();
+            applyTracks(database, tracks, report);
+        }
     }
-    report.skippedFields = nde.skippedFields;
-    report.skippedRecords = nde.skippedRecords;
-    const std::vector<NdeTrack> tracks = ndeTracks(nde);
-    report.records = tracks.size();
 
+    if (options.importHistory) {
+        const auto recentData = [&]() -> std::optional<std::filesystem::path> {
+            const std::filesystem::path candidates[] = {
+                report.paths.winampDir / "Plugins" / "ml" / "recent.dat",
+                report.paths.winampDir / "plugins" / "ml" / "recent.dat",
+                report.paths.winampDir / "recent.dat",
+            };
+            std::error_code error;
+            for (const auto& candidate : candidates) {
+                if (std::filesystem::exists(candidate, error)) {
+                    return candidate;
+                }
+            }
+            return std::nullopt;
+        }();
+        if (recentData.has_value()) {
+            std::filesystem::path recentIndex = *recentData;
+            recentIndex.replace_extension(".idx");
+            const NdeDatabase recent = readNde(*recentData, recentIndex);
+            if (!recent.ok()) {
+                report.historyError = recent.error;
+            } else {
+                const std::vector<NdeHistoryEntry> entries = ndeHistory(recent);
+                report.historyRecords = entries.size();
+                for (const NdeHistoryEntry& entry : entries) {
+                    library::PlayHistoryEntry history;
+                    history.path = entry.filename;
+                    history.title = entry.title;
+                    history.artist = entry.artist;
+                    history.album = entry.album;
+                    history.playedAt = entry.playedAt;
+                    history.source = "winamp";
+                    if (database.addHistory(history)) {
+                        ++report.historyImported;
+                    }
+                }
+            }
+        }
+    }
+    return report;
+}
+
+namespace {
+
+void applyTracks(library::LibraryDb& database, const std::vector<NdeTrack>& tracks,
+                 MigrationReport& report) {
     for (const NdeTrack& track : tracks) {
         library::MigrationStats stats;
         stats.rating = track.rating;
@@ -65,7 +120,7 @@ MigrationReport runMigration(const MigrationOptions& options) {
             report.unmatchedPaths.push_back(track.filename);
         }
     }
-    return report;
 }
 
+} // namespace
 } // namespace koalaamp::migration

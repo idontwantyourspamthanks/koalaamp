@@ -11,6 +11,7 @@
 #include <chrono>
 #include <cmath>
 #include <filesystem>
+#include <sqlite3.h>
 #include <string>
 #include <thread>
 #include <vector>
@@ -480,6 +481,73 @@ TEST_CASE("Winamp migration stats apply idempotently by path") {
     CHECK(second[0].genre == first[0].genre);
 
     CHECK_FALSE(db.applyMigration("/music/missing.flac", stats));
+    std::error_code error;
+    fs::remove_all(dir, error);
+}
+
+TEST_CASE("play history is newest-first and idempotent by path and timestamp") {
+    const fs::path dir = tempDir("koalaamp-mi1-history");
+    LibraryDb db{dir / "library.db"};
+    REQUIRE(db.open());
+
+    PlayHistoryEntry first;
+    first.path = "/Music/first.flac";
+    first.title = "First";
+    first.artist = "Artist";
+    first.album = "Album";
+    first.playedAt = 1'700'000'000;
+    REQUIRE(db.addHistory(first));
+    CHECK_FALSE(db.addHistory(first)); // same event: unique key
+
+    PlayHistoryEntry second;
+    second.path = "/Music/second.flac";
+    second.title = "Second";
+    second.playedAt = 1'700'000'100;
+    REQUIRE(db.addHistory(second));
+
+    PlayHistoryEntry samePathLater;
+    samePathLater.path = first.path;
+    samePathLater.title = "First again";
+    samePathLater.playedAt = 1'700'000'200;
+    REQUIRE(db.addHistory(samePathLater));
+
+    CHECK(db.historyCount() == 3);
+    const auto history = db.history();
+    REQUIRE(history.size() == 3);
+    CHECK(history[0].path == "/Music/first.flac");
+    CHECK(history[0].playedAt == 1'700'000'200);
+    CHECK(history[1].path == "/Music/second.flac");
+    CHECK(history[2].path == "/Music/first.flac");
+
+    const auto page = db.history(1, 1);
+    REQUIRE(page.size() == 1);
+    CHECK(page[0].path == "/Music/second.flac");
+
+    CHECK_FALSE(db.addHistory(PlayHistoryEntry{}));
+    std::error_code error;
+    fs::remove_all(dir, error);
+}
+
+TEST_CASE("opening a v1 library adds the history table") {
+    const fs::path dir = tempDir("koalaamp-mi1-history-upgrade");
+    const fs::path database = dir / "library.db";
+    {
+        LibraryDb db{database};
+        REQUIRE(db.open());
+    }
+    sqlite3* raw = nullptr;
+    REQUIRE(sqlite3_open(database.string().c_str(), &raw) == SQLITE_OK);
+    REQUIRE(sqlite3_exec(raw, "DROP TABLE play_history; PRAGMA user_version = 1;", nullptr, nullptr,
+                         nullptr) == SQLITE_OK);
+    sqlite3_close(raw);
+
+    LibraryDb db{database};
+    REQUIRE(db.open());
+    PlayHistoryEntry entry;
+    entry.path = "/Music/upgraded.flac";
+    entry.playedAt = 1'700'000'000;
+    REQUIRE(db.addHistory(entry));
+    CHECK(db.historyCount() == 1);
     std::error_code error;
     fs::remove_all(dir, error);
 }

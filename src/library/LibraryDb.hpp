@@ -11,6 +11,7 @@
 #include "library/Scanner.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <filesystem>
 #include <optional>
 #include <string>
@@ -32,6 +33,17 @@ struct AlbumRow {
 struct ArtistRow {
     std::string name;
     int trackCount{0};
+};
+
+/// One play-history event (MI-1's `recent.dat` import, and the eventual
+/// now-playing feed). `source` distinguishes the importer from live playback.
+struct PlayHistoryEntry {
+    std::string path;
+    std::string title;
+    std::string artist;
+    std::string album;
+    std::int64_t playedAt{0};
+    std::string source{"winamp"};
 };
 
 /// Winamp migration fields (MI-1). Numeric fields at their sentinel mean "leave
@@ -98,6 +110,13 @@ public:
     /// repeating the same migration leaves the row identical. Returns false when
     /// no library row matches.
     bool applyMigration(std::string_view path, const MigrationStats& stats);
+
+    /// Inserts one history event. The unique `(path, played_at, source)` key
+    /// makes re-imports idempotent; returns true only when a new row was added.
+    bool addHistory(const PlayHistoryEntry& entry);
+    /// Newest first. `limit <= 0` returns every event.
+    std::vector<PlayHistoryEntry> history(int limit = 100, int offset = 0);
+    std::size_t historyCount();
 
     /// Batch a scan: begin/commit around many `upsert` calls.
     bool begin();

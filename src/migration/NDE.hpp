@@ -29,6 +29,7 @@ enum class NdeType : std::uint8_t {
     Float = 9,
     DateTime = 10,
     Length = 11,
+    Filename = 12,
     Int64 = 13,
     Binary32 = 14,
     Int128 = 15,
@@ -47,8 +48,16 @@ struct NdeRecord {
     std::map<int, NdeField> fields;
 };
 
+struct NdeColumn {
+    std::string name; ///< public column name from record 0
+    NdeType type{NdeType::Binary};
+};
+
 struct NdeDatabase {
     std::vector<NdeRecord> records;
+    /// Column definitions (record 0) keyed by column id. `recent.dat` uses a
+    /// different schema from `main.dat`, so history import resolves names.
+    std::map<int, NdeColumn> columns;
     std::size_t skippedFields{0};  ///< unknown/malformed field payloads
     std::size_t skippedRecords{0}; ///< cyclic/out-of-range record chains
     std::string error;             ///< fatal format/index error; empty on success
@@ -87,5 +96,18 @@ struct NdeTrack {
 /// Maps NDE records to the local-ML track projection. Records without a
 /// filename are ignored (column-definition/index records, tombstones).
 std::vector<NdeTrack> ndeTracks(const NdeDatabase& database);
+
+/// One row from `recent.dat`: a played track and when. Column names are used
+/// when present (with ml_local ids as the fallback), so the same reader handles
+/// both databases.
+struct NdeHistoryEntry {
+    std::string filename;
+    std::string title;
+    std::string artist;
+    std::string album;
+    std::int64_t playedAt{0};
+};
+
+std::vector<NdeHistoryEntry> ndeHistory(const NdeDatabase& database);
 
 } // namespace koalaamp::migration

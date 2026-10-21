@@ -1,6 +1,6 @@
 # MI-1 · Winamp migration wizard
 
-- **Milestone:** M2 · **Est:** 4d · **Depends:** LI-3, AU-1, PL-1 · **Status:** in-progress — NDE, config, wizard, playlists, q1, skins, unmatched export landed; bookmarks and recent history pending
+- **Milestone:** M2 · **Est:** 4d · **Depends:** LI-3, AU-1, PL-1 · **Status:** in-progress — code complete for the import surface; real-donation fixture + ASAN gate pending
 
 ## Story
 The on-ramp for the exact user this product is for: someone with 15 years of Winamp state. One wizard reads their real `%APPDATA%\Winamp` — playlists, the NDE media-library database (ratings, playcounts, last-played, ReplayGain), EQ presets, bookmarks, preferences — and merges it into our library idempotently, with a report of what didn't match.
@@ -9,11 +9,11 @@ The on-ramp for the exact user this product is for: someone with 15 years of Win
 - [x] Detection: `%APPDATA%\Winamp` (honor `paths.ini` redirection: `inidir`, `inifile`, `m3udir`); "no Winamp found" → friendly empty state.
 - [x] NDE reader (read-only): `main.dat`/`main.idx` — NDETABLE/NDEINDEX signatures, field IDs 0-41, record/column linked-list walk, u16-length strings, type tolerance (unknown types → skip field, count it).
 - [x] Import mapping: filename (normalized path join), rating, playcount, lastplay, dateadded, RG gains/peaks, bpm, genre/comment → upsert onto scanned tracks by normalized path (case-insensitive on Windows/mac, sensitive on Linux + case-fallback pass).
-- [ ] Recent/history NDE (`recent.dat`/`recent.idx`) → play history feed (optional, default on).
+- [x] Recent/history NDE (`recent.dat`/`recent.idx`) → `play_history`; LibraryWindow History node and migration report.
 - [x] Playlists: current `winamp.m3u`/`.m3u8`; `plugins\ml\playlists\playlists.xml` index and its `.m3u` files (PL-1 readers, appended to the live playlist).
 - [x] `winamp.ini`: volume, EQ state/preamp/limiter/eq_type, skin path, `config_titlefmt`, shuffle/repeat, windowshade flags.
 - [x] `winamp.q1` EQ presets (wizard routes to SE-5).
-- [ ] `winamp.bm` bookmarks.
+- [x] `winamp.bm` bookmarks → live playlist entries; UTF-8/UTF-16, `title|filename`, bare paths.
 - [x] Skins: `%APPDATA%\Winamp\Skins` offered; classic `.wsz` files copy into the app skin folder and the Skins menu scans it.
 - [x] Wizard UI (skinned, 3 steps): source summary → options/import → unmatched report with export.
 - [x] Idempotency: re-run upserts (no duplicate rows); the wizard re-runs safely. Last-source state in settings is still pending.
@@ -50,9 +50,16 @@ The ML `playlists.xml` index is read with PL-1's `readIndex` and each referenced
 M3U is appended through `readFile`; the current playlist and EQ presets are
 routed separately, so a failure in one does not cancel the others. The Skins
 option copies `.wsz` files into `AppDataLocation/skins` and the menu scans that
-folder. Still to build: `winamp.bm` and `recent.dat` history. The
-documented field acceptance still needs a real donation fixture; the generated
-fixture covers all documented scalar types and the corruption smoke.
+folder. `winamp.bm` is parsed as a BOM-aware text list (`title|filename`, bare paths,
+escaped pipes) and appended to the live playlist; the wizard reports what
+loaded. `recent.dat`/`recent.idx` use the same NDE reader, resolve columns by
+name (with ml_local ids as fallback), and key `play_history` on
+`(path, played_at, source)` so a second import adds no rows; LibraryWindow adds
+a History node over `LibraryDb::history()`.
+
+The documented field acceptance still needs a real donation fixture; the
+generated fixture covers all documented scalar types, history columns, UTF-16
+strings and the corruption smoke. ASAN fuzz remains the final gate.
 
 ## Out of scope
 - Writing back to Winamp's files (one-way, always — we never touch a real Winamp install's data destructively).
