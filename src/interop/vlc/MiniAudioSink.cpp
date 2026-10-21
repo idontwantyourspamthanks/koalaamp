@@ -140,7 +140,7 @@ double MiniAudioSink::backlogP95Ms() const {
 }
 
 double MiniAudioSink::backlogMaxMs() const {
-    return static_cast<double>(m_backlog.max()) * 1000.0 / static_cast<double>(m_sampleRate);
+    return static_cast<double>((m_backlog.max)()) * 1000.0 / static_cast<double>(m_sampleRate);
 }
 
 unsigned MiniAudioSink::backlogP95Frames() const {
