@@ -10,13 +10,6 @@ project(KoalaAmp
     HOMEPAGE_URL "https://github.com/idontwantyourspamthanks/koalaamp"
     LANGUAGES CXX)
 
-# vcpkg/Homebrew expose both Release and Debug imported targets. RelWithDebInfo
-# must resolve to the Release runtime: mixing debug DLLs (libcurl-d/tagd, /MDd)
-# into a release-CRT executable causes loader-time crashes on Windows.
-if(WIN32)
-    set(CMAKE_MAP_IMPORTED_CONFIG_RELWITHDEBINFO "Release")
-endif()
-
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
 # --- Language & build defaults ---------------------------------------------

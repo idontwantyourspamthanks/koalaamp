@@ -25,6 +25,9 @@ target_include_directories(koalaamp_jellyfin
     PRIVATE "${CMAKE_SOURCE_DIR}/third_party/include")
 
 find_package(CURL REQUIRED)
+if(WIN32 AND TARGET CURL::libcurl)
+    set_property(TARGET CURL::libcurl PROPERTY MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
+endif()
 target_link_libraries(koalaamp_jellyfin
     PUBLIC koalaamp_library
     PRIVATE CURL::libcurl)

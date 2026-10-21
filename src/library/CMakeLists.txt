@@ -38,6 +38,10 @@ endif()
 if(TAGLIB_LIBRARY_DIRS)
     target_link_directories(koalaamp_library PUBLIC ${TAGLIB_LIBRARY_DIRS})
 endif()
+# vcpkg's TagLib debug DLL uses /MDd; RelWithDebInfo must bind the release DLL.
+if(WIN32 AND TARGET TagLib::TagLib)
+    set_property(TARGET TagLib::TagLib PROPERTY MAP_IMPORTED_CONFIG_RELWITHDEBINFO Release)
+endif()
 # Homebrew's prefix is not on the default linker path. If the discovery module
 # only managed to produce a bare `-ltag`, anchor the link to the actual dylib.
 if(APPLE)
