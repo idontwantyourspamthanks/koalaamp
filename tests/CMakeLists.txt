@@ -13,6 +13,13 @@ FetchContent_Declare(Catch2
     DOWNLOAD_EXTRACT_TIMESTAMP OFF)
 FetchContent_MakeAvailable(Catch2)
 
+# Catch2's default POST_BUILD discovery executes every test exe while building.
+# On Windows that hides a missing runtime DLL behind an MSBuild failure, so defer
+# discovery to ctest, where the job's full PATH is available.
+if(WIN32)
+    set(CMAKE_CATCH_DISCOVER_TESTS_DISCOVERY_MODE PRE_TEST)
+endif()
+
 add_executable(koalaamp_tests skeleton_test.cpp)
 koalaamp_enable_warnings(koalaamp_tests)
 target_include_directories(koalaamp_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")

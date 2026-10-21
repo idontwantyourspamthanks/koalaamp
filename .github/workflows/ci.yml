@@ -113,6 +113,16 @@ jobs:
       - name: Build
         run: cmake --build --preset ${{ matrix.preset }}
 
+      - name: Windows runtime diagnostics
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Write-Host "Staged DLLs:"
+          Get-ChildItem "build/windows-msvc/tests/RelWithDebInfo" -Filter *.dll |
+            Select-Object -ExpandProperty Name
+          $dumpbin = Get-ChildItem "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\VC\Tools\MSVC" -Recurse -Filter dumpbin.exe | Select-Object -First 1 -ExpandProperty FullName
+          & $dumpbin /dependents "build/windows-msvc/tests/RelWithDebInfo/jellyfin_remote_tests.exe"
+
       - name: Test (ctest)
         run: ctest --preset ${{ matrix.preset }}
 
