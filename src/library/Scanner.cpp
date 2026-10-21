@@ -10,6 +10,7 @@
 #include <map>
 #include <system_error>
 #include <taglib/audioproperties.h>
+#include <taglib/tfile.h>
 #include <taglib/fileref.h>
 #include <taglib/tag.h>
 #include <taglib/tpropertymap.h>
@@ -184,7 +185,11 @@ std::optional<ScannedTrack> readTrack(const fs::path& path) {
     TagLib::FileRef ref(path.string().c_str());
     if (!ref.isNull()) {
         if (const TagLib::Tag* tag = ref.tag()) {
-            const TagLib::PropertyMap properties = tag->properties();
+            // File::properties() carries the format-specific fields (DISCNUMBER,
+            // COMPOSER, ReplayGain). TagLib 1.x's Tag::properties() can omit them,
+            // which made the scanner metadata test fail on distro TagLib.
+            const TagLib::PropertyMap properties =
+                ref.file() != nullptr ? ref.file()->properties() : tag->properties();
             const std::string title = tag->title().to8Bit(true);
             if (!title.empty()) {
                 scanned.track.title = title;
