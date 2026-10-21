@@ -5,6 +5,7 @@
 
 #include "platform/FileAssociations.hpp"
 
+#include <QSettings>
 #include <catch2/catch_test_macros.hpp>
 
 using namespace koalaamp::platform;
@@ -32,3 +33,30 @@ TEST_CASE("Linux desktop entry carries both actions and audio MIME types") {
     CHECK(entry.contains("--play %F"));
     CHECK(entry.contains("--enqueue %F"));
 }
+
+#if defined(Q_OS_WIN)
+TEST_CASE("Windows user associations round-trip through HKCU") {
+    const QString executable = QStringLiteral("C:\\KoalaAmp\\koalaamp.exe");
+    const auto registered = registerFileAssociations(executable, false);
+    REQUIRE(registered.ok);
+
+    QSettings classes(QStringLiteral("HKEY_CURRENT_USER\\Software\\Classes"),
+                      QSettings::NativeFormat);
+    CHECK(classes.value(QStringLiteral(".mp3/.")).toString() ==
+          QStringLiteral("KoalaAmp.MediaFile"));
+    CHECK(classes.value(QStringLiteral("KoalaAmp.MediaFile/shell/open/command/."))
+              .toString()
+              .contains(QStringLiteral("--play")));
+    CHECK(classes.value(QStringLiteral("KoalaAmp.MediaFile/shell/enqueue/command/."))
+              .toString()
+              .contains(QStringLiteral("--enqueue")));
+
+    const auto removed = registerFileAssociations(executable, true);
+    REQUIRE(removed.ok);
+    CHECK(classes.value(QStringLiteral(".mp3/.")).toString() !=
+          QStringLiteral("KoalaAmp.MediaFile"));
+    CHECK(classes.value(QStringLiteral("KoalaAmp.MediaFile/shell/open/command/."))
+              .toString()
+              .isEmpty());
+}
+#endif
