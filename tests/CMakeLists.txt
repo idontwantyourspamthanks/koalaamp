@@ -28,6 +28,11 @@ target_link_libraries(koalaamp_tests PRIVATE Catch2::Catch2WithMain)
 include(Catch)
 catch_discover_tests(koalaamp_tests)
 
+add_executable(file_associations_tests file_associations_test.cpp)
+koalaamp_enable_warnings(file_associations_tests)
+target_link_libraries(file_associations_tests PRIVATE Catch2::Catch2WithMain koalaamp_platform)
+catch_discover_tests(file_associations_tests)
+
 add_executable(single_instance_tests single_instance_test.cpp)
 koalaamp_enable_warnings(single_instance_tests)
 target_link_libraries(single_instance_tests PRIVATE Catch2::Catch2WithMain koalaamp_platform)

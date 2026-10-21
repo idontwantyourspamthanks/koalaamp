@@ -1,11 +1,26 @@
 {
   "schema": 1,
-  "updated": "2026-10-10",
+  "updated": "2026-10-21",
   "notes": "Machine-readable dependency inventory. Enforced by scripts/license-audit.sh; mirrored for humans in LICENSES.md. Rationale and per-platform acquisition: docs/spikes/fe0-deps.md.",
   "policy": {
-    "denied_license_patterns": ["GPL", "AGPL"],
+    "denied_license_patterns": [
+      "GPL",
+      "AGPL"
+    ],
     "lgpl_link_mode": "dynamic",
-    "allowed_non_lgpl_licenses": ["MIT", "MIT-0", "BSD-2-Clause", "BSD-3-Clause", "Apache-2.0", "MPL-2.0", "BSL-1.0", "public-domain", "curl", "zlib", "Unlicense"]
+    "allowed_non_lgpl_licenses": [
+      "MIT",
+      "MIT-0",
+      "BSD-2-Clause",
+      "BSD-3-Clause",
+      "Apache-2.0",
+      "MPL-2.0",
+      "BSL-1.0",
+      "public-domain",
+      "curl",
+      "zlib",
+      "Unlicense"
+    ]
   },
   "dependencies": [
     {
@@ -14,7 +29,15 @@
       "license": "LGPL-3.0-only",
       "link": "dynamic",
       "source": "https://code.qt.io/cgit/qt/",
-      "modules": ["QtCore", "QtGui", "QtWidgets", "QtOpenGL", "QtOpenGLWidgets", "QtTest"],
+      "modules": [
+        "QtCore",
+        "QtGui",
+        "QtWidgets",
+        "QtOpenGL",
+        "QtOpenGLWidgets",
+        "QtTest",
+        "QtNetwork"
+      ],
       "note": "Widgets/Gui/OpenGL(+OpenGLWidgets for QOpenGLWidget, spec \u00a76.1) only. No QML; no copyleft-only modules (Quick3D, Wayland Compositor)."
     },
     {
@@ -31,7 +54,22 @@
       "license": "LGPL-2.1-or-later OR MPL-2.0",
       "link": "dynamic",
       "source": "https://github.com/taglib/taglib",
-      "modules": ["taglib-core", "taglib-mpeg", "taglib-ogg", "taglib-flac", "taglib-mp4", "taglib-wavpack"]
+      "modules": [
+        "taglib-core",
+        "taglib-mpeg",
+        "taglib-ogg",
+        "taglib-flac",
+        "taglib-mp4",
+        "taglib-wavpack"
+      ]
+    },
+    {
+      "name": "QHotkey",
+      "version": "1.5.0",
+      "license": "MIT",
+      "link": "static",
+      "source": "https://github.com/Skycoder42/QHotkey",
+      "note": "Global hotkey registration (Windows RegisterHotKey, X11 XGrabKey, Carbon). Fetched via CMake FetchContent (URL+SHA256); build-time source, statically linked MIT."
     },
     {
       "name": "projectM",
@@ -47,7 +85,7 @@
       "license": "public-domain",
       "link": "static",
       "source": "https://sqlite.org/",
-      "note": "Public domain — static is permitted. FTS5 enabled."
+      "note": "Public domain \u2014 static is permitted. FTS5 enabled."
     },
     {
       "name": "miniaudio",

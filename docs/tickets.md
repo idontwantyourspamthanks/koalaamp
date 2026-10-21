@@ -154,7 +154,7 @@
 - **Acceptance:** 500-preset nightly: no crash/hang (10s timeout), ≥ 55fps p95 at 1080p on GTX1050-class; switch < 300ms; 3 OSes.
 - **Depends:** FE-14, FE-4
 
-### CO-1 · Platform integration pass 1 — *4d* — **in-progress** ([brief](tickets/CO-1-platform-integration.md))
+### CO-1 · Platform integration pass 1 — *4d* — **in-review** ([brief](tickets/CO-1-platform-integration.md))
 - **Tasks:** QSystemTrayIcon menu; global hotkeys (QHotkey/platform registration) with gen_hotkeys default set + conf UI; file assoc + enqueue/play verbs (registry/plist/desktop); single-instance local-socket IPC; CLI args.
 - **Acceptance:** double-click file enqueues into running instance on all OSes; hotkeys work unfocused; second launch focuses existing.
 - **Depends:** SE-3

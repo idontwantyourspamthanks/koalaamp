@@ -15,6 +15,8 @@
 #include "audio/AlbumEqStore.hpp"
 #include "audio/DspPipeline.hpp"
 #include "audio/RgTags.hpp"
+#include "platform/FileAssociations.hpp"
+#include "platform/GlobalHotkeys.hpp"
 #include "platform/SingleInstance.hpp"
 #include "servers/SecretStore.hpp"
 #include "ui/ConnectionDialog.hpp"
@@ -31,6 +33,7 @@
 #include <QCryptographicHash>
 #include <QCursor>
 #include <QFileDialog>
+#include <QKeySequence>
 #include <QMenu>
 #if defined(KOALAAMP_HAS_GL_VISUALIZER)
 #include "ui/PresetCycler.hpp"
@@ -196,6 +199,12 @@ int main(int argc, char** argv) {
                                         QStringLiteral("Play the supplied files (default)"));
     const QCommandLineOption enqueueOption(
         QStringLiteral("enqueue"), QStringLiteral("Append the supplied files to the playlist"));
+    const QCommandLineOption registerTypesOption(
+        QStringLiteral("register-file-types"),
+        QStringLiteral("Register KoalaAmp for its media and playlist extensions"));
+    const QCommandLineOption unregisterTypesOption(
+        QStringLiteral("unregister-file-types"),
+        QStringLiteral("Remove KoalaAmp's user-level file associations"));
     QCommandLineOption noSingleInstanceOption(
         QStringLiteral("no-single-instance"),
         QStringLiteral("Do not use or start the single-instance socket (tests)"));
@@ -208,6 +217,8 @@ int main(int argc, char** argv) {
     parser.addOption(selfTestOption);
     parser.addOption(playOption);
     parser.addOption(enqueueOption);
+    parser.addOption(registerTypesOption);
+    parser.addOption(unregisterTypesOption);
     parser.addOption(noSingleInstanceOption);
     parser.addOption(alwaysOnTopOption);
     parser.addPositionalArgument("files", "Media files to play or enqueue", "[files...]");
@@ -233,6 +244,21 @@ int main(int argc, char** argv) {
     parser.addOption(soakHoldOption);
 #endif
     parser.process(app);
+
+    if (parser.isSet(registerTypesOption) || parser.isSet(unregisterTypesOption)) {
+        const bool unregister = parser.isSet(unregisterTypesOption);
+        const auto result = koalaamp::platform::registerFileAssociations(
+            QCoreApplication::applicationFilePath(), unregister);
+        for (const QString& detail : result.details) {
+            std::fprintf(stdout, "koalaamp: %s\n", detail.toUtf8().constData());
+        }
+        if (!result.ok) {
+            std::fprintf(stderr, "koalaamp: file associations: %s\n",
+                         result.error.toUtf8().constData());
+            return 1;
+        }
+        return 0;
+    }
 
     const QStringList inputFiles = parser.positionalArguments();
     QStringList forwardedArgs;
@@ -1396,6 +1422,35 @@ int main(int argc, char** argv) {
             }
         });
     }
+
+    // CO-1: global transport hotkeys. They are registered only in the primary
+    // process and only when the playback core exists; QHotkey reports conflicts
+    // (reserved/duplicate X11 grabs) instead of silently failing.
+    std::unique_ptr<koalaamp::platform::GlobalHotkeys> globalHotkeys;
+#ifdef KOALAAMP_HAS_PLAYBACK_CORE
+    if (!parser.isSet(selfTestOption)) {
+        globalHotkeys = std::make_unique<koalaamp::platform::GlobalHotkeys>(&app);
+        koalaamp::ui::PlaybackCoreTransport* const t = transport.get();
+        const int registered = globalHotkeys->registerAll({
+            {QStringLiteral("Play/Pause"), QKeySequence(QStringLiteral("Ctrl+Alt+Home")),
+             [t] { t->togglePause(); }},
+            {QStringLiteral("Previous"), QKeySequence(QStringLiteral("Ctrl+Alt+Left")),
+             [t] { t->previous(); }},
+            {QStringLiteral("Next"), QKeySequence(QStringLiteral("Ctrl+Alt+Right")),
+             [t] { t->next(); }},
+            {QStringLiteral("Stop"), QKeySequence(QStringLiteral("Ctrl+Alt+End")),
+             [t] { t->stop(); }},
+            {QStringLiteral("Volume up"), QKeySequence(QStringLiteral("Ctrl+Alt+Up")),
+             [t] { t->setVolumePercent(std::min(100, t->volumePercent() + 5)); }},
+            {QStringLiteral("Volume down"), QKeySequence(QStringLiteral("Ctrl+Alt+Down")),
+             [t] { t->setVolumePercent(std::max(0, t->volumePercent() - 5)); }},
+        });
+        for (const QString& failed : globalHotkeys->failed()) {
+            std::fprintf(stderr, "koalaamp: hotkey unavailable: %s\n", failed.toUtf8().constData());
+        }
+        (void)registered;
+    }
+#endif
 
     // CO-1: the primary process owns the tray. A forwarded launch returns above,
     // before this point, so it can never create a second icon.

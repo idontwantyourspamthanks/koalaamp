@@ -1,7 +1,7 @@
 # CO-1 · Platform integration pass 1
 
 - **Milestone:** M2 · **Est:** 4d · **Depends:** SE-3
-- **Status:** in-progress — CLI, single-instance and tray landed; hotkeys and file associations next
+- **Status:** in-review — CLI, single-instance, tray, hotkeys and associations landed; Windows live registry smoke remains
 
 ## Story
 A launch that already has KoalaAmp running should not produce a second player. Files and
@@ -24,14 +24,21 @@ association verbs.
   and exit; no second tray icon from a forwarded launch (the forwarder exits before creating UI). —
   `src/ui/TrayIcon.{hpp,cpp}`; `WindowSet::setVisible/anyVisible`; `se4_part_a_test` covers the
   hide/show action. `--self-test` skips the tray entirely.
-- [ ] Global hotkeys: platform registration for the `gen_hotkeys` default set, with the preferences
-  surface deferred to PC-1. Must work while the player is unfocused and unregister cleanly.
-- [ ] File associations: Windows registry, macOS `Info.plist` document types, Linux `.desktop`
-  `MimeType`; install the `Play in KoalaAmp` and `Enqueue in KoalaAmp` verbs.
-- [ ] Single-instance payload carries the chosen verb end to end: association → CLI → socket →
-  playlist, including paths with spaces/unicode and multiple files.
+- [x] Global hotkeys: QHotkey-backed native registration for Play/Pause, previous/next, stop and
+  volume; registered only by the primary process and skipped under `--self-test`. Failures are
+  reported per binding. Preferences/config surface remains PC-1. — `src/platform/GlobalHotkeys.{hpp,cpp}`;
+  QHotkey pinned in the root CMake.
+- [x] File associations: Windows HKCU classes + `Play`/`Enqueue` verbs, Linux user `.desktop` +
+  `mimeapps.list`, macOS bundle `Info.plist` document types. Registration is explicit via
+  `--register-file-types` / `--unregister-file-types`. — `src/platform/FileAssociations.{hpp,cpp}`,
+  `packaging/macos/Info.plist`; pure manifest tests in `file_associations_tests`.
+- [x] Single-instance payload carries the chosen verb end to end: association → CLI → socket →
+  playlist, including multiple files. Windows/Linux registration commands are unit/smoke tested;
+  macOS is delivered by the bundle plist.
 - [ ] Acceptance evidence on all three OSes; Windows/macOS are not e2e until file association is
-  installed, so keep the headless unit/smoke path green.
+  installed, so keep the headless unit/smoke path green. Linux registration/unregistration is
+  smoke-tested with temporary `XDG_CONFIG_HOME`/`XDG_DATA_HOME`; macOS plist is validated with
+  `plistlib`, Windows registry writes remain for a Windows smoke run.
 
 ## Acceptance / Definition of Done
 - `single_instance_tests` passes on Linux, macOS and Windows.
@@ -60,3 +67,9 @@ association verbs.
 - The forwarder must not open a second window set: `main` returns before constructing any window.
 - A stale socket is removed only after a connect attempt fails; an active primary is never unlinked.
 - `QLocalServer`/`QLocalSocket` is the portability seam; no raw Unix-domain/TCP path is used.
+- Initial global-hotkey map is `Ctrl+Alt+Home` play/pause, `Ctrl+Alt+Left/Right` previous/next,
+  `Ctrl+Alt+End` stop, `Ctrl+Alt+Up/Down` volume. QHotkey reports per-binding failures (reserved or
+  duplicate X11 grabs); PC-1 will make the map configurable.
+- File registration is never automatic. `--register-file-types` writes HKCU classes on Windows,
+  a user `.desktop` + `mimeapps.list` on Linux, and errors on macOS because the document types live
+  in `packaging/macos/Info.plist`. `--unregister-file-types` reverses the user-level pieces.

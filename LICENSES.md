@@ -19,6 +19,7 @@ and adapted with attribution in the file header, not linked.
 |---|---|---|---|---|
 | Qt | 6.12.0 (CI Linux/macOS; Core/Gui/Widgets/OpenGL/Network) · 6.10.3 (CI Windows) · 6.10.2 (local dev) | LGPL-3.0-only | dynamic | https://code.qt.io/cgit/qt/ |
 | libvlc | 3.0.x | LGPL-2.1-or-later | dynamic | https://code.videolan.org/videolan/vlc |
+| QHotkey | 1.5.0 (FetchContent, pinned tarball) | MIT | static | https://github.com/Skycoder42/QHotkey |
 | TagLib | 2.3.2 | LGPL-2.1-or-later OR MPL-2.0 | dynamic | https://github.com/taglib/taglib |
 | projectM | 4.2.0-dev (master @ 349b7cc2; 4.1.8 lacks the FBO API QOpenGLWidget needs) | LGPL-2.1-or-later | dynamic | https://github.com/projectM-visualizer/projectm |
 | SQLite | 3.46.x (FTS5) | public domain | static (permitted) | https://sqlite.org/ |

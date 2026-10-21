@@ -55,6 +55,22 @@ endif()
 
 include(CompilerWarnings)
 
+# --- Global hotkeys (CO-1) ---------------------------------------------------
+# QHotkey is MIT and dynamically linked (static library in-tree, no Qt module
+# beyond Gui). Pinned by tarball/hash, like Catch2; never vendored into src.
+include(FetchContent)
+# QHotkey 1.5.0 still declares cmake_minimum_required(3.1); CMake 4 removed
+# compatibility below 3.5. Keep the upstream pin and opt into the 3.5 policy.
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5 CACHE STRING "Minimum policy for old deps" FORCE)
+set(QT_DEFAULT_MAJOR_VERSION 6 CACHE STRING "Qt major version for QHotkey" FORCE)
+set(QHOTKEY_EXAMPLES OFF CACHE BOOL "Build QHotkey examples" FORCE)
+set(QHOTKEY_INSTALL OFF CACHE BOOL "Install QHotkey" FORCE)
+FetchContent_Declare(qhotkey
+    URL https://github.com/Skycoder42/QHotkey/archive/refs/tags/1.5.0.tar.gz
+    URL_HASH SHA256=e8ca5ba77ad04662c18dce8de4b37b373bcb693a7e062fca3d832bf63473b143
+    DOWNLOAD_EXTRACT_TIMESTAMP OFF)
+FetchContent_MakeAvailable(qhotkey)
+
 # --- Targets ----------------------------------------------------------------
 add_subdirectory(src)
 
