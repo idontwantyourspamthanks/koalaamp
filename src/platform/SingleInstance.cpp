@@ -18,8 +18,9 @@ SingleInstance::SingleInstance(QString name, QObject* parent)
 
 SingleInstance::~SingleInstance() {
     if (m_primary) {
+        // Leave the stale socket for the next launch's connect-fail path; some
+        // Qt platforms crash when removeServer() runs during teardown.
         m_server.close();
-        QLocalServer::removeServer(m_name);
     }
 }
 
