@@ -14,7 +14,6 @@
 #include <QUuid>
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
-#include <cstdio>
 
 namespace {
 
@@ -31,7 +30,6 @@ TEST_CASE("single instance forwards argv to the primary") {
     SingleInstance primary(name);
     REQUIRE(primary.start() == SingleInstance::Role::Primary);
     REQUIRE(primary.isListening());
-    std::fprintf(stderr, "single-instance test: primary listening\n");
 
     QStringList received;
     QEventLoop loop;
@@ -46,10 +44,8 @@ TEST_CASE("single instance forwards argv to the primary") {
     child.setArguments({QStringLiteral("--forward"), name, QStringLiteral("--enqueue"),
                         QStringLiteral("/music/a.flac")});
     child.start();
-    std::fprintf(stderr, "single-instance test: child started\n");
     QTimer::singleShot(3000, &loop, &QEventLoop::quit);
     loop.exec();
-    std::fprintf(stderr, "single-instance test: loop returned (%d args)\n", received.size());
 
     REQUIRE(received.size() == 2);
     CHECK(received[0] == "--enqueue");
@@ -58,7 +54,6 @@ TEST_CASE("single instance forwards argv to the primary") {
     CHECK(child.exitStatus() == QProcess::NormalExit);
     CHECK(child.exitCode() == 0);
     CHECK(primary.isListening());
-    std::fprintf(stderr, "single-instance test: checks done\n");
 }
 
 TEST_CASE("a failed forward becomes the primary") {
