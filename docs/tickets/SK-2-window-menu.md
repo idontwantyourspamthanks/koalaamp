@@ -2,7 +2,7 @@
 
 - **ID / title:** `SK-2 · Main-window menu`
 - **Milestone:** M1 · **Est:** 1d focused · **Depends:** SE-2, SK-1, SE-4
-- **Status:** in-progress
+- **Status:** done
 
 ## Story
 Winamp's main window opens a menu from its Option button, from the clutterbar's `O` and from a right-click anywhere on the window. KoalaAmp had the *seam* — `MainWindow::menuRequested` — but nothing was connected to it, so the only way to choose a skin was `--skin` on the command line, and the window scaling the renderers already support was unreachable from the UI.
@@ -18,10 +18,10 @@ Winamp's main window opens a menu from its Option button, from the clutterbar's 
       visualizer, which the startup path had been skipping). Verified in the running app: the
       submenu lists the four bundled skins with the current one checked, and choosing another changes
       the window (compared over a region no menu covers)._
-- [ ] Persist the chosen scale and on-top state (settings are PC-1's; per-session until then).
-- [ ] Adopt the incoming skin's remembered layout on a switch, and persist the outgoing one first.
-      Deliberately left out of `applySkin` for now: restoring there would race the startup path's
-      `applyDefaultArrangement` fallback.
+- [x] Persist the chosen scale and on-top state (`QSettings` `view/scale`, `view/alwaysOnTop`; startup applies them before layout restore).
+- [x] Adopt the incoming skin's remembered layout on a switch, and persist the outgoing one first.
+      `applySkin` now distinguishes the startup call from a menu switch; a switch saves the old
+      SkinDb layout and restores the incoming one (or applies the default arrangement).
 
 ## Acceptance / Definition of Done
 - Right-clicking the main window opens the menu.

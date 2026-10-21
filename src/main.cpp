@@ -321,7 +321,16 @@ int main(int argc, char** argv) {
     // here, so "load, hand it to every window, remember it" exists once. The
     // per-skin *layout* stays the startup path's business: adopting one here would
     // race the default arrangement that runs when no layout was remembered.
+    bool startupLayout = true;
     const auto applySkin = [&](const std::filesystem::path& path) {
+        // Switching skins: save the outgoing layout and adopt the incoming
+        // skin's remembered one. Startup keeps the existing single restore path.
+        if (!startupLayout && !skinPath.empty() && hasDbPath) {
+            windowSet.persistLayout(skinDb, skinPath);
+            if (!skinDb.saveTo(dbPath)) {
+                std::fprintf(stderr, "koalaamp: could not save outgoing skin layout\n");
+            }
+        }
         auto loaded = koalaamp::skins::loadSkinSet(path);
         if (!loaded.has_value()) {
             std::fprintf(stderr, "koalaamp: cannot load skin '%s'\n", path.c_str());
@@ -341,12 +350,18 @@ int main(int argc, char** argv) {
         for (const auto& warning : skinSet->warnings) {
             std::fprintf(stderr, "koalaamp: skin: %s\n", warning.c_str());
         }
+        if (!startupLayout) {
+            if (!windowSet.restoreLayout(skinDb, path)) {
+                windowSet.applyDefaultArrangement();
+            }
+        }
         return true;
     };
 
     if (!skinPath.empty()) {
         applySkin(skinPath);
     }
+    startupLayout = false;
     if (skinSet.has_value()) {
     } else {
         std::fprintf(stderr, "koalaamp: no skin loaded — pass --skin <file.wsz>\n"
@@ -1376,23 +1391,56 @@ int main(int argc, char** argv) {
             QAction* action = scaling->addAction(QStringLiteral("%1x").arg(factor));
             action->setCheckable(true);
             action->setChecked(window.scale() == factor);
-            QObject::connect(action, &QAction::triggered, &window,
-                             [&windowSet, factor] { windowSet.setScale(factor); });
+            QObject::connect(action, &QAction::triggered, &window, [&windowSet, factor] {
+                windowSet.setScale(factor);
+                QSettings settings;
+                settings.setValue(QStringLiteral("view/scale"), factor);
+                settings.sync();
+            });
         }
 
         QAction* onTop = menu.addAction(QStringLiteral("Always on top"));
         onTop->setCheckable(true);
         onTop->setChecked(windowSet.keepOnTop());
-        QObject::connect(onTop, &QAction::triggered, &windowSet,
-                         [&windowSet](bool on) { windowSet.setKeepOnTop(on); });
+        QObject::connect(onTop, &QAction::triggered, &windowSet, [&windowSet](bool on) {
+            windowSet.setKeepOnTop(on);
+            QSettings settings;
+            settings.setValue(QStringLiteral("view/alwaysOnTop"), on);
+            settings.sync();
+        });
 
         menu.addSeparator();
+        QAction* about = menu.addAction(QStringLiteral("About KoalaAmp…"));
+        QObject::connect(about, &QAction::triggered, &window, [&window] {
+            QMessageBox::about(&window, QStringLiteral("About KoalaAmp"),
+                               QStringLiteral("KoalaAmp 0.0.1\n"
+                                              "Classic Winamp-style player — clean-room build.\n\n"
+                                              "Qt %1 (LGPLv3, dynamically linked).\n"
+                                              "libvlc, projectM, TagLib, libcurl, SQLite and "
+                                              "QHotkey are listed in LICENSES.md.\n\n"
+                                              "This application is independent of Nullsoft and "
+                                              "Llama Group; Winamp is a trademark of its owner.")
+                                   .arg(QString::fromLatin1(qVersion())));
+        });
         menu.addAction(QStringLiteral("Quit"), &app, &QApplication::quit);
         menu.exec(QCursor::pos());
     };
     QObject::connect(&window, &koalaamp::ui::MainWindow::menuRequested, &window, showMainMenu);
 
     windowSet.attach();
+    {
+        QSettings settings;
+        const int savedScale = settings.value(QStringLiteral("view/scale"), 1).toInt();
+        if (savedScale >= 1 && savedScale <= 4) {
+            windowSet.setScale(savedScale);
+        }
+        if (settings.value(QStringLiteral("view/alwaysOnTop"), false).toBool()) {
+            windowSet.setKeepOnTop(true);
+#if defined(KOALAAMP_HAS_GL_VISUALIZER)
+            visualizer.setAlwaysOnTop(true);
+#endif
+        }
+    }
     if (parser.isSet(alwaysOnTopOption)) {
         windowSet.setKeepOnTop(true);
 #if defined(KOALAAMP_HAS_GL_VISUALIZER)

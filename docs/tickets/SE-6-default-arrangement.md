@@ -2,7 +2,7 @@
 
 - **ID / title:** `SE-6 · Default window arrangement on first run`
 - **Milestone:** M1 follow-up · **Est:** 0.5d focused · **Depends:** SE-4 (window set, snapping/docking, layout persistence)
-- **Status:** in-progress
+- **Status:** done
 
 ## Story
 A first run — a fresh config, or the first launch of a skin with no saved layout — drops the
