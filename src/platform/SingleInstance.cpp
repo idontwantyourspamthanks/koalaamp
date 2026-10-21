@@ -10,13 +10,29 @@
 #include <QJsonDocument>
 #include <QLocalSocket>
 #include <QThread>
+#include <cstdio>
 
 namespace koalaamp::platform {
 
 SingleInstance::SingleInstance(QString name, QObject* parent)
     : QObject(parent), m_name(std::move(name)) {}
 
-SingleInstance::~SingleInstance() = default;
+SingleInstance::~SingleInstance() {
+    std::fprintf(stderr, "~SingleInstance primary=%d clients=%lld\n", m_primary ? 1 : 0,
+                 static_cast<long long>(m_buffers.size()));
+    if (m_primary) {
+        const auto sockets = m_buffers.keys();
+        for (QLocalSocket* socket : sockets) {
+            if (socket != nullptr) {
+                socket->disconnect(this);
+                socket->abort();
+                delete socket;
+            }
+        }
+        m_buffers.clear();
+        m_server.close();
+    }
+}
 
 bool SingleInstance::tryForward(const QStringList& args, int timeoutMs) {
     QLocalSocket socket;
