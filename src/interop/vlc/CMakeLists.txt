@@ -25,6 +25,10 @@ if(UNIX AND NOT APPLE)
     target_link_libraries(koalaamp_vlc PUBLIC ${CMAKE_DL_LIBS} pthread m)
 endif()
 
-add_executable(koalaamp_vlc_spike vlc_spike.cpp)
-koalaamp_enable_warnings(koalaamp_vlc_spike)
-target_link_libraries(koalaamp_vlc_spike PRIVATE koalaamp_vlc)
+if(NOT WIN32)
+    # The measurement spike uses getrusage(); CI-1 only needs the library and
+    # PlaybackCore to compile on Windows, not this Linux/macOS harness.
+    add_executable(koalaamp_vlc_spike vlc_spike.cpp)
+    koalaamp_enable_warnings(koalaamp_vlc_spike)
+    target_link_libraries(koalaamp_vlc_spike PRIVATE koalaamp_vlc)
+endif()
