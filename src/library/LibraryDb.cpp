@@ -654,7 +654,45 @@ bool LibraryDb::markPlayed(std::string_view path, std::int64_t unixSeconds) {
     sqlite3_bind_text(statement, 2, path.data(), static_cast<int>(path.size()), SQLITE_TRANSIENT);
     const bool ok = sqlite3_step(statement) == SQLITE_DONE && sqlite3_changes(db_) > 0;
     sqlite3_finalize(statement);
-    return ok;
+    if (!ok) {
+        return false;
+    }
+
+    // The history feed is an event log; the track row is its current state.
+    sqlite3_stmt* history = nullptr;
+    if (sqlite3_prepare_v2(db_,
+                           "INSERT OR IGNORE INTO play_history("
+                           "path, title, artist, album, played_at, source) "
+                           "SELECT path, title, artist, album, ?, 'local' "
+                           "FROM tracks WHERE path = ?",
+                           -1, &history, nullptr) == SQLITE_OK) {
+        sqlite3_bind_int64(history, 1, unixSeconds);
+        sqlite3_bind_text(history, 2, path.data(), static_cast<int>(path.size()), SQLITE_TRANSIENT);
+        sqlite3_step(history);
+        sqlite3_finalize(history);
+    }
+    return true;
+}
+
+std::size_t LibraryDb::backfillHistoryFromTracks() {
+    if (db_ == nullptr) {
+        return 0;
+    }
+    sqlite3_stmt* statement = nullptr;
+    if (sqlite3_prepare_v2(db_,
+                           "INSERT OR IGNORE INTO play_history("
+                           "path, title, artist, album, played_at, source) "
+                           "SELECT path, title, artist, album, lastplayed, 'local' "
+                           "FROM tracks WHERE lastplayed IS NOT NULL AND lastplayed > 0",
+                           -1, &statement, nullptr) != SQLITE_OK) {
+        setError("backfillHistoryFromTracks");
+        return 0;
+    }
+    const bool ok = sqlite3_step(statement) == SQLITE_DONE;
+    const auto inserted =
+        ok ? static_cast<std::size_t>(sqlite3_changes(db_)) : static_cast<std::size_t>(0);
+    sqlite3_finalize(statement);
+    return inserted;
 }
 
 bool LibraryDb::applyMigration(std::string_view path, const MigrationStats& stats) {

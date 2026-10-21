@@ -416,6 +416,11 @@ TEST_CASE("library queries, ratings and play counts flow through SQLite") {
         REQUIRE(played.size() == 1);
         CHECK(played[0].playCount == 1);
         CHECK(played[0].lastPlayed == 1'800'000'000);
+        const auto liveHistory = db.history();
+        REQUIRE(liveHistory.size() == 1);
+        CHECK(liveHistory[0].path == fixture->path);
+        CHECK(liveHistory[0].playedAt == 1'800'000'000);
+        CHECK(liveHistory[0].source == "local");
 
         const std::vector<std::string> genres = db.genres();
         CHECK(std::find(genres.begin(), genres.end(), "Test") != genres.end());
@@ -548,6 +553,35 @@ TEST_CASE("opening a v1 library adds the history table") {
     entry.playedAt = 1'700'000'000;
     REQUIRE(db.addHistory(entry));
     CHECK(db.historyCount() == 1);
+    std::error_code error;
+    fs::remove_all(dir, error);
+}
+
+TEST_CASE("backfill seeds history from an existing lastplayed value") {
+    const fs::path dir = tempDir("koalaamp-mi1-backfill");
+    LibraryDb db{dir / "library.db"};
+    REQUIRE(db.open());
+    ScannedTrack scanned;
+    scanned.track.path = "/Music/legacy.flac";
+    scanned.track.title = "Legacy";
+    scanned.track.artist = "Artist";
+    scanned.format = "flac";
+    scanned.mtime = 1;
+    scanned.size = 10;
+    REQUIRE(db.upsert(scanned));
+
+    MigrationStats stats;
+    stats.lastPlayed = 1'700'000'000;
+    REQUIRE(db.applyMigration("/Music/legacy.flac", stats));
+    CHECK(db.historyCount() == 0);
+
+    CHECK(db.backfillHistoryFromTracks() == 1);
+    CHECK(db.backfillHistoryFromTracks() == 0);
+    const auto history = db.history();
+    REQUIRE(history.size() == 1);
+    CHECK(history[0].path == "/Music/legacy.flac");
+    CHECK(history[0].playedAt == 1'700'000'000);
+    CHECK(history[0].source == "local");
     std::error_code error;
     fs::remove_all(dir, error);
 }

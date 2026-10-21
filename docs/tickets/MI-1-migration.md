@@ -55,7 +55,9 @@ escaped pipes) and appended to the live playlist; the wizard reports what
 loaded. `recent.dat`/`recent.idx` use the same NDE reader, resolve columns by
 name (with ml_local ids as fallback), and key `play_history` on
 `(path, played_at, source)` so a second import adds no rows; LibraryWindow adds
-a History node over `LibraryDb::history()`.
+a History node over `LibraryDb::history()`. Live playback appends `source=local`
+on `markPlayed`, and startup backfills one event per existing `lastplayed` row
+so a library that predates the event log is not empty.
 
 The documented field acceptance still needs a real donation fixture; the
 generated fixture covers all documented scalar types, history columns, UTF-16

@@ -114,6 +114,9 @@ public:
     /// Inserts one history event. The unique `(path, played_at, source)` key
     /// makes re-imports idempotent; returns true only when a new row was added.
     bool addHistory(const PlayHistoryEntry& entry);
+    /// Seeds history from each track's latest `lastplayed` value for tracks
+    /// that predate live history recording. Idempotent; returns rows inserted.
+    std::size_t backfillHistoryFromTracks();
     /// Newest first. `limit <= 0` returns every event.
     std::vector<PlayHistoryEntry> history(int limit = 100, int offset = 0);
     std::size_t historyCount();

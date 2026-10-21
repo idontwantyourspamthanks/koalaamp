@@ -740,6 +740,9 @@ int main(int argc, char** argv) {
         LibraryPlaybackStats(koalaamp::playback::PlaybackCore& playback, std::string path)
             : core(&playback), db(std::move(path)) {
             db.open();
+            // Existing libraries predate the event log; seed it once from each
+            // track's latest lastplayed so the History node is not empty.
+            db.backfillHistoryFromTracks();
             core->addObserver(this);
         }
         ~LibraryPlaybackStats() override {
