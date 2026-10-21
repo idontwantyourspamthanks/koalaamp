@@ -10,6 +10,7 @@
 #include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <cmath>
+#include <ctime>
 #include <filesystem>
 #include <sqlite3.h>
 #include <string>
@@ -210,10 +211,12 @@ TEST_CASE("the store round-trips, searches with FTS5 and browses albums") {
 
 TEST_CASE("100k rows stay within the search latency budget") {
     const fs::path dir = tempDir("koalaamp-li2-perf");
-    LibraryDb db{dir / "library.db"};
+    const fs::path dbPath = dir / "library.db";
+    LibraryDb db{dbPath};
     REQUIRE(db.open());
     REQUIRE(db.begin());
 
+    const std::int64_t now = static_cast<std::int64_t>(std::time(nullptr));
     constexpr int kRows = 100000;
     for (int i = 0; i < kRows; ++i) {
         ScannedTrack scanned;
@@ -227,6 +230,7 @@ TEST_CASE("100k rows stay within the search latency budget") {
         scanned.track.genre = "Genre";
         scanned.track.trackNo = (i % 12) + 1;
         scanned.track.durationMs = 180000;
+        scanned.mtime = (now - (i % 6) * 10 * 86400) * 1'000'000'000LL;
         scanned.format = "flac";
         REQUIRE(db.upsert(scanned));
     }
@@ -276,6 +280,76 @@ TEST_CASE("100k rows stay within the search latency budget") {
         INFO("smart view " << view.name << " p95=" << viewP95 << "ms");
         CHECK(viewP95 < 100.0);
     }
+
+    // Row-for-row reference check for the six smart views the library window
+    // offers. The update gives the fixture deterministic dates/counters without
+    // paying for 100k markPlayed() calls; the reference SQL below is written by
+    // hand, not generated from Query.cpp.
+    sqlite3* raw = nullptr;
+    REQUIRE(sqlite3_open_v2(dbPath.c_str(), &raw, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK);
+    const std::string update = "UPDATE tracks SET rating = (rowid % 6), playcount = (rowid % 7), "
+                               "dateadded = " +
+                               std::to_string(now) +
+                               " - ((rowid % 6) * 10 * 86400), "
+                               "lastplayed = CASE WHEN rowid % 5 = 0 THEN " +
+                               std::to_string(now) + " - ((rowid % 2) * 30 * 86400) ELSE NULL END";
+    char* sqlError = nullptr;
+    REQUIRE(sqlite3_exec(raw, update.c_str(), nullptr, nullptr, &sqlError) == SQLITE_OK);
+    if (sqlError != nullptr) {
+        sqlite3_free(sqlError);
+    }
+
+    const std::int64_t threshold = now - 14 * 86400;
+    struct ReferenceView {
+        const char* text;
+        const char* order;
+        const char* where;
+        bool bindThreshold;
+    };
+    const ReferenceView references[] = {
+        {R"(dateadded > [2 weeks ago])", "recent", "dateadded > ?", true},
+        {R"(lastplay > [2 weeks ago])", "played", "lastplayed > ?", true},
+        {R"(lastupd > [2 weeks ago])", "modified", "(mtime / 1000000000) > ?", true},
+        {R"(playcount > 0)", "played", "playcount > 0", false},
+        {R"(playcount = 0)", "title", "playcount = 0", false},
+        {R"(rating > 0)", "rating", "rating > 0", false},
+    };
+    for (const ReferenceView& reference : references) {
+        const auto parsed = parseQuery(reference.text, now);
+        REQUIRE(parsed.query.has_value());
+        const auto actual = db.query(*parsed.query, 5000, reference.order);
+
+        const std::string orderBy =
+            std::string(reference.order) == "recent"
+                ? "dateadded DESC, artist COLLATE NOCASE, title"
+                : (std::string(reference.order) == "played"
+                       ? "playcount DESC, lastplayed DESC, artist COLLATE NOCASE, title"
+                       : (std::string(reference.order) == "rating"
+                              ? "rating DESC, artist COLLATE NOCASE, title"
+                              : (std::string(reference.order) == "modified"
+                                     ? "mtime DESC, artist COLLATE NOCASE, title"
+                                     : "title COLLATE NOCASE, artist COLLATE NOCASE")));
+        const std::string sql = std::string("SELECT path FROM tracks WHERE ") + reference.where +
+                                " ORDER BY " + orderBy + " LIMIT 5000";
+        sqlite3_stmt* statement = nullptr;
+        REQUIRE(sqlite3_prepare_v2(raw, sql.c_str(), -1, &statement, nullptr) == SQLITE_OK);
+        if (reference.bindThreshold) {
+            sqlite3_bind_int64(statement, 1, threshold);
+        }
+        std::vector<std::string> expected;
+        while (sqlite3_step(statement) == SQLITE_ROW) {
+            expected.emplace_back(reinterpret_cast<const char*>(sqlite3_column_text(statement, 0)));
+        }
+        sqlite3_finalize(statement);
+
+        INFO("reference view " << reference.text << " rows=" << expected.size());
+        REQUIRE(actual.size() == expected.size());
+        for (std::size_t i = 0; i < actual.size(); ++i) {
+            INFO("row " << i << " actual=" << actual[i].path << " expected=" << expected[i]);
+            CHECK(actual[i].path == expected[i]);
+        }
+    }
+    sqlite3_close(raw);
 
     // Artist expansion and artist-track loading use the same 100k rows.
     std::vector<double> expandMillis;
@@ -328,6 +402,13 @@ TEST_CASE("smart-view grammar parses fields, operators and relative dates") {
         REQUIRE(result.query.has_value());
         REQUIRE(result.query->params.size() == 1);
         CHECK(result.query->params[0].integer == kNow - 7 * 24 * 60 * 60);
+    }
+    {
+        const auto result = parseQuery("lastupd > [2 weeks ago]", kNow);
+        REQUIRE(result.query.has_value());
+        CHECK(result.query->where.find("(mtime / 1000000000)") != std::string::npos);
+        REQUIRE(result.query->params.size() == 1);
+        CHECK(result.query->params[0].integer == kNow - 14 * 24 * 60 * 60);
     }
     {
         const auto result = parseQuery("title begins \"Test\"", kNow);

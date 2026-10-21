@@ -38,6 +38,7 @@ std::span<const SpriteDef> spriteSpanFor(std::string_view sheet) {
     if (sheet == "EQMAIN") return kSpritesEQMAIN;
     if (sheet == "PLEDIT") return kSpritesPLEDIT;
     if (sheet == "GEN") return kSpritesGEN;
+    if (sheet == "GENEX") return kSpritesGENEX;
     return {};
 }
 

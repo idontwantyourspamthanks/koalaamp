@@ -549,6 +549,8 @@ std::vector<Track> LibraryDb::query(const ParsedQuery& parsed, int limit, std::s
         orderBy = "playcount DESC, lastplayed DESC, artist COLLATE NOCASE, title";
     } else if (order == "rating") {
         orderBy = "rating DESC, artist COLLATE NOCASE, title";
+    } else if (order == "modified") {
+        orderBy = "mtime DESC, artist COLLATE NOCASE, title";
     } else if (order == "title") {
         orderBy = "title COLLATE NOCASE, artist COLLATE NOCASE";
     } else if (!order.empty() && order != "default") {

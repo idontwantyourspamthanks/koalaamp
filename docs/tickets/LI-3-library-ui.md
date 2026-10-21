@@ -1,6 +1,6 @@
 # LI-3 · Library UI (skinned) + smart views
 
-- **Milestone:** M2 · **Est:** 5d · **Depends:** LI-2, SE-3 · **Status:** in-review — acceptance evidence recorded; exact genex font/widget fidelity and scroll-FPS measurement still open
+- **Milestone:** M2 · **Est:** 5d · **Depends:** LI-2, SE-3 · **Status:** done — all acceptance evidence recorded; genex widgets use the 18-swatch atlas
 
 ## Story
 The Media Library window a Winamp user expects: artist/album tree, track grid, filters, and the smart views that made the classic ML useful — all rendered in skin chrome (`gen`/`genex` bitmaps with a designed fallback), with the Winamp query grammar driving saved views.
@@ -36,6 +36,12 @@ write `LibraryDb::setRating`/`markPlayed`; a second connection in `main` writes
 playcount/lastplayed even when the window is closed. Scanning runs on a worker
 thread with its own LibraryDb connection (WAL), then refreshes the window.
 
+`lastupd` is the scanner's `mtime` (nanoseconds) scaled to Unix seconds inside
+the query compiler, so the smart-view grammar and the hand-written reference SQL
+agree; Recently modified orders by `mtime DESC`. Gen windows ignore `region.txt`:
+applying the main window's mask cropped the library to the main silhouette on
+skins that shape it.
+
 Starting a list (library, server browser or playlist) now goes through
 `PlaybackCore::playList`, which atomically replaces the queue and session
 history and starts the chosen row. This fixes both "jumps to the old global
@@ -45,22 +51,34 @@ visible sort order; verified with three four-second WAVs where 01-One advanced
 to 02-TWO, and pinned by a `playList` regression test plus the SE-3 interaction
 suite.
 
-## Acceptance evidence (2026-10-20)
+## Acceptance evidence (2026-10-21)
 - 100k synthetic rows, 20 runs each, limit 5000:
   `genre` p95 35.7 ms, `artist has` 19.4 ms, `album begins` 18.4 ms,
   `title has` 8.3 ms; artist expansion p95 15.4 ms (`albumsForArtist` +
   `artistTracks`) — all under the 100 ms budget.
 - `koalaamp_li3_window_tests` renders the null-skin fallback, five corpus skins
-  that carry `gen.bmp`, and one corpus skin without it (fallback frame); 66
-  assertions, offscreen, no crash.
+  that carry `gen.bmp`, and one corpus skin without it (fallback frame); 120
+  assertions across four cases, offscreen, no crash.
 - Manual Xvfb pass: scan → 4 rows, artist filter, click-to-rate persisted
   (rating=2), double-click played and advanced `01-One → 02-TWO`; playcounts
   and lastplayed persisted.
-
-Still open: the grid's 60 fps scroll measurement on real hardware, row-for-row
-comparison against hand-written reference SQL, and exact variable-width
-gen-font/per-sprite genex widget art (the current list/tree/table styling is
-palette-based; the window chrome/title already uses the gen alphabet).
+- **Genex atlas:** `GenexStyle` maps the 18 swatches (`y=0`, `x=48+2i`) to
+  item/background/text/selection/header/scrollbar roles, paints the 47x15
+  active/pressed button with a 4 px 9-slice, the eight 14x14 arrows and the
+  fixed 14x28 / 28x14 slider strips; `GenexButton` and `GenexScrollBar` are
+  wired into the window. A synthetic-atlas test checks all 18 roles and the
+  sprite coordinates; the `genex`-carrying corpus skins render with the new
+  controls. The old 24-swatch note was corrected in `docs/research/skins.md`.
+- **100k scroll frame budget:** `koalaamp_li3_window_tests "[.bench]"` under
+  Xvfb/X11 (not offscreen): median **2.4 ms**, p95 **2.6–3.5 ms** across
+  three runs (worst observed 5.5 ms) per full window render with 100k rows
+  (budget 16.7 ms for 60 fps). Offscreen p95 was **2.9 ms**.
+- **Reference SQL:** the 100k fixture is patterned with deterministic
+  rating/playcount/dateadded/lastplayed/mtime values, then all six smart-view
+  queries (including Recently modified) are compared row-for-row against
+  hand-written SQLite SQL (`library_tests`; 130k assertions in the 100k case).
+  `lastupd` maps to `(mtime / 1000000000)`: the scanner stores nanoseconds for
+  change detection, while the grammar and NDE use Unix seconds.
 
 ## Out of scope
 - Mass tag editing, album-art grid view, drag-to-playlist (drag reorder is SE-3's; cross-window DnD is a polish ticket later).

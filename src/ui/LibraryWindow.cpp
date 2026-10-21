@@ -7,6 +7,7 @@
 #include "library/Scanner.hpp"
 #include "skins/Skin.hpp"
 #include "ui/GenRenderer.hpp"
+#include "ui/GenexStyle.hpp"
 
 #include <QComboBox>
 #include <QDateTime>
@@ -80,22 +81,6 @@ public:
     }
 };
 
-QColor colorAt(const skins::Skin& skin, int index) {
-    const QImage* sheet = skin.sheet("GENEX");
-    if (sheet == nullptr || sheet->isNull()) {
-        return {};
-    }
-    const int x = 48 + index * 2;
-    if (x >= sheet->width() || sheet->height() < 1) {
-        return {};
-    }
-    return QColor::fromRgb(sheet->pixel(x, 0));
-}
-
-QString colorCss(const QColor& color, const char* fallback) {
-    return color.isValid() ? color.name() : QString::fromLatin1(fallback);
-}
-
 } // namespace
 
 LibraryWindow::LibraryWindow(std::string dbPath, PlayHandler play, QWidget* parent)
@@ -142,16 +127,16 @@ void LibraryWindow::buildLayout() {
     m_search->setPlaceholderText(QStringLiteral("Search, or ?artist has \"...\""));
     m_search->setGeometry(x + 176, topY, width - 176 - rightButtons, rowHeight);
 
-    m_scan = new QPushButton(QStringLiteral("Scan…"), this);
+    m_scan = new GenexButton(QStringLiteral("Scan…"), this);
     m_scan->setObjectName(QStringLiteral("libraryScan"));
     m_scan->setGeometry(x + width - rightButtons, topY, buttonWidth, rowHeight);
 
-    m_refresh = new QPushButton(QStringLiteral("Refresh"), this);
+    m_refresh = new GenexButton(QStringLiteral("Refresh"), this);
     m_refresh->setObjectName(QStringLiteral("libraryRefresh"));
     m_refresh->setGeometry(x + width - rightButtons + buttonWidth + gap, topY, buttonWidth,
                            rowHeight);
 
-    m_saveView = new QPushButton(QStringLiteral("Save view…"), this);
+    m_saveView = new GenexButton(QStringLiteral("Save view…"), this);
     m_saveView->setObjectName(QStringLiteral("librarySaveView"));
     m_saveView->setGeometry(x + width - saveWidth, topY, saveWidth, rowHeight);
 
@@ -196,6 +181,21 @@ void LibraryWindow::buildLayout() {
     m_table->setColumnWidth(4, 64);
     m_table->setColumnWidth(5, 45);
     m_table->setGeometry(x + treeWidth + gap, contentY, width - treeWidth - gap, contentHeight);
+
+    // The genex scrollbars are 14 px thick in 1x pixels. They keep QScrollBar's
+    // wheel/keyboard/drag behaviour and add the skin's arrow and slider faces.
+    m_treeVertical = new GenexScrollBar(Qt::Vertical, m_tree);
+    m_treeVertical->setObjectName(QStringLiteral("libraryTreeScrollVertical"));
+    m_tree->setVerticalScrollBar(m_treeVertical);
+    m_treeHorizontal = new GenexScrollBar(Qt::Horizontal, m_tree);
+    m_treeHorizontal->setObjectName(QStringLiteral("libraryTreeScrollHorizontal"));
+    m_tree->setHorizontalScrollBar(m_treeHorizontal);
+    m_tableVertical = new GenexScrollBar(Qt::Vertical, m_table);
+    m_tableVertical->setObjectName(QStringLiteral("libraryTracksScrollVertical"));
+    m_table->setVerticalScrollBar(m_tableVertical);
+    m_tableHorizontal = new GenexScrollBar(Qt::Horizontal, m_table);
+    m_tableHorizontal->setObjectName(QStringLiteral("libraryTracksScrollHorizontal"));
+    m_table->setHorizontalScrollBar(m_tableHorizontal);
 
     m_status = new QLabel(this);
     m_status->setObjectName(QStringLiteral("libraryStatus"));
@@ -244,61 +244,60 @@ void LibraryWindow::buildLayout() {
 
 void LibraryWindow::applySkinColors() {
     const skins::Skin* skin = m_skin != nullptr ? &m_skin->sheets : nullptr;
-    QColor base(0x0e, 0x12, 0x16);
-    QColor text(0xe8, 0xe8, 0xe8);
-    QColor selected(0x1e, 0x4f, 0x68);
-    QColor selectedText(0xff, 0xff, 0xff);
-    QColor border(0x50, 0x50, 0x50);
-    if (skin != nullptr) {
-        const QColor candidateBase = colorAt(*skin, 0);
-        const QColor candidateSelected = colorAt(*skin, 1);
-        const QColor candidateText = colorAt(*skin, 2);
-        const QColor candidateSelectedText = colorAt(*skin, 3);
-        if (candidateBase.isValid()) {
-            base = candidateBase;
-        }
-        if (candidateSelected.isValid()) {
-            selected = candidateSelected;
-        }
-        if (candidateText.isValid()) {
-            text = candidateText;
-        }
-        if (candidateSelectedText.isValid()) {
-            selectedText = candidateSelectedText;
-        }
-        const QColor candidateBorder = colorAt(*skin, 8);
-        if (candidateBorder.isValid()) {
-            border = candidateBorder;
-        }
-    }
-    // A dark base with dark text (or vice versa) is unreadable; fall back to the
-    // designed high-contrast palette rather than trusting a malformed swatch.
-    const int luminance = (base.red() + base.green() + base.blue()) / 3;
-    if ((luminance > 128 && text.lightness() > 160) ||
-        (luminance <= 128 && text.lightness() < 90)) {
-        base = QColor(0x0e, 0x12, 0x16);
-        text = QColor(0xe8, 0xe8, 0xe8);
-    }
+    const GenexPalette palette = genexPalette(skin);
+
+    const QColor base = palette.itemBackground;
+    const QColor text = palette.itemText;
+    const QColor selected = palette.selection;
+    const QColor border = palette.divider;
+    const QColor selectedText =
+        selected.lightness() > 140 ? QColor(0, 0, 0) : QColor(255, 255, 255);
+
+    const auto css = [](const QColor& colour, const char* fallback) {
+        return colour.isValid() ? colour.name() : QString::fromLatin1(fallback);
+    };
+
     setStyleSheet(
         QStringLiteral(
-            "QLabel, QPushButton { color: %1; background: transparent; }"
-            "QPushButton { border: 1px solid %2; padding: 2px 6px; }"
-            "QLineEdit, QComboBox { color: %1; background: %3; border: 1px solid %2; }"
+            "QLabel { color: %1; background: transparent; }"
+            "QPushButton { color: %1; background: transparent; border: 1px solid %2; "
+            "padding: 2px 6px; }"
+            "QLineEdit, QComboBox { color: %1; background: %3; border: 1px solid %2; "
+            "padding: 1px 3px; selection-background-color: %4; selection-color: %5; }"
+            "QComboBox QAbstractItemView { color: %1; background: %3; "
+            "selection-background-color: %4; selection-color: %5; }"
             "QTreeWidget, QTableWidget { color: %1; background: %3; border: 1px solid %2; "
             "selection-background-color: %4; selection-color: %5; }"
-            "QHeaderView::section { color: %1; background: %3; border: 0; "
-            "border-bottom: 1px solid %2; padding: 2px; }"
+            "QHeaderView::section { color: %6; background: %7; border-top: 1px solid %8; "
+            "border-left: 1px solid %8; border-bottom: 1px solid %9; "
+            "border-right: 1px solid %9; padding: 2px; }"
+            "QHeaderView::section:pressed { background: %10; }"
             "QTableWidget { gridline-color: %2; }"
-            "QScrollBar:vertical { background: %3; width: 12px; }"
-            "QScrollBar::handle:vertical { background: %4; min-height: 20px; }")
-            .arg(colorCss(text, "#e8e8e8"), colorCss(border, "#505050"), colorCss(base, "#0e1216"),
-                 colorCss(selected, "#1e4f68"), colorCss(selectedText, "#ffffff")));
+            "QToolTip { color: %1; background: %3; border: 1px solid %2; }")
+            .arg(css(text, "#e8e8e8"), css(border, "#505050"), css(base, "#0e1216"),
+                 css(selected, "#1e4f68"), css(selectedText, "#ffffff"),
+                 css(palette.headerText, "#e8e8e8"), css(palette.headerBackground, "#1a2028"),
+                 css(palette.headerTopLeft, "#606060"), css(palette.headerBottomRight, "#303030"),
+                 css(palette.headerPressed, "#242c34")));
     update();
 }
 
 void LibraryWindow::setSkin(const skins::SkinSet* skin) {
     m_skin = skin;
-    setWindowShape(skin != nullptr ? skin->region : skins::Region{}, false, m_contentSize, 1);
+    // Classic `region.txt` shapes the main/EQ/playlist windows; a gen window is
+    // rectangular by construction (it has no region section), so applying that
+    // mask here would crop the library to the main window's silhouette.
+    setWindowShape(skins::Region{}, false, m_contentSize, 1);
+    const skins::Skin* sheets = skin != nullptr ? &skin->sheets : nullptr;
+    if (m_scan != nullptr) {
+        m_scan->setSkin(sheets);
+        m_refresh->setSkin(sheets);
+        m_saveView->setSkin(sheets);
+        m_treeVertical->setSkin(sheets);
+        m_treeHorizontal->setSkin(sheets);
+        m_tableVertical->setSkin(sheets);
+        m_tableHorizontal->setSkin(sheets);
+    }
     applySkinColors();
 }
 
@@ -360,6 +359,8 @@ void LibraryWindow::reloadViews() {
         QStringLiteral("recent"));
     add(QStringLiteral("Recently played"), QStringLiteral("lastplay > [2 weeks ago]"),
         QStringLiteral("played"));
+    add(QStringLiteral("Recently modified"), QStringLiteral("lastupd > [2 weeks ago]"),
+        QStringLiteral("modified"));
     add(QStringLiteral("Most played"), QStringLiteral("playcount > 0"), QStringLiteral("played"));
     add(QStringLiteral("Never played"), QStringLiteral("playcount = 0"), QStringLiteral("title"));
     add(QStringLiteral("Top rated"), QStringLiteral("rating > 0"), QStringLiteral("rating"));

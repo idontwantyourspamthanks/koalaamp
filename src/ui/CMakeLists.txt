@@ -19,6 +19,8 @@ add_library(koalaamp_ui STATIC
     EqState.hpp
     EqWindow.cpp
     EqWindow.hpp
+    GenexStyle.cpp
+    GenexStyle.hpp
     GoldenStates.cpp
     GoldenStates.hpp
     JumpToFileDialog.cpp

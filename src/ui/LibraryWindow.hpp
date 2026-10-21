@@ -33,6 +33,9 @@ class QTreeWidgetItem;
 
 namespace koalaamp::ui {
 
+class GenexButton;
+class GenexScrollBar;
+
 class LibraryWindow final : public SkinnedWindow {
     Q_OBJECT
 
@@ -91,11 +94,15 @@ private:
     QLineEdit* m_search = nullptr;
     QComboBox* m_genre = nullptr;
     QComboBox* m_year = nullptr;
-    QPushButton* m_scan = nullptr;
-    QPushButton* m_refresh = nullptr;
-    QPushButton* m_saveView = nullptr;
+    GenexButton* m_scan = nullptr;
+    GenexButton* m_refresh = nullptr;
+    GenexButton* m_saveView = nullptr;
     QTreeWidget* m_tree = nullptr;
     QTableWidget* m_table = nullptr;
+    GenexScrollBar* m_treeVertical = nullptr;
+    GenexScrollBar* m_treeHorizontal = nullptr;
+    GenexScrollBar* m_tableVertical = nullptr;
+    GenexScrollBar* m_tableHorizontal = nullptr;
     QLabel* m_status = nullptr;
 
     std::vector<library::Track> m_tracks;

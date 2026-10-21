@@ -296,6 +296,29 @@ inline constexpr std::array<SpriteDef, 22> kSpritesEQMAIN = {{
     {"EQ_PREAMP_LINE", {0, 314, 113, 1}},
 }};
 
+// --- GENEX.BMP ---
+// 130x75 reference atlas; coordinates from the archived Winamp skin tutorial
+// (winampskins.neocities.org/twonine) and verified against the corpus sheets.
+// The top button is 47x15 with a 4 px bevel; the scroll arrows are 14x14 in
+// two rows (up/down at y=31, left/right at y=45), and the sliders are 14x28
+// (vertical) / 28x14 (horizontal).
+inline constexpr std::array<SpriteDef, 14> kSpritesGENEX = {{
+    {"GENEX_BUTTON_ACTIVE", {0, 0, 47, 15}},
+    {"GENEX_BUTTON_PRESSED", {0, 15, 47, 15}},
+    {"GENEX_SCROLL_UP", {0, 31, 14, 14}},
+    {"GENEX_SCROLL_DOWN", {14, 31, 14, 14}},
+    {"GENEX_SCROLL_UP_PRESSED", {28, 31, 14, 14}},
+    {"GENEX_SCROLL_DOWN_PRESSED", {42, 31, 14, 14}},
+    {"GENEX_SCROLL_LEFT", {0, 45, 14, 14}},
+    {"GENEX_SCROLL_RIGHT", {14, 45, 14, 14}},
+    {"GENEX_SCROLL_LEFT_PRESSED", {28, 45, 14, 14}},
+    {"GENEX_SCROLL_RIGHT_PRESSED", {42, 45, 14, 14}},
+    {"GENEX_VSLIDER", {56, 31, 14, 28}},
+    {"GENEX_VSLIDER_PRESSED", {70, 31, 14, 28}},
+    {"GENEX_HSLIDER", {84, 31, 28, 14}},
+    {"GENEX_HSLIDER_PRESSED", {84, 45, 28, 14}},
+}};
+
 // --- PLEDIT.BMP ---
 inline constexpr std::array<SpriteDef, 60> kSpritesPLEDIT = {{
     {"PLAYLIST_TOP_TILE", {127, 21, 25, 20}},

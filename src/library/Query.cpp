@@ -59,7 +59,10 @@ const Field* fieldFor(std::string_view name) {
         {"lastplay", {"lastplayed", FieldKind::Date}},
         {"lastplayed", {"lastplayed", FieldKind::Date}},
         {"dateadded", {"dateadded", FieldKind::Date}},
-        {"lastupd", {"mtime", FieldKind::Date}},
+        // mtime is stored in nanoseconds (the scanner's change-detection stamp);
+        // the smart-view grammar and `lastupd` are Unix seconds, so the field
+        // maps to the scaled expression rather than the raw column.
+        {"lastupd", {"(mtime / 1000000000)", FieldKind::Date}},
     };
     const auto it = kFields.find(name);
     return it == kFields.end() ? nullptr : &it->second;
