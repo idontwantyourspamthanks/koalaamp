@@ -286,7 +286,8 @@ TEST_CASE("100k rows stay within the search latency budget") {
     // paying for 100k markPlayed() calls; the reference SQL below is written by
     // hand, not generated from Query.cpp.
     sqlite3* raw = nullptr;
-    REQUIRE(sqlite3_open_v2(dbPath.c_str(), &raw, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK);
+    REQUIRE(sqlite3_open_v2(dbPath.string().c_str(), &raw, SQLITE_OPEN_READWRITE, nullptr) ==
+            SQLITE_OK);
     const std::string update = "UPDATE tracks SET rating = (rowid % 6), playcount = (rowid % 7), "
                                "dateadded = " +
                                std::to_string(now) +
