@@ -13,7 +13,17 @@
 //
 // Widget cases need a platform plugin; run under QT_QPA_PLATFORM=offscreen
 // (like SE-2/SE-3/SE-5).
+#include "audio/DspPipeline.hpp"
+#include "skins/SkinSet.hpp"
+
+#include <QAction>
+#include <QApplication>
+#include <QImage>
+#include <QMenu>
 #include <atomic>
+#include <catch2/catch_approx.hpp>
+#include <catch2/catch_session.hpp>
+#include <catch2/catch_test_macros.hpp>
 #include <chrono>
 #include <cmath>
 #include <cstddef>
@@ -24,16 +34,6 @@
 #include <thread>
 #include <vector>
 
-#include <QApplication>
-#include <QImage>
-
-#include <catch2/catch_approx.hpp>
-#include <catch2/catch_test_macros.hpp>
-#include <catch2/catch_session.hpp>
-
-#include "audio/DspPipeline.hpp"
-#include "skins/SkinSet.hpp"
-
 #ifdef KOALAAMP_SE4_HAS_CORE
 #include "playback/PlaybackCore.hpp"
 #endif
@@ -43,6 +43,7 @@
 #include "ui/EqWindow.hpp"
 #include "ui/MainWindow.hpp"
 #include "ui/PlaylistWindow.hpp"
+#include "ui/TrayIcon.hpp"
 #include "ui/VisFeed.hpp"
 #include "ui/WindowPlatform.hpp"
 #include "ui/WindowSet.hpp"
@@ -59,9 +60,8 @@ constexpr int kBlock = 1024;
 std::vector<float> sine(int samples, double hz, long startIndex = 0) {
     std::vector<float> out(static_cast<std::size_t>(samples));
     for (int i = 0; i < samples; ++i) {
-        out[static_cast<std::size_t>(i)] = static_cast<float>(
-            std::sin(2.0 * std::numbers::pi * hz / kSampleRate *
-                     static_cast<double>(startIndex + i)));
+        out[static_cast<std::size_t>(i)] = static_cast<float>(std::sin(
+            2.0 * std::numbers::pi * hz / kSampleRate * static_cast<double>(startIndex + i)));
     }
     return out;
 }
@@ -79,8 +79,7 @@ double rms(const std::vector<float>& values) {
 
 #ifdef KOALAAMP_SE4_HAS_CORE
 /// Minimal 16-bit stereo PCM WAV the core can decode (engineering-loud sine).
-void writeSineWav(const std::filesystem::path& path, double hz, unsigned rate,
-                  double seconds) {
+void writeSineWav(const std::filesystem::path& path, double hz, unsigned rate, double seconds) {
     std::vector<std::int16_t> pcm;
     const auto frames = static_cast<unsigned>(rate * seconds);
     for (unsigned i = 0; i < frames; ++i) {
@@ -109,7 +108,7 @@ void writeSineWav(const std::filesystem::path& path, double hz, unsigned rate,
 }
 #endif
 
-}  // namespace
+} // namespace
 
 TEST_CASE("SE-4 launch requests XWayland only on a Wayland session", "[se4][platform]") {
     using ui::LaunchPlatform;
@@ -125,8 +124,7 @@ TEST_CASE("SE-4 launch requests XWayland only on a Wayland session", "[se4][plat
           LaunchPlatform::KeepCurrent);
     // X11 / headless pass through.
     CHECK(ui::launchPlatformPreference("", nullptr, "x11") == LaunchPlatform::KeepCurrent);
-    CHECK(ui::launchPlatformPreference(nullptr, nullptr, nullptr) ==
-          LaunchPlatform::KeepCurrent);
+    CHECK(ui::launchPlatformPreference(nullptr, nullptr, nullptr) == LaunchPlatform::KeepCurrent);
 }
 
 TEST_CASE("SE-4 window set routes the EQ and playlist toggles", "[se4][assembly]") {
@@ -185,8 +183,8 @@ TEST_CASE("SE-4 an EQ slider reaches the DSP output within one block", "[se4][ds
     REQUIRE(sink.eqSettings().enabled);
 
     std::vector<float> tap;
-    auto chain = dsp.makeCallback(
-        [&tap](const float* p, std::size_t frames, const playback::PcmFormat&) {
+    auto chain =
+        dsp.makeCallback([&tap](const float* p, std::size_t frames, const playback::PcmFormat&) {
             tap.assign(p, p + frames);
         });
 
@@ -260,8 +258,8 @@ TEST_CASE("SE-4 EQ OFF leaves the stage (RG/limiter) running", "[se4][dsp][regre
     block = sine(kBlock, 1000.0, 0);
     dsp.process(block.data(), block.size(), kSampleRate, 1);
     const float withEqOff = rms(block);
-    CHECK(dsp.settings().enabled);          // the stage survived the toggle
-    CHECK(withEqOff == Catch::Approx(withEqOn).epsilon(0.02));  // RG held
+    CHECK(dsp.settings().enabled);                             // the stage survived the toggle
+    CHECK(withEqOff == Catch::Approx(withEqOn).epsilon(0.02)); // RG held
 }
 
 TEST_CASE("SE-4 the DSP is installed ahead of the vis feed", "[se4][dsp][chain]") {
@@ -278,7 +276,7 @@ TEST_CASE("SE-4 the DSP is installed ahead of the vis feed", "[se4][dsp][chain]"
     // channels for 1024 frames — an out-of-bounds read (observed as an
     // intermittent Windows SIGSEGV in this test).
     constexpr std::size_t kChainFrames = kBlock / 2;
-    std::vector<float> block(kChainFrames * 2, 0.25f);  // interleaved stereo
+    std::vector<float> block(kChainFrames * 2, 0.25f); // interleaved stereo
     chain(block.data(), kChainFrames, playback::PcmFormat{44100, 2});
 
     CHECK(feed.sampleRate() == 44100);
@@ -288,10 +286,10 @@ TEST_CASE("SE-4 the DSP is installed ahead of the vis feed", "[se4][dsp][chain]"
 #ifdef KOALAAMP_SE4_HAS_CORE
 TEST_CASE("SE-4 the app chain reaches the core seam without native EQ", "[se4][dsp][seam]") {
     namespace fs = std::filesystem;
-    const fs::path wav = fs::temp_directory_path() /
-                         ("koalaamp_se4_" +
-                          std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) +
-                          ".wav");
+    const fs::path wav =
+        fs::temp_directory_path() /
+        ("koalaamp_se4_" +
+         std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()) + ".wav");
     writeSineWav(wav, 1000.0, 48000, 4.0);
 
     playback::PlaybackConfig config;
@@ -333,8 +331,8 @@ TEST_CASE("SE-4 the app chain reaches the core seam without native EQ", "[se4][d
 
     CHECK(dsp.stats().processedBlocks > 0);
     CHECK(dsp.stats().frames > 0);
-    CHECK(feed.sampleRate() == 48000);  // PCM reached the feed through the chain
-    CHECK_FALSE(core.metrics().nativeEqEnabled);  // spec §3.1 EQ rule
+    CHECK(feed.sampleRate() == 48000);           // PCM reached the feed through the chain
+    CHECK_FALSE(core.metrics().nativeEqEnabled); // spec §3.1 EQ rule
     core.stop();
     std::error_code ec;
     fs::remove(wav, ec);
@@ -372,4 +370,30 @@ TEST_CASE("SE-4 all three windows render with a skin offscreen", "[se4][assembly
 int main(int argc, char** argv) {
     QApplication app(argc, argv);
     return Catch::Session().run(argc, argv);
+}
+
+TEST_CASE("SE-4 tray toggles the classic window set") {
+    ui::MainWindow mainWindow;
+    ui::EqWindow equalizer;
+    ui::PlaylistWindow playlist;
+    ui::WindowSet set(mainWindow, equalizer, playlist);
+    set.attach();
+    set.showAll();
+    QApplication::processEvents();
+
+    ui::TrayIcon tray(set);
+    QMenu* menu = tray.menu();
+    REQUIRE(menu != nullptr);
+    QAction* hide = nullptr;
+    for (QAction* action : menu->actions()) {
+        if (action->text() == QStringLiteral("Hide windows")) {
+            hide = action;
+        }
+    }
+    REQUIRE(hide != nullptr);
+    CHECK(set.anyVisible());
+    hide->trigger();
+    CHECK_FALSE(set.anyVisible());
+    hide->trigger();
+    CHECK(set.anyVisible());
 }

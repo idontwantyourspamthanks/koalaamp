@@ -1,24 +1,27 @@
 // SPDX-License-Identifier: MIT
 #include "ui/WindowSet.hpp"
 
-#include <algorithm>
-#include <cmath>
-#include <utility>
+#include "ui/PleditState.hpp"
 
 #include <QGuiApplication>
 #include <QScreen>
-
-#include "ui/PleditState.hpp"
+#include <algorithm>
+#include <cmath>
+#include <utility>
 
 namespace koalaamp::ui {
 
 namespace {
 
 /// Inclusive rect edges for adjacency/snap maths.
-int right(const QRect& r) { return r.x() + r.width(); }
-int bottom(const QRect& r) { return r.y() + r.height(); }
+int right(const QRect& r) {
+    return r.x() + r.width();
+}
+int bottom(const QRect& r) {
+    return r.y() + r.height();
+}
 
-}  // namespace
+} // namespace
 
 WindowSet::WindowSet(MainWindow& main, EqWindow& equalizer, PlaylistWindow& playlist,
                      QObject* parent)
@@ -71,6 +74,27 @@ void WindowSet::showAll() {
     recomputeDockGroups();
 }
 
+void WindowSet::setVisible(bool visible) {
+    for (int i = 0; i < kWindowCount; ++i) {
+        setWindowVisible(idAt(i), visible);
+    }
+    if (visible) {
+        for (int i = 0; i < kWindowCount; ++i) {
+            m_lastPos[static_cast<std::size_t>(i)] = widget(idAt(i))->pos();
+        }
+    }
+    recomputeDockGroups();
+}
+
+bool WindowSet::anyVisible() const {
+    for (bool visible : m_visible) {
+        if (visible) {
+            return true;
+        }
+    }
+    return false;
+}
+
 QRect WindowSet::applyDefaultArrangement() {
     const QSize mainSize = widget(WindowId::Main)->size();
     const QSize eqSize = widget(WindowId::Eq)->size();
@@ -112,11 +136,13 @@ QRect WindowSet::applyDefaultArrangement() {
     for (int i = 0; i < kWindowCount; ++i) {
         m_lastPos[static_cast<std::size_t>(i)] = widget(idAt(i))->pos();
     }
-    recomputeDockGroups();  // flush-adjacent, so the first drag carries the set
+    recomputeDockGroups(); // flush-adjacent, so the first drag carries the set
     return QRect(origin, QSize(totalW, totalH));
 }
 
-SkinnedWindow* WindowSet::window(WindowId id) const { return widget(id); }
+SkinnedWindow* WindowSet::window(WindowId id) const {
+    return widget(id);
+}
 
 // ---------------------------------------------------------------------------
 // Dock groups / snapping
@@ -133,23 +159,23 @@ int WindowSet::indexOf(const SkinnedWindow* window) const {
 
 WindowSet::WindowId WindowSet::idAt(int index) {
     switch (index) {
-        case 0:
-            return WindowId::Main;
-        case 1:
-            return WindowId::Eq;
-        default:
-            return WindowId::Playlist;
+    case 0:
+        return WindowId::Main;
+    case 1:
+        return WindowId::Eq;
+    default:
+        return WindowId::Playlist;
     }
 }
 
 SkinnedWindow* WindowSet::widget(WindowId id) const {
     switch (id) {
-        case WindowId::Main:
-            return const_cast<MainWindow*>(&m_main);
-        case WindowId::Eq:
-            return const_cast<EqWindow*>(&m_eq);
-        case WindowId::Playlist:
-            return const_cast<PlaylistWindow*>(&m_playlist);
+    case WindowId::Main:
+        return const_cast<MainWindow*>(&m_main);
+    case WindowId::Eq:
+        return const_cast<EqWindow*>(&m_eq);
+    case WindowId::Playlist:
+        return const_cast<PlaylistWindow*>(&m_playlist);
     }
     return nullptr;
 }
@@ -233,7 +259,9 @@ std::vector<WindowSet::WindowId> WindowSet::dockGroup(WindowId id) const {
     return {id};
 }
 
-std::vector<std::vector<WindowSet::WindowId>> WindowSet::dockGroups() const { return m_groups; }
+std::vector<std::vector<WindowSet::WindowId>> WindowSet::dockGroups() const {
+    return m_groups;
+}
 
 bool WindowSet::docked(WindowId a, WindowId b) const {
     if (a == b) {
@@ -243,7 +271,9 @@ bool WindowSet::docked(WindowId a, WindowId b) const {
     return std::find(group.begin(), group.end(), b) != group.end();
 }
 
-void WindowSet::setSnapTolerance(int px) { m_snapTolerance = std::max(0, px); }
+void WindowSet::setSnapTolerance(int px) {
+    m_snapTolerance = std::max(0, px);
+}
 
 void WindowSet::setScale(int scale) {
     m_main.setScale(scale);
@@ -318,8 +348,7 @@ QPoint WindowSet::snapAdjustmentFor(const QRect& r, const std::vector<QRect>& si
     int bestAbsX = m_snapTolerance + 1;
     int bestAbsY = m_snapTolerance + 1;
     for (const QRect& s : siblings) {
-        const int xTargets[4] = {s.x(), s.x() + s.width() - r.width(), s.x() - r.width(),
-                                 right(s)};
+        const int xTargets[4] = {s.x(), s.x() + s.width() - r.width(), s.x() - r.width(), right(s)};
         for (const int target : xTargets) {
             const int d = target - r.x();
             const int ad = std::abs(d);
@@ -507,4 +536,4 @@ bool WindowSet::eventFilter(QObject* watched, QEvent* event) {
     return false;
 }
 
-}  // namespace koalaamp::ui
+} // namespace koalaamp::ui

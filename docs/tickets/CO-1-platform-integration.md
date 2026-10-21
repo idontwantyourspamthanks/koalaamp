@@ -1,7 +1,7 @@
 # CO-1 · Platform integration pass 1
 
 - **Milestone:** M2 · **Est:** 4d · **Depends:** SE-3
-- **Status:** in-progress — CLI + single-instance slice landed; tray, hotkeys and file associations next
+- **Status:** in-progress — CLI, single-instance and tray landed; hotkeys and file associations next
 
 ## Story
 A launch that already has KoalaAmp running should not produce a second player. Files and
@@ -20,8 +20,10 @@ association verbs.
 - [x] Tests: a second `SingleInstance` forwards, a primary receives, and a failed forward becomes
   primary. — `tests/single_instance_test.cpp`; smoke: `koalaamp --enqueue <file>` against a running
   `--null-audio` instance exits 0 and raises the playlist.
-- [ ] `QSystemTrayIcon`: transport actions (play/pause, next, previous), show/hide the window set,
-  and exit; no second tray icon from a forwarded launch (the forwarder exits before creating UI).
+- [x] `QSystemTrayIcon`: transport actions (play/pause, next, previous), show/hide the window set,
+  and exit; no second tray icon from a forwarded launch (the forwarder exits before creating UI). —
+  `src/ui/TrayIcon.{hpp,cpp}`; `WindowSet::setVisible/anyVisible`; `se4_part_a_test` covers the
+  hide/show action. `--self-test` skips the tray entirely.
 - [ ] Global hotkeys: platform registration for the `gen_hotkeys` default set, with the preferences
   surface deferred to PC-1. Must work while the player is unfocused and unregister cleanly.
 - [ ] File associations: Windows registry, macOS `Info.plist` document types, Linux `.desktop`

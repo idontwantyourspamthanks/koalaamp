@@ -24,6 +24,7 @@
 #include "ui/MigrationDialog.hpp"
 #include "ui/PlaylistWindow.hpp"
 #include "ui/ServerBrowserWindow.hpp"
+#include "ui/TrayIcon.hpp"
 #include "ui/WindowPlatform.hpp"
 #include "ui/WindowSet.hpp"
 
@@ -1394,6 +1395,17 @@ int main(int argc, char** argv) {
                 std::fprintf(stderr, "koalaamp: could not save skin DB to '%s'\n", dbPath.c_str());
             }
         });
+    }
+
+    // CO-1: the primary process owns the tray. A forwarded launch returns above,
+    // before this point, so it can never create a second icon.
+    std::unique_ptr<koalaamp::ui::TrayIcon> tray;
+    if (!parser.isSet(selfTestOption)) {
+        tray = std::make_unique<koalaamp::ui::TrayIcon>(windowSet, &app);
+#ifdef KOALAAMP_HAS_PLAYBACK_CORE
+        tray->setTransport(transport.get());
+#endif
+        tray->show();
     }
 
     if (parser.isSet(selfTestOption)) {

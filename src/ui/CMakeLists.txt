@@ -61,6 +61,8 @@ add_library(koalaamp_ui STATIC
     StereoPcmRing.hpp
     TitleText.cpp
     TitleText.hpp
+    TrayIcon.cpp
+    TrayIcon.hpp
     Transport.hpp
     VisData.cpp
     VisData.hpp

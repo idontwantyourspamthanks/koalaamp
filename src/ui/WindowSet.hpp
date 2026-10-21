@@ -23,20 +23,19 @@
 // `skins::SkinDb`'s per-skin `SkinLayoutState` (exact restore on launch).
 #pragma once
 
-#include <array>
-#include <filesystem>
-#include <vector>
-
-#include <QEvent>
-#include <QObject>
-#include <QPoint>
-#include <QRect>
-
 #include "skins/SkinDb.hpp"
 #include "ui/EqWindow.hpp"
 #include "ui/MainWindow.hpp"
 #include "ui/PlaylistWindow.hpp"
 #include "ui/SkinnedWindow.hpp"
+
+#include <QEvent>
+#include <QObject>
+#include <QPoint>
+#include <QRect>
+#include <array>
+#include <filesystem>
+#include <vector>
 
 namespace koalaamp::ui {
 
@@ -64,6 +63,10 @@ public:
 
     /// Shows the whole set (all three windows). Winamp opens them all.
     void showAll();
+    /// Shows or hides the classic three together (tray menu / global verbs).
+    void setVisible(bool visible);
+    /// True when any classic window is currently intended visible.
+    bool anyVisible() const;
 
     /// Places the set in the classic arrangement — the EQ flush against the
     /// player's right edge, the playlist flush beneath it — centred on the
@@ -186,4 +189,4 @@ private:
     std::array<QPoint, kWindowCount> m_lastPos{};
 };
 
-}  // namespace koalaamp::ui
+} // namespace koalaamp::ui
