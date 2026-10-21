@@ -90,6 +90,24 @@ jobs:
       # inherit it, independent of per-test ENVIRONMENT quirks.
       - name: Headless Qt platform
         run: echo "QT_QPA_PLATFORM=offscreen" >> "$GITHUB_ENV"
+
+      # Catch2 discovers tests by executing them during the build. On Windows a
+      # vcpkg DLL (libcurl/zlib/tag) next to the build outputs is not on the
+      # loader path unless it is beside the exe; stage them before Build runs.
+      - name: Stage vcpkg runtime DLLs (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $dirs = @(
+            "build/windows-msvc/RelWithDebInfo",
+            "build/windows-msvc/tests/RelWithDebInfo",
+            "build/windows-msvc/src/RelWithDebInfo",
+            "build/windows-msvc/src/servers/jellyfin/RelWithDebInfo"
+          )
+          foreach ($dir in $dirs) {
+            New-Item -ItemType Directory -Force -Path $dir | Out-Null
+            Copy-Item "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/*.dll" $dir -Force
+          }
       - name: Configure
         run: cmake --preset ${{ matrix.preset }}
       - name: Build

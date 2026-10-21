@@ -23,6 +23,7 @@
 #include <filesystem>
 #include <fstream>
 #include <map>
+#include <mutex>
 #include <nlohmann/json.hpp>
 #include <sstream>
 #include <string>
