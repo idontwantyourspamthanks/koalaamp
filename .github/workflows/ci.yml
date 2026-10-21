@@ -104,9 +104,17 @@ jobs:
             "build/windows-msvc/src/RelWithDebInfo",
             "build/windows-msvc/src/servers/jellyfin/RelWithDebInfo"
           )
+          $sources = @(
+            "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/*.dll",
+            "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/debug/bin/*.dll"
+          )
           foreach ($dir in $dirs) {
             New-Item -ItemType Directory -Force -Path $dir | Out-Null
-            Copy-Item "$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows/bin/*.dll" $dir -Force
+            foreach ($source in $sources) {
+              if (Test-Path $source) {
+                Copy-Item $source $dir -Force
+              }
+            }
           }
       - name: Configure
         run: cmake --preset ${{ matrix.preset }}
