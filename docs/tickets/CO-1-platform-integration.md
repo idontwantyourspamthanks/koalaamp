@@ -1,7 +1,7 @@
 # CO-1 · Platform integration pass 1
 
 - **Milestone:** M2 · **Est:** 4d · **Depends:** SE-3
-- **Status:** in-review — CLI, single-instance, tray, hotkeys and associations landed; Windows live registry smoke remains
+- **Status:** in-review — code complete; Windows HKCU round-trip and Linux registration smoke pass; macOS association is the packaging plist and live hotkey registration remains a desktop check
 
 ## Story
 A launch that already has KoalaAmp running should not produce a second player. Files and
@@ -38,7 +38,7 @@ association verbs.
 - [ ] Acceptance evidence on all three OSes; Windows/macOS are not e2e until file association is
   installed, so keep the headless unit/smoke path green. Linux registration/unregistration is
   smoke-tested with temporary `XDG_CONFIG_HOME`/`XDG_DATA_HOME`; macOS plist is validated with
-  `plistlib`, Windows registry writes remain for a Windows smoke run.
+  `plistlib`; Windows HKCU registration/unregistration is a CI test (`file_associations_tests`).
 
 ## Acceptance / Definition of Done
 - `single_instance_tests` passes on Linux, macOS and Windows.
