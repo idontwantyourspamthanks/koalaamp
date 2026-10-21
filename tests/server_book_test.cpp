@@ -26,7 +26,8 @@ using koalaamp::servers::sessionSecretKey;
 
 fs::path freshDir() {
     const auto dir = fs::temp_directory_path() / "koalaamp-server-book-test";
-    fs::remove_all(dir);
+    std::error_code cleanup;
+    fs::remove_all(dir, cleanup);
     fs::create_directories(dir);
     return dir;
 }
@@ -64,7 +65,8 @@ TEST_CASE("a saved server book round-trips, active included") {
     REQUIRE(reloaded.active() != nullptr);
     CHECK(reloaded.active()->serverId == "s1");
 
-    fs::remove_all(dir);
+    std::error_code cleanup;
+    fs::remove_all(dir, cleanup);
 }
 
 TEST_CASE("upsert replaces by server id and makes the entry active") {
@@ -82,7 +84,8 @@ TEST_CASE("upsert replaces by server id and makes the entry active") {
     REQUIRE(book.active() != nullptr);
     CHECK(book.active()->serverId == "s1");
 
-    fs::remove_all(dir);
+    std::error_code cleanup;
+    fs::remove_all(dir, cleanup);
 }
 
 TEST_CASE("removing the active server clears the selection") {
@@ -96,7 +99,8 @@ TEST_CASE("removing the active server clears the selection") {
     CHECK_FALSE(book.remove("s1"));
     CHECK_FALSE(book.setActive("s1"));
 
-    fs::remove_all(dir);
+    std::error_code cleanup;
+    fs::remove_all(dir, cleanup);
 }
 
 TEST_CASE("a malformed book loads empty and reports why") {
@@ -113,7 +117,8 @@ TEST_CASE("a malformed book loads empty and reports why") {
     CHECK(book.active() == nullptr);
     CHECK_FALSE(book.lastError().empty());
 
-    fs::remove_all(dir);
+    std::error_code cleanup;
+    fs::remove_all(dir, cleanup);
 }
 
 TEST_CASE("a Plex entry restores the Plex backend from its own key slot") {
@@ -148,7 +153,8 @@ TEST_CASE("a Plex entry restores the Plex backend from its own key slot") {
     forgetSession(secrets, ServerBackend::Plex, "ps1", restored->baseUrl);
     CHECK_FALSE(restoreSession(book, secrets).has_value());
 
-    fs::remove_all(dir);
+    std::error_code cleanup;
+    fs::remove_all(dir, cleanup);
 }
 
 TEST_CASE("the store never writes credentials") {
@@ -166,7 +172,8 @@ TEST_CASE("the store never writes credentials") {
     CHECK(text.find("password") == std::string::npos);
     CHECK(text.find("\"Pw\"") == std::string::npos);
 
-    fs::remove_all(dir);
+    std::error_code cleanup;
+    fs::remove_all(dir, cleanup);
 }
 
 TEST_CASE("a keychain token restores the active server and a forget drops it") {
@@ -197,5 +204,6 @@ TEST_CASE("a keychain token restores the active server and a forget drops it") {
     forgetSession(secrets, ServerBackend::Jellyfin, "s1", restored->baseUrl);
     CHECK_FALSE(restoreSession(book, secrets).has_value());
 
-    fs::remove_all(dir);
+    std::error_code cleanup;
+    fs::remove_all(dir, cleanup);
 }
