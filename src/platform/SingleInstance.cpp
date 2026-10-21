@@ -16,13 +16,7 @@ namespace koalaamp::platform {
 SingleInstance::SingleInstance(QString name, QObject* parent)
     : QObject(parent), m_name(std::move(name)) {}
 
-SingleInstance::~SingleInstance() {
-    if (m_primary) {
-        // Leave the stale socket for the next launch's connect-fail path; some
-        // Qt platforms crash when removeServer() runs during teardown.
-        m_server.close();
-    }
-}
+SingleInstance::~SingleInstance() = default;
 
 bool SingleInstance::tryForward(const QStringList& args, int timeoutMs) {
     QLocalSocket socket;
