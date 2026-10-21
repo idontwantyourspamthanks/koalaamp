@@ -3,9 +3,13 @@
 
 #include "platform/SingleInstance.hpp"
 
+#include <QCoreApplication>
+#include <QElapsedTimer>
+#include <QEventLoop>
 #include <QJsonArray>
 #include <QJsonDocument>
 #include <QLocalSocket>
+#include <QThread>
 
 namespace koalaamp::platform {
 
@@ -22,9 +26,21 @@ SingleInstance::~SingleInstance() {
 bool SingleInstance::tryForward(const QStringList& args, int timeoutMs) {
     QLocalSocket socket;
     socket.connectToServer(m_name);
-    if (!socket.waitForConnected(timeoutMs)) {
+
+    // Pump events while connecting: a same-process primary accepts on its own
+    // event loop, and Windows named-pipe servers need that loop to service the
+    // connection. A real secondary has no primary event loop to service, so
+    // this is also harmless there.
+    QElapsedTimer timer;
+    timer.start();
+    while (socket.state() == QLocalSocket::ConnectingState && timer.elapsed() < timeoutMs) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+        QThread::msleep(1);
+    }
+    if (socket.state() != QLocalSocket::ConnectedState) {
         return false;
     }
+
     QJsonArray array;
     for (const QString& arg : args) {
         array.append(arg);
@@ -32,7 +48,11 @@ bool SingleInstance::tryForward(const QStringList& args, int timeoutMs) {
     const QByteArray payload =
         QJsonDocument(array).toJson(QJsonDocument::Compact) + QByteArrayLiteral("\n");
     socket.write(payload);
-    const bool sent = socket.waitForBytesWritten(timeoutMs);
+    while (socket.bytesToWrite() > 0 && timer.elapsed() < timeoutMs) {
+        QCoreApplication::processEvents(QEventLoop::AllEvents, 10);
+        QThread::msleep(1);
+    }
+    const bool sent = socket.bytesToWrite() == 0;
     socket.disconnectFromServer();
     return sent;
 }

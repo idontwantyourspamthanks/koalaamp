@@ -29,7 +29,7 @@ public:
 
     /// Tries to forward `args` to an existing instance first. If none answers,
     /// becomes the primary and listens for later launches.
-    Role start(const QStringList& args = {}, int timeoutMs = 1500);
+    Role start(const QStringList& args = {}, int timeoutMs = 500);
 
     const QString& name() const { return m_name; }
     bool isListening() const { return m_server.isListening(); }
