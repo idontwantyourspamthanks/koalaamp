@@ -36,8 +36,9 @@ using koalaamp::ui::ConnectionDialog;
 
 fs::path freshDir() {
     const auto dir = fs::temp_directory_path() / "koalaamp-connection-dialog-test";
-    fs::remove_all(dir);
-    fs::create_directories(dir);
+    std::error_code cleanup;
+    fs::remove_all(dir, cleanup);
+    fs::create_directories(dir, cleanup);
     return dir;
 }
 
@@ -95,7 +96,8 @@ TEST_CASE("signing in records the server and keeps the token in memory") {
     CHECK(book.entries().empty());
     CHECK(book.active() == nullptr);
 
-    fs::remove_all(dir);
+    std::error_code cleanup;
+    fs::remove_all(dir, cleanup);
 }
 
 TEST_CASE("a scheme-less server URL is treated as http") {
@@ -115,7 +117,8 @@ TEST_CASE("a scheme-less server URL is treated as http") {
     REQUIRE(book.entries().size() == 1);
     CHECK(book.entries().front().baseUrl == "http://jellyfin.local:8096");
 
-    fs::remove_all(dir);
+    std::error_code cleanup;
+    fs::remove_all(dir, cleanup);
 }
 
 TEST_CASE("the gen close box closes the dialog") {
@@ -139,7 +142,8 @@ TEST_CASE("the gen close box closes the dialog") {
     QApplication::sendEvent(&dialog, &release);
 
     CHECK_FALSE(dialog.isVisible());
-    fs::remove_all(dir);
+    std::error_code cleanup;
+    fs::remove_all(dir, cleanup);
 }
 
 TEST_CASE("a sign-in is restored from the secret store on the next dialog") {
@@ -182,7 +186,8 @@ TEST_CASE("a sign-in is restored from the secret store on the next dialog") {
     CHECK_FALSE(
         secrets.load(sessionSecretKey(ServerBackend::Jellyfin, serverId, baseUrl)).has_value());
 
-    fs::remove_all(dir);
+    std::error_code cleanup;
+    fs::remove_all(dir, cleanup);
 }
 
 int main(int argc, char** argv) {

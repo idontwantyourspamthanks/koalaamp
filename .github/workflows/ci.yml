@@ -69,7 +69,7 @@ jobs:
       - name: Install libcurl + zlib (Windows, vcpkg)
         if: runner.os == 'Windows'
         run: |
-          vcpkg install curl:x64-windows zlib:x64-windows taglib:x64-windows sqlite3:x64-windows
+          vcpkg install curl:x64-windows zlib:x64-windows taglib:x64-windows sqlite3[core,json1,fts5]:x64-windows
           echo "CMAKE_PREFIX_PATH=$env:VCPKG_INSTALLATION_ROOT/installed/x64-windows" >> $env:GITHUB_ENV
           # vcpkg dynamic triplet: runtime DLLs (zlib1.dll, libcurl.dll) live in
           # installed/x64-windows/bin; put them on PATH for build-time test

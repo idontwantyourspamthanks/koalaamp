@@ -26,8 +26,9 @@ struct Fixture {
 
     Fixture() {
         dir = fs::temp_directory_path() / "koalaamp-migration-dialog-test";
-        fs::remove_all(dir);
-        fs::create_directories(dir);
+        std::error_code cleanup;
+        fs::remove_all(dir, cleanup);
+        fs::create_directories(dir, cleanup);
         std::ofstream(dir / "winamp.ini") << "[Winamp]\nconfig_volume=180\n";
         std::ofstream(dir / "winamp.m3u") << "#EXTM3U\n" << (dir / "track.flac").string() << "\n";
         std::ofstream(dir / "winamp.bm") << "Bookmarked|/music/bookmark.flac\n";
