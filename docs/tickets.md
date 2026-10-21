@@ -26,6 +26,7 @@
 | SC-1 scrobbling | `tickets/SC-1-scrobbling.md` |
 | VZ-1 visualizer window | `tickets/VZ-1-visualizer.md` |
 | MI-1 migration wizard | `tickets/MI-1-migration.md` |
+| CO-1 platform integration | `tickets/CO-1-platform-integration.md` |
 | SV-1 Jellyfin port | `tickets/SV-1-jellyfin-port.md` |
 | SV-2 Jellyfin playback | `tickets/SV-2-jellyfin-playback.md` |
 | SV-3 Plex client | `tickets/SV-3-plex-client.md` |
@@ -153,7 +154,7 @@
 - **Acceptance:** 500-preset nightly: no crash/hang (10s timeout), ≥ 55fps p95 at 1080p on GTX1050-class; switch < 300ms; 3 OSes.
 - **Depends:** FE-14, FE-4
 
-### CO-1 · Platform integration pass 1 — *4d*
+### CO-1 · Platform integration pass 1 — *4d* — **in-progress** ([brief](tickets/CO-1-platform-integration.md))
 - **Tasks:** QSystemTrayIcon menu; global hotkeys (QHotkey/platform registration) with gen_hotkeys default set + conf UI; file assoc + enqueue/play verbs (registry/plist/desktop); single-instance local-socket IPC; CLI args.
 - **Acceptance:** double-click file enqueues into running instance on all OSes; hotkeys work unfocused; second launch focuses existing.
 - **Depends:** SE-3

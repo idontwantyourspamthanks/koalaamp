@@ -1,6 +1,6 @@
 # MI-1 · Winamp migration wizard
 
-- **Milestone:** M2 · **Est:** 4d · **Depends:** LI-3, AU-1, PL-1 · **Status:** in-progress — code complete for the import surface; real-donation fixture + ASAN gate pending
+- **Milestone:** M2 · **Est:** 4d · **Depends:** LI-3, AU-1, PL-1 · **Status:** in-review — import surface and ASAN fuzz gate complete; real-donation fixture pending
 
 ## Story
 The on-ramp for the exact user this product is for: someone with 15 years of Winamp state. One wizard reads their real `%APPDATA%\Winamp` — playlists, the NDE media-library database (ratings, playcounts, last-played, ReplayGain), EQ presets, bookmarks, preferences — and merges it into our library idempotently, with a report of what didn't match.
@@ -23,7 +23,7 @@ The on-ramp for the exact user this product is for: someone with 15 years of Win
 - Idempotent: second run changes nothing (row counts + fields identical).
 - Unmatched rate < 5% on the clean sample; every unmatched path appears in the report.
 - `winamp.q1` presets appear in SE-5's preset panel; `winamp.bm` bookmarks load.
-- ASAN clean over the NDE reader running the fuzz corpus (truncated/malformed `.dat`/`.idx`).
+- [x] ASAN clean over the NDE reader running the fuzz corpus (truncated/malformed `.dat`/`.idx`). — `migration_fuzz_tests` (300 mutated NDE/bookmark rounds, 1500 assertions) passes under `-fsanitize=address,undefined` with leak detection; normal ctest covers the same binary.
 
 ## Implementation notes (2026-10-20)
 `migration/NDE` is a read-only `NDETABLE`/`NDEINDEX` parser: signature checks,
@@ -58,6 +58,8 @@ name (with ml_local ids as fallback), and key `play_history` on
 a History node over `LibraryDb::history()`. Live playback appends `source=local`
 on `markPlayed`, and startup backfills one event per existing `lastplayed` row
 so a library that predates the event log is not empty.
+
+`tests/migration_fuzz_test.cpp` is the dedicated ASAN/UBSAN target: 300 deterministic mutations of NDE data/index and bookmark text, bounded output, no crash/over-read; local ASAN+UBSAN run green.
 
 The documented field acceptance still needs a real donation fixture; the
 generated fixture covers all documented scalar types, history columns, UTF-16

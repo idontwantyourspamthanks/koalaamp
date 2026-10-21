@@ -17,7 +17,7 @@ and adapted with attribution in the file header, not linked.
 
 | Dependency | Version | License | Link mode | Source |
 |---|---|---|---|---|
-| Qt | 6.12.0 (CI Linux/macOS; Core/Gui/Widgets/OpenGL) · 6.10.3 (CI Windows) · 6.10.2 (local dev) | LGPL-3.0-only | dynamic | https://code.qt.io/cgit/qt/ |
+| Qt | 6.12.0 (CI Linux/macOS; Core/Gui/Widgets/OpenGL/Network) · 6.10.3 (CI Windows) · 6.10.2 (local dev) | LGPL-3.0-only | dynamic | https://code.qt.io/cgit/qt/ |
 | libvlc | 3.0.x | LGPL-2.1-or-later | dynamic | https://code.videolan.org/videolan/vlc |
 | TagLib | 2.3.2 | LGPL-2.1-or-later OR MPL-2.0 | dynamic | https://github.com/taglib/taglib |
 | projectM | 4.2.0-dev (master @ 349b7cc2; 4.1.8 lacks the FBO API QOpenGLWidget needs) | LGPL-2.1-or-later | dynamic | https://github.com/projectM-visualizer/projectm |
@@ -102,7 +102,7 @@ and adapted with attribution in the file header, not linked.
   quirk corpus (`scripts/fetch-corpus.sh`, MD5-pinned, per-skin provenance in
   `docs/tickets/SE-1-wsz-loader.md`) likewise lands only in gitignored
   `third_party/skins-corpus/` — each skin remains its author's copyright.
-- Qt modules used: QtCore, QtGui, QtWidgets, QtOpenGL, QtOpenGLWidgets, QtTest. QML and the
+- Qt modules used: QtCore, QtGui, QtWidgets, QtOpenGL, QtOpenGLWidgets, QtNetwork, QtTest. QML and the
   copyleft-only Qt modules (Quick3D, Wayland Compositor, …) are excluded.
 - Qt is provided by the platform (distro packages on Linux, prebuilt on
   Windows/macOS via CI); relinking obligations are met by shipping it as

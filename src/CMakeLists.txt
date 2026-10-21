@@ -13,6 +13,7 @@ add_subdirectory(interop)   # third-party façades (libvlc, projectM, TagLib, ..
 add_subdirectory(playback)  # IAudioEngine, PlaybackCore (FE-4)
 add_subdirectory(audio)     # AU-1 DSP pipeline (ReplayGain, EQ, preamp, limiter)
 add_subdirectory(playlist)  # PL-1 playlist formats + autosave (Qt-free)
+add_subdirectory(platform)  # CO-1 single-instance / CLI integration
 add_subdirectory(servers)   # IServerSource (Jellyfin/Plex)
 add_subdirectory(migration) # MI-1: Winamp NDE/config readers
 add_subdirectory(scrobble)  # SC-1: client-side Last.fm/ListenBrainz scrobbling (Qt-free)
@@ -41,7 +42,7 @@ if(KOALAAMP_LASTFM_SHARED_SECRET)
     target_compile_definitions(koalaamp PRIVATE
         "KOALAAMP_BUILTIN_LASTFM_SHARED_SECRET=\"${KOALAAMP_LASTFM_SHARED_SECRET}\"")
 endif()
-target_link_libraries(koalaamp PRIVATE koalaamp_ui)
+target_link_libraries(koalaamp PRIVATE koalaamp_ui koalaamp_platform)
 if(TARGET koalaamp_ui_playback)
     target_link_libraries(koalaamp PRIVATE koalaamp_ui_playback koalaamp_scrobble koalaamp_library)
     target_compile_definitions(koalaamp PRIVATE KOALAAMP_HAS_PLAYBACK_CORE=1)

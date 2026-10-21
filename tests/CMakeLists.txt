@@ -28,6 +28,17 @@ target_link_libraries(koalaamp_tests PRIVATE Catch2::Catch2WithMain)
 include(Catch)
 catch_discover_tests(koalaamp_tests)
 
+add_executable(single_instance_tests single_instance_test.cpp)
+koalaamp_enable_warnings(single_instance_tests)
+target_link_libraries(single_instance_tests PRIVATE Catch2::Catch2WithMain koalaamp_platform)
+catch_discover_tests(single_instance_tests)
+
+add_executable(migration_fuzz_tests migration_fuzz_test.cpp)
+koalaamp_enable_warnings(migration_fuzz_tests)
+target_include_directories(migration_fuzz_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
+target_link_libraries(migration_fuzz_tests PRIVATE Catch2::Catch2WithMain koalaamp_migration)
+catch_discover_tests(migration_fuzz_tests)
+
 # FE-5: koalapaw Jellyfin port — unit tests + offline fixture replay through the
 # same JellyfinClient code path the smoke binary uses live.
 add_executable(jellyfin_port_tests jellyfin_port_test.cpp)

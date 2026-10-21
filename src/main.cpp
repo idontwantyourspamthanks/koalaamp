@@ -15,6 +15,7 @@
 #include "audio/AlbumEqStore.hpp"
 #include "audio/DspPipeline.hpp"
 #include "audio/RgTags.hpp"
+#include "platform/SingleInstance.hpp"
 #include "servers/SecretStore.hpp"
 #include "ui/ConnectionDialog.hpp"
 #include "ui/DspEqSink.hpp"
@@ -26,6 +27,7 @@
 #include "ui/WindowPlatform.hpp"
 #include "ui/WindowSet.hpp"
 
+#include <QCryptographicHash>
 #include <QCursor>
 #include <QFileDialog>
 #include <QMenu>
@@ -61,6 +63,7 @@
 #include <ctime>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iterator>
 #include <memory>
 #include <optional>
@@ -154,6 +157,16 @@ std::string skinDbPath() {
     return (configDir + QStringLiteral("/skindb.txt")).toStdString();
 }
 
+/// Stable per-user local-socket name. The config directory is already per-user;
+/// hash it so the name stays short and identical across launches.
+QString singleInstanceName() {
+    const QByteArray key =
+        QStandardPaths::writableLocation(QStandardPaths::AppConfigLocation).toUtf8();
+    return QStringLiteral("koalaamp-") +
+           QString::fromLatin1(
+               QCryptographicHash::hash(key, QCryptographicHash::Sha256).toHex().left(16));
+}
+
 } // namespace
 
 int main(int argc, char** argv) {
@@ -178,13 +191,25 @@ int main(int argc, char** argv) {
                                              QStringLiteral("Use the null audio backend"));
     const QCommandLineOption selfTestOption(QStringLiteral("self-test"),
                                             QStringLiteral("Construct, map and exit 0"));
+    const QCommandLineOption playOption(QStringLiteral("play"),
+                                        QStringLiteral("Play the supplied files (default)"));
+    const QCommandLineOption enqueueOption(
+        QStringLiteral("enqueue"), QStringLiteral("Append the supplied files to the playlist"));
+    QCommandLineOption noSingleInstanceOption(
+        QStringLiteral("no-single-instance"),
+        QStringLiteral("Do not use or start the single-instance socket (tests)"));
+    noSingleInstanceOption.setFlags(QCommandLineOption::HiddenFromHelp);
     const QCommandLineOption alwaysOnTopOption(
         QStringLiteral("always-on-top"),
         QStringLiteral("Keep the whole window set on top (config_aot)"));
     parser.addOption(skinOption);
     parser.addOption(nullAudioOption);
     parser.addOption(selfTestOption);
+    parser.addOption(playOption);
+    parser.addOption(enqueueOption);
+    parser.addOption(noSingleInstanceOption);
     parser.addOption(alwaysOnTopOption);
+    parser.addPositionalArgument("files", "Media files to play or enqueue", "[files...]");
 #if defined(KOALAAMP_HAS_GL_VISUALIZER)
     const QCommandLineOption presetsOption(
         QStringLiteral("presets"),
@@ -207,6 +232,37 @@ int main(int argc, char** argv) {
     parser.addOption(soakHoldOption);
 #endif
     parser.process(app);
+
+    const QStringList inputFiles = parser.positionalArguments();
+    QStringList forwardedArgs;
+    if (!inputFiles.isEmpty()) {
+        forwardedArgs << (parser.isSet(enqueueOption) ? QStringLiteral("--enqueue")
+                                                      : QStringLiteral("--play"));
+        forwardedArgs << inputFiles;
+    }
+
+    // CO-1: one process owns the playlist; later launches hand their files to
+    // it and exit. Self-test must always construct its own windows.
+    koalaamp::platform::SingleInstance singleInstance(singleInstanceName(), &app);
+    QList<QStringList> pendingCommands;
+    std::function<void(const QStringList&)> dispatchCommand;
+    if (!parser.isSet(selfTestOption) && !parser.isSet(noSingleInstanceOption)) {
+        const auto role = singleInstance.start(forwardedArgs);
+        if (role == koalaamp::platform::SingleInstance::Role::Forwarded) {
+            return 0;
+        }
+        if (role == koalaamp::platform::SingleInstance::Role::Failed) {
+            std::fprintf(stderr, "koalaamp: single-instance socket unavailable\n");
+        }
+        QObject::connect(&singleInstance, &koalaamp::platform::SingleInstance::argumentsReceived,
+                         &app, [&](const QStringList& args) {
+                             if (dispatchCommand) {
+                                 dispatchCommand(args);
+                             } else {
+                                 pendingCommands.append(args);
+                             }
+                         });
+    }
 
     koalaamp::ui::MainWindow window;
     koalaamp::ui::PlaylistWindow playlist;
@@ -439,6 +495,37 @@ int main(int argc, char** argv) {
     playlist.setTransport(transport.get());
     equalizer.setEqSink(eqSink.get());
     equalizer.setAlbumEqStore(albumEqStore.get());
+
+    dispatchCommand = [&](const QStringList& args) {
+        const bool enqueue = args.contains(QStringLiteral("--enqueue"));
+        std::vector<std::string> paths;
+        for (const QString& arg : args) {
+            if (arg != QStringLiteral("--play") && arg != QStringLiteral("--enqueue")) {
+                paths.push_back(arg.toStdString());
+            }
+        }
+        if (paths.empty()) {
+            window.show();
+            window.raise();
+            window.activateWindow();
+            return;
+        }
+        const std::size_t first = playlist.entryCount();
+        playlist.addMediaFiles(paths);
+        playlist.show();
+        playlist.raise();
+        playlist.activateWindow();
+        if (!enqueue && playlist.entryCount() > first) {
+            playlist.playRow(first);
+        }
+    };
+    if (!forwardedArgs.isEmpty()) {
+        dispatchCommand(forwardedArgs);
+    }
+    for (const QStringList& queued : pendingCommands) {
+        dispatchCommand(queued);
+    }
+    pendingCommands.clear();
 
     // The windows follow the engine through the transport's signals, which exist
     // for exactly this. Without these connections the UI only re-reads the
