@@ -1,6 +1,6 @@
 # CI-1 · Windows compile coverage for the playback path
 
-- **Milestone:** M1 (CI hardening; blocks nothing, prevents owner-desk failures) · **Est:** 2d · **Depends:** FE-4 · **Status:** unstarted
+- **Milestone:** M1 (CI hardening; blocks nothing, prevents owner-desk failures) · **Est:** 2d · **Depends:** FE-4 · **Status:** in-progress — VLC 3.0.21 SDK pin + Windows CMake/CI wiring landed; first Windows compile pass pending
 
 ## Story
 Windows CI builds no `koalaamp_playback_core`, `koalaamp_vlc`, or `src/interop/vlc/` — `find_package` for libvlc fails on the runner, so ~1,500 lines of the app's core playback path have **zero Windows compile coverage**. Every CI-only surprise this session lived on Windows (Ws2_32, WSAStartup, zlib1.dll, Qt-DLL discovery, the §-test-name mojibake); the player's most load-bearing code is exactly the part the Windows runner cannot see. Goal: those targets *compile and link* on Windows CI so a Windows-only break fails at PR time, not on the owner's desk. Tests stay Linux-gated (running libvlc on the runner is a separate, later question).

@@ -20,6 +20,14 @@ if(WIN32)
     set(CMAKE_CATCH_DISCOVER_TESTS_DISCOVERY_MODE PRE_TEST)
 endif()
 
+# CI-1: Windows gets compile/link coverage for koalaamp_vlc/PlaybackCore, but
+# runtime playback tests stay Linux/macOS-gated (the runner has no VLC aout
+# plugins). The compile marker lives in src/interop/CMakeLists.txt.
+set(KOALAAMP_RUNTIME_PLAYBACK_TESTS FALSE)
+if(KOALAAMP_HAS_LIBVLC AND NOT WIN32)
+    set(KOALAAMP_RUNTIME_PLAYBACK_TESTS TRUE)
+endif()
+
 add_executable(koalaamp_tests skeleton_test.cpp)
 koalaamp_enable_warnings(koalaamp_tests)
 target_include_directories(koalaamp_tests PRIVATE "${CMAKE_SOURCE_DIR}/src")
@@ -134,7 +142,7 @@ target_compile_definitions(plex_playback_tests PRIVATE
 catch_discover_tests(plex_playback_tests)
 
 # SV-4: libvlc plays a PMS part through the callback media source.
-if(KOALAAMP_HAS_LIBVLC)
+if(KOALAAMP_RUNTIME_PLAYBACK_TESTS)
     add_executable(plex_stream_libvlc_tests plex_stream_libvlc_test.cpp)
     koalaamp_enable_warnings(plex_stream_libvlc_tests)
     target_link_libraries(plex_stream_libvlc_tests PRIVATE
@@ -183,7 +191,7 @@ set_tests_properties(app_smoke PROPERTIES
 # audio callback, so DSP mode never enables it). Built only where libvlc is
 # found; on machines without libvlc the test simply does not exist rather than
 # failing — but CI installs libvlc-dev on Linux so the rule is enforced there.
-if(KOALAAMP_HAS_LIBVLC)
+if(KOALAAMP_RUNTIME_PLAYBACK_TESTS)
     add_executable(koalaamp_vlc_tests libvlc_eq_test.cpp)
     koalaamp_enable_warnings(koalaamp_vlc_tests)
     target_link_libraries(koalaamp_vlc_tests PRIVATE Catch2::Catch2WithMain koalaamp_vlc)
@@ -212,7 +220,7 @@ endif()
 # core-level EQ rule + Qt-free static guard, and the 200-track-change soak.
 # Gated on the core target because it wraps the libvlc chain; the soak gets a
 # generous timeout (200 real track activations, slower under ASAN).
-if(TARGET koalaamp_playback_core)
+if(TARGET koalaamp_playback_core AND KOALAAMP_RUNTIME_PLAYBACK_TESTS)
     add_executable(koalaamp_playback_tests playback_core_test.cpp)
     koalaamp_enable_warnings(koalaamp_playback_tests)
     target_link_libraries(koalaamp_playback_tests PRIVATE Catch2::Catch2WithMain
@@ -282,7 +290,7 @@ target_link_libraries(koalaamp_dsp_tests PRIVATE Catch2::Catch2WithMain koalaamp
 target_compile_definitions(koalaamp_dsp_tests PRIVATE
     "KOALAAMP_AUDIO_SRC=\"${CMAKE_SOURCE_DIR}/src/audio\""
     "KOALAAMP_EQ_FIXTURE_DIR=\"${CMAKE_SOURCE_DIR}/tests/fixtures/eq\"")
-if(TARGET koalaamp_playback_core)
+if(TARGET koalaamp_playback_core AND KOALAAMP_RUNTIME_PLAYBACK_TESTS)
     target_link_libraries(koalaamp_dsp_tests PRIVATE koalaamp_playback_core)
     target_compile_definitions(koalaamp_dsp_tests PRIVATE KOALAAMP_HAS_PLAYBACK_CORE)
 endif()
@@ -293,7 +301,7 @@ message(STATUS "KoalaAmp: AU-1 DSP tests enabled")
 # tags. Both live on the libvlc-backed chain (the boundary is the core's, the RG
 # stage is AU-1's transform installed at the core's seam), so the target exists
 # where koalaamp_playback_core does.
-if(TARGET koalaamp_playback_core AND TARGET koalaamp_dsp)
+if(TARGET koalaamp_playback_core AND TARGET koalaamp_dsp AND KOALAAMP_RUNTIME_PLAYBACK_TESTS)
     add_executable(koalaamp_au2_tests gapless_rg_test.cpp)
     koalaamp_enable_warnings(koalaamp_au2_tests)
     target_link_libraries(koalaamp_au2_tests PRIVATE Catch2::Catch2WithMain koalaamp_dsp
@@ -392,7 +400,7 @@ message(STATUS "KoalaAmp: SE-3 playlist-window tests enabled (atf/model, render/
 
 # SE-3 queue semantics against the real core (gated on the libvlc-backed
 # PlaybackCore bridge, exactly like SE-2's engine-dependent checks).
-if(TARGET koalaamp_ui_playback)
+if(TARGET koalaamp_ui_playback AND NOT WIN32)
     add_executable(koalaamp_se3_queue_tests se3_queue_test.cpp)
     koalaamp_enable_warnings(koalaamp_se3_queue_tests)
     target_link_libraries(koalaamp_se3_queue_tests PRIVATE Catch2::Catch2 koalaamp_ui_playback)
@@ -454,7 +462,7 @@ catch_discover_tests(koalaamp_se4_window_set_tests PROPERTIES
     DISCOVERY_MODE PRE_TEST
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     TIMEOUT 180)
-if(TARGET koalaamp_ui_playback)
+if(TARGET koalaamp_ui_playback AND NOT WIN32)
     # Adds the real-core seam case (app chain -> setPcmCallback, spec §3.1 rule)
     # where the libvlc-backed core is built.
     target_link_libraries(koalaamp_se4_window_set_tests PRIVATE koalaamp_ui_playback)

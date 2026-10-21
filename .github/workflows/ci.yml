@@ -94,6 +94,29 @@ jobs:
       # Catch2 discovers tests by executing them during the build. On Windows a
       # vcpkg DLL (libcurl/zlib/tag) next to the build outputs is not on the
       # loader path unless it is beside the exe; stage them before Build runs.
+      # CI-1: compile coverage for the playback path. The binary zip has no
+      # SDK; the 7z does. Pin the same 3.0.21 build VLC ships and verify it.
+      - name: VLC SDK (Windows compile coverage)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          $archive = Join-Path $env:RUNNER_TEMP "vlc-3.0.21-win64.7z"
+          Invoke-WebRequest -Uri "https://download.videolan.org/pub/videolan/vlc/3.0.21/win64/vlc-3.0.21-win64.7z" -OutFile $archive
+          $hash = (Get-FileHash $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($hash -ne "9d2b24d6bc4196b3da8d181a3878678ba272e2a7690321f8826da76a69b2fb9c") {
+            throw "VLC SDK checksum mismatch: $hash"
+          }
+          New-Item -ItemType Directory -Force third_party/vlc | Out-Null
+          $sevenZip = (Get-Command 7z -ErrorAction SilentlyContinue).Source
+          if (-not $sevenZip) { $sevenZip = "C:\Program Files\7-Zip\7z.exe" }
+          & $sevenZip x $archive -o"third_party/vlc" -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw "7z extraction failed" }
+          $sdk = Join-Path $env:GITHUB_WORKSPACE "third_party/vlc/vlc-3.0.21"
+          echo "KOALAAMP_VLC_SDK=$sdk" >> $env:GITHUB_ENV
+          echo "KOALAAMP_REQUIRE_VLC_SDK=1" >> $env:GITHUB_ENV
+          echo "VLC_PLUGIN_PATH=$sdk\plugins" >> $env:GITHUB_ENV
+          echo "PATH=$sdk;$env:PATH" >> $env:GITHUB_ENV
+
       - name: Stage vcpkg runtime DLLs (Windows)
         if: runner.os == 'Windows'
         shell: pwsh
