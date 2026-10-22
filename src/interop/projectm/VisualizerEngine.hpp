@@ -26,6 +26,7 @@
 #include <cstdint>
 #include <memory>
 #include <string>
+#include <vector>
 
 namespace koalaamp::interop::visualizer {
 
@@ -58,6 +59,11 @@ public:
     virtual bool loadPresetData(const std::string& name, const std::string& data,
                                 bool smoothTransition) = 0;
 
+    /// Roots projectM searches for `sampler_*`/sprite textures. Applied by the
+    /// canvas with the preset's own directory first; call with a current GL
+    /// context (it may reload textures). The default is a no-op for parity engines.
+    virtual void setTextureSearchPaths(const std::vector<std::string>& /*paths*/) {}
+
     /// Feed interleaved stereo PCM (2 floats per frame) from the visualizer's
     /// ring. Never blocks, never allocates: frames beyond projectM's per-call
     /// maximum are chunked internally.
@@ -86,4 +92,4 @@ std::unique_ptr<IVisualizerEngine> createEngine();
 /// Compile-time availability — true when createEngine() returns a renderer.
 bool engineAvailable();
 
-}  // namespace koalaamp::interop::visualizer
+} // namespace koalaamp::interop::visualizer

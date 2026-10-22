@@ -24,20 +24,21 @@
 // docs/spec.md §5.2-5.3, §6.1; docs/tickets/VZ-1-visualizer.md task 1.
 #pragma once
 
-#include <cstdint>
-#include <string>
-
-#include <QImage>
-#include <QPoint>
-
 #include "interop/projectm/VisualizerEngine.hpp"
 #include "skins/SkinSet.hpp"
 #include "ui/GenRenderer.hpp"
 #include "ui/SkinnedWindow.hpp"
-#include "ui/VisualizerOverlay.hpp"
 #include "ui/VisualizerCanvas.hpp"
+#include "ui/VisualizerOverlay.hpp"
+
+#include <QImage>
+#include <QPoint>
+#include <cstdint>
+#include <string>
 
 namespace koalaamp::ui {
+
+class VisualizerControls;
 
 class VisualizerWindow : public SkinnedWindow {
     Q_OBJECT
@@ -66,6 +67,12 @@ public:
     /// The preset-switch overlay, raised above the canvas (task 4).
     VisualizerOverlay& overlay() { return *m_overlay; }
     const VisualizerOverlay& overlay() const { return *m_overlay; }
+    /// The genex on-screen transport, raised above the canvas (task 4).
+    VisualizerControls& controls() { return *m_controls; }
+    const VisualizerControls& controls() const { return *m_controls; }
+    /// Mirror the cycler's policy onto the on-screen toggles.
+    void setPresetOrder(bool random);
+    void setPresetLocked(bool locked);
     /// False in a build without libprojectM: the window then paints the
     /// unavailable message and hides the canvas.
     bool visualizerAvailable() const;
@@ -147,6 +154,7 @@ private:
     interop::visualizer::IVisualizerEngine& m_engine;
     VisualizerCanvas* m_canvas = nullptr;
     VisualizerOverlay* m_overlay = nullptr;
+    VisualizerControls* m_controls = nullptr;
     std::string m_presetName;
     bool m_fullscreen = false;
     QRect m_windowedGeometry;
@@ -157,4 +165,4 @@ private:
     bool m_closePressed = false;
 };
 
-}  // namespace koalaamp::ui
+} // namespace koalaamp::ui

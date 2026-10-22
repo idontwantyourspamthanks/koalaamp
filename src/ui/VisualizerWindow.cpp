@@ -4,16 +4,16 @@
 #include "ui/VisualizerWindow.hpp"
 
 #include "ui/PresetStore.hpp"
-
-#include <algorithm>
+#include "ui/VisualizerControls.hpp"
 
 #include <QColor>
 #include <QEvent>
 #include <QFont>
 #include <QKeyEvent>
 #include <QMouseEvent>
-#include <QResizeEvent>
 #include <QPainter>
+#include <QResizeEvent>
+#include <algorithm>
 
 namespace koalaamp::ui {
 namespace {
@@ -49,7 +49,7 @@ const skins::PleditColors* pleditIfShipped(const skins::SkinSet* set) {
     return &set->pleditColors;
 }
 
-}  // namespace
+} // namespace
 
 VisualizerWindow::VisualizerWindow(interop::visualizer::IVisualizerEngine& engine, QWidget* parent)
     : SkinnedWindow(parent), m_engine(engine) {
@@ -59,6 +59,19 @@ VisualizerWindow::VisualizerWindow(interop::visualizer::IVisualizerEngine& engin
     // painting text into it would mean mixing Qt painting with projectM's GL state.
     m_overlay = new VisualizerOverlay(this);
     m_overlay->hide();
+    m_controls = new VisualizerControls(this);
+    m_controls->hide();
+    m_controls->setState(false, false, false);
+    QObject::connect(m_controls, &VisualizerControls::previousRequested, this,
+                     &VisualizerWindow::previousPresetRequested);
+    QObject::connect(m_controls, &VisualizerControls::nextRequested, this,
+                     &VisualizerWindow::nextPresetRequested);
+    QObject::connect(m_controls, &VisualizerControls::orderToggleRequested, this,
+                     &VisualizerWindow::orderToggleRequested);
+    QObject::connect(m_controls, &VisualizerControls::lockedToggleRequested, this,
+                     &VisualizerWindow::lockedToggleRequested);
+    QObject::connect(m_controls, &VisualizerControls::fullscreenToggleRequested, this,
+                     [this] { setFullscreen(!m_fullscreen); });
     applyTitle();
     updateShape();
 }
@@ -69,6 +82,9 @@ void VisualizerWindow::setSkin(const skins::SkinSet* skin) {
     m_skin = skin;
     if (m_overlay != nullptr) {
         m_overlay->setSkin(skin);
+    }
+    if (m_controls != nullptr) {
+        m_controls->setSkin(skin);
     }
     updateShape();
 }
@@ -91,6 +107,9 @@ void VisualizerWindow::setScale(int scale) {
         return;
     }
     m_scale = clamped;
+    if (m_controls != nullptr) {
+        m_controls->setScale(m_scale);
+    }
     updateShape();
     emit doubleSizeChanged(m_scale > 1);
 }
@@ -163,13 +182,14 @@ void VisualizerWindow::setFullscreen(bool on) {
         activateWindow();
     } else {
         showNormal();
-        updateShape();  // fixed size and shape again
+        updateShape(); // fixed size and shape again
         if (m_windowedGeometry.isValid()) {
             setGeometry(m_windowedGeometry);
         }
     }
     layoutCanvas();
     update();
+    m_controls->setState(m_controls->random(), m_controls->locked(), on);
     emit fullscreenChanged(on);
 }
 
@@ -185,7 +205,16 @@ void VisualizerWindow::layoutCanvas() {
     if (m_overlay != nullptr) {
         m_overlay->setGeometry(client);
         m_overlay->setScale(m_scale);
-        m_overlay->raise();  // stays above the canvas it annotates
+        m_overlay->raise(); // stays above the canvas it annotates
+    }
+    if (m_controls != nullptr) {
+        const QSize hint = m_controls->sizeHint();
+        const int margin = 4 * m_scale;
+        const int x = std::max(client.left(), client.right() - hint.width() - margin + 1);
+        const int y = std::max(client.top(), client.bottom() - hint.height() - margin + 1);
+        m_controls->setGeometry(x, y, hint.width(), hint.height());
+        m_controls->setVisible(visualizerAvailable());
+        m_controls->raise();
     }
 }
 
@@ -202,36 +231,44 @@ qreal VisualizerWindow::presetNameOpacity() const {
     return m_overlay != nullptr ? m_overlay->opacity() : 0.0;
 }
 
+void VisualizerWindow::setPresetOrder(bool random) {
+    m_controls->setState(random, m_controls->locked(), m_controls->fullscreen());
+}
+
+void VisualizerWindow::setPresetLocked(bool locked) {
+    m_controls->setState(m_controls->random(), locked, m_controls->fullscreen());
+}
+
 void VisualizerWindow::keyPressEvent(QKeyEvent* event) {
     // MilkDrop's own keys, on the visualizer window: N/P move, R toggles random
     // order, L locks the preset in place. The window only asks; the app decides.
     // (F for fullscreen is task 6, and app-wide hotkeys are a later ticket.)
     switch (event->key()) {
-        case Qt::Key_N:
-            emit nextPresetRequested();
-            break;
-        case Qt::Key_P:
-            emit previousPresetRequested();
-            break;
-        case Qt::Key_R:
-            emit orderToggleRequested();
-            break;
-        case Qt::Key_L:
-            emit lockedToggleRequested();
-            break;
-        case Qt::Key_F:
-            setFullscreen(!m_fullscreen);
-            break;
-        case Qt::Key_Escape:
-            if (!m_fullscreen) {
-                SkinnedWindow::keyPressEvent(event);
-                return;
-            }
-            setFullscreen(false);
-            break;
-        default:
+    case Qt::Key_N:
+        emit nextPresetRequested();
+        break;
+    case Qt::Key_P:
+        emit previousPresetRequested();
+        break;
+    case Qt::Key_R:
+        emit orderToggleRequested();
+        break;
+    case Qt::Key_L:
+        emit lockedToggleRequested();
+        break;
+    case Qt::Key_F:
+        setFullscreen(!m_fullscreen);
+        break;
+    case Qt::Key_Escape:
+        if (!m_fullscreen) {
             SkinnedWindow::keyPressEvent(event);
             return;
+        }
+        setFullscreen(false);
+        break;
+    default:
+        SkinnedWindow::keyPressEvent(event);
+        return;
     }
     event->accept();
 }
@@ -255,8 +292,9 @@ void VisualizerWindow::paintEvent(QPaintEvent* /*event*/) {
     }
 
     const skins::Skin& sheets = m_skin != nullptr ? m_skin->sheets : noSheets();
-    painter.drawImage(0, 0, chromeImage(sheets, pleditIfShipped(m_skin), contentSize(), m_title,
-                                        isActiveWindow(), m_scale, m_closePressed));
+    painter.drawImage(0, 0,
+                      chromeImage(sheets, pleditIfShipped(m_skin), contentSize(), m_title,
+                                  isActiveWindow(), m_scale, m_closePressed));
 
     if (!visualizerAvailable()) {
         drawUnavailableMessage(painter);
@@ -281,8 +319,7 @@ bool VisualizerWindow::isTitleBarAt(const QPoint& point) const {
     const GenLayout layout = genLayout(contentSize());
     // The close box is part of the title bar visually, but dragging from it must
     // not move the window.
-    return toDevice(layout.title).contains(point) &&
-           !toDevice(layout.closeButton).contains(point);
+    return toDevice(layout.title).contains(point) && !toDevice(layout.closeButton).contains(point);
 }
 
 void VisualizerWindow::mousePressEvent(QMouseEvent* event) {
@@ -317,8 +354,8 @@ void VisualizerWindow::resizeEvent(QResizeEvent* event) {
 void VisualizerWindow::changeEvent(QEvent* event) {
     SkinnedWindow::changeEvent(event);
     if (event->type() == QEvent::ActivationChange) {
-        update();  // the skin has distinct selected/unselected title sprites
+        update(); // the skin has distinct selected/unselected title sprites
     }
 }
 
-}  // namespace koalaamp::ui
+} // namespace koalaamp::ui

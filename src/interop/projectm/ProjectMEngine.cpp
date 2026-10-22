@@ -8,12 +8,11 @@
 
 #ifdef KOALAAMP_HAS_PROJECTM
 
-#include <projectM-4/projectM.h>
-
 #include <algorithm>
 #include <cstdio>
 #include <filesystem>
 #include <mutex>
+#include <projectM-4/projectM.h>
 #include <utility>
 #include <vector>
 
@@ -31,8 +30,7 @@ struct CallbackState {
     std::string lastError;
 };
 
-extern "C" void projectmLogCallback(const char* message, projectm_log_level level,
-                                    void* userData) {
+extern "C" void projectmLogCallback(const char* message, projectm_log_level level, void* userData) {
     auto* state = static_cast<CallbackState*>(userData);
     if (state == nullptr || message == nullptr) {
         return;
@@ -77,9 +75,8 @@ public:
             // projectm_destroy() touches GL. Leaking one handle at process exit is
             // the lesser evil; the window is required to call destroy() from its
             // context's aboutToBeDestroyed.
-            std::fprintf(stderr,
-                         "visualizer: engine released without GL teardown "
-                         "(leaking the projectM handle)\n");
+            std::fprintf(stderr, "visualizer: engine released without GL teardown "
+                                 "(leaking the projectM handle)\n");
         }
     }
 
@@ -102,6 +99,7 @@ public:
         projectm_set_preset_duration(handle_, kProjectMPresetDurationSeconds);
         projectm_set_preset_switch_failed_event_callback(handle_, &projectmPresetFailedCallback,
                                                          &state_);
+        applyTextureSearchPaths();
         scratch_.assign(static_cast<std::size_t>(projectm_pcm_get_max_samples()) * 2, 0.0F);
         presetName_.clear();
         return true;
@@ -145,6 +143,14 @@ public:
         return true;
     }
 
+    void setTextureSearchPaths(const std::vector<std::string>& paths) override {
+        if (paths == texturePaths_) {
+            return;
+        }
+        texturePaths_ = paths;
+        applyTextureSearchPaths();
+    }
+
     void pushPcm(const float* interleavedStereo, std::size_t frames) override {
         if (handle_ == nullptr || interleavedStereo == nullptr || frames == 0) {
             return;
@@ -180,23 +186,38 @@ public:
     }
 
 private:
+    void applyTextureSearchPaths() {
+        if (handle_ == nullptr || texturePaths_.empty()) {
+            return;
+        }
+        std::vector<const char*> pointers;
+        pointers.reserve(texturePaths_.size());
+        for (const std::string& path : texturePaths_) {
+            pointers.push_back(path.c_str());
+        }
+        projectm_set_texture_search_paths(handle_, pointers.data(), pointers.size());
+    }
+
     projectm_handle handle_ = nullptr;
     CallbackState state_;
     std::vector<float> scratch_;
+    std::vector<std::string> texturePaths_;
     std::string presetName_;
 };
 
-}  // namespace
+} // namespace
 
 std::unique_ptr<IVisualizerEngine> createEngine() {
     return std::make_unique<ProjectMEngine>();
 }
 
-bool engineAvailable() { return true; }
+bool engineAvailable() {
+    return true;
+}
 
-}  // namespace koalaamp::interop::visualizer
+} // namespace koalaamp::interop::visualizer
 
-#else  // !KOALAAMP_HAS_PROJECTM
+#else // !KOALAAMP_HAS_PROJECTM
 
 namespace koalaamp::interop::visualizer {
 namespace {
@@ -224,14 +245,16 @@ private:
     std::string lastError_;
 };
 
-}  // namespace
+} // namespace
 
 std::unique_ptr<IVisualizerEngine> createEngine() {
     return std::make_unique<StubVisualizerEngine>();
 }
 
-bool engineAvailable() { return false; }
+bool engineAvailable() {
+    return false;
+}
 
-}  // namespace koalaamp::interop::visualizer
+} // namespace koalaamp::interop::visualizer
 
-#endif  // KOALAAMP_HAS_PROJECTM
+#endif // KOALAAMP_HAS_PROJECTM

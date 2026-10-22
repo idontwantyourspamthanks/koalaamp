@@ -103,6 +103,8 @@ if(TARGET Qt6::OpenGLWidgets)
         GenRenderer.hpp
         VisualizerCanvas.cpp
         VisualizerCanvas.hpp
+        VisualizerControls.cpp
+        VisualizerControls.hpp
         VisualizerOverlay.cpp
         VisualizerOverlay.hpp
         VisualizerWindow.cpp

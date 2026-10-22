@@ -7,8 +7,7 @@
 
 namespace koalaamp::ui {
 
-PresetCycler::PresetCycler(PresetStore& store, QObject* parent)
-    : QObject(parent), m_store(store) {
+PresetCycler::PresetCycler(PresetStore& store, QObject* parent) : QObject(parent), m_store(store) {
     m_timer.setInterval(m_intervalMs);
     QObject::connect(&m_timer, &QTimer::timeout, this, [this] {
         if (!m_locked && !m_store.empty()) {
@@ -28,6 +27,7 @@ void PresetCycler::setOrder(PresetOrder order) {
     }
     m_order = order;
     m_store.setOrder(order);
+    emit orderChanged(m_order);
 }
 
 void PresetCycler::toggleOrder() {
@@ -40,6 +40,7 @@ void PresetCycler::setLocked(bool locked) {
     }
     m_locked = locked;
     restartTimer();
+    emit lockedChanged(m_locked);
 }
 
 void PresetCycler::toggleLocked() {
@@ -70,4 +71,4 @@ void PresetCycler::restartTimer() {
     }
 }
 
-}  // namespace koalaamp::ui
+} // namespace koalaamp::ui

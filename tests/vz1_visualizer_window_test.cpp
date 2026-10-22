@@ -9,39 +9,41 @@
 // fallback) around a canvas that gets the app's engine, Winamp-style close/drag,
 // integer scaling, and an honest "unavailable" state in a build without
 // libprojectM.
-#include <cstdint>
-#include <filesystem>
-#include <functional>
-#include <optional>
-#include <string>
-#include <vector>
+#include "interop/projectm/VisualizerEngine.hpp"
+#include "playback/IAudioEngine.hpp"
+#include "skins/SkinSet.hpp"
+#include "ui/GenRenderer.hpp"
+#include "ui/GenexStyle.hpp"
+#include "ui/PcmFanout.hpp"
+#include "ui/VisualizerCanvas.hpp"
+#include "ui/VisualizerControls.hpp"
+#include "ui/VisualizerWindow.hpp"
 
 #include <QApplication>
+#include <QColor>
 #include <QElapsedTimer>
 #include <QEventLoop>
-#include <QThread>
-#include <QColor>
 #include <QImage>
 #include <QKeyEvent>
 #include <QMouseEvent>
 #include <QPainter>
-
+#include <QPushButton>
+#include <QThread>
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
-
-#include "interop/projectm/VisualizerEngine.hpp"
-#include "skins/SkinSet.hpp"
-#include "playback/IAudioEngine.hpp"
-#include "ui/GenRenderer.hpp"
-#include "ui/PcmFanout.hpp"
-#include "ui/VisualizerCanvas.hpp"
-#include "ui/VisualizerWindow.hpp"
+#include <cstdint>
+#include <filesystem>
+#include <functional>
+#include <optional>
+#include <set>
+#include <string>
+#include <vector>
 
 namespace {
 
-using koalaamp::interop::visualizer::IVisualizerEngine;
 using koalaamp::interop::visualizer::createEngine;
 using koalaamp::interop::visualizer::engineAvailable;
+using koalaamp::interop::visualizer::IVisualizerEngine;
 using koalaamp::playback::PcmFormat;
 using koalaamp::ui::genLayout;
 using koalaamp::ui::genSnapSize;
@@ -68,6 +70,38 @@ public:
     void render(std::uint32_t /*targetFbo*/) override {}
     std::string presetName() const override { return {}; }
     std::string lastError() const override { return "no libprojectM in this build"; }
+};
+
+/// Records the texture roots the canvas hands to the engine before a load.
+class TextureRecordingEngine : public IVisualizerEngine {
+public:
+    bool available() const override { return false; }
+    bool create(int /*widthPx*/, int /*heightPx*/) override { return false; }
+    void destroy() override {}
+    void resize(int /*widthPx*/, int /*heightPx*/) override {}
+    bool loadPresetFile(const std::string& path, bool /*smoothTransition*/) override {
+        loaded = path;
+        return true;
+    }
+    bool loadPresetData(const std::string&, const std::string&, bool) override { return false; }
+    void setTextureSearchPaths(const std::vector<std::string>& paths) override {
+        texturePaths = paths;
+    }
+    void pushPcm(const float*, std::size_t) override {}
+    void render(std::uint32_t) override {}
+    std::string presetName() const override { return loaded; }
+    std::string lastError() const override { return {}; }
+
+    std::vector<std::string> texturePaths;
+    std::string loaded;
+};
+
+/// paintGL is protected; tests run it without a GL context because the pending
+/// load and texture-path plumbing happen before the m_created guard.
+class PaintableCanvas : public VisualizerCanvas {
+public:
+    using VisualizerCanvas::paintGL;
+    using VisualizerCanvas::VisualizerCanvas;
 };
 
 void sendMouse(QWidget& widget, QEvent::Type type, const QPoint& pos, Qt::MouseButton button) {
@@ -103,7 +137,7 @@ QImage renderToImage(QWidget& widget) {
     return image;
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("VZ-1 the visualizer window is a gen window hosting the app's canvas",
           "[vz1][viswindow]") {
@@ -148,7 +182,7 @@ TEST_CASE("VZ-1 the visualizer window wears the skin's gen frame", "[vz1][viswin
     REQUIRE(gen != nullptr);
     // Active, so the row under test doesn't depend on whether the widget has focus.
     const QImage framed = koalaamp::ui::renderGenWindow(skinSet->sheets, nullptr, QSize(275, 116),
-                                                       "VISUALIZER", true);
+                                                        "VISUALIZER", true);
     // The title bar's left corner is the skin's own GEN_TOP_LEFT sprite.
     CHECK(framed.pixelColor(3, 3) == gen->pixelColor(3, 3));
     // Just inside that corner the stretch tile runs (the bar), not the title plate.
@@ -157,8 +191,7 @@ TEST_CASE("VZ-1 the visualizer window wears the skin's gen frame", "[vz1][viswin
     // the plate sprite itself (the piece at x=52), not the stretch tile.
     CHECK(framed.pixelColor(framed.width() / 2, 2) == gen->pixelColor(52 + 8, 2));
     // The bottom-right pixel is the right corner sprite's own corner, grip included.
-    CHECK(framed.pixelColor(framed.width() - 1, framed.height() - 1) ==
-          gen->pixelColor(124, 70));
+    CHECK(framed.pixelColor(framed.width() - 1, framed.height() - 1) == gen->pixelColor(124, 70));
 }
 
 TEST_CASE("VZ-1 a skin without gen.bmp gets the designed fallback frame", "[vz1][viswindow]") {
@@ -229,7 +262,7 @@ TEST_CASE("VZ-2 a gen-less skin wears its playlist chrome", "[vz1][viswindow]") 
     REQUIRE(grip);
 
     const QImage framed = koalaamp::ui::renderGenWindow(skinSet->sheets, &skinSet->pleditColors,
-                                                       QSize(275, 116), "VISUALIZER", true);
+                                                        QSize(275, 116), "VISUALIZER", true);
     // Title-bar left corner, then the stretch tile just past it.
     CHECK(framed.pixelColor(3, 3) == pledit->pixelColor(left->x + 3, left->y + 3));
     CHECK(framed.pixelColor(40, 5) == pledit->pixelColor(tile->x + 15, tile->y + 5));
@@ -336,6 +369,132 @@ TEST_CASE("VZ-1 the canvas's callback is the visualizer's end of the PCM fan-out
     std::vector<float> monoOut(4, 0.0F);
     REQUIRE(canvas.pcmRing().readNew(monoOut.data(), 2) == 2);
     CHECK(monoOut == std::vector<float>{1.0F, 1.0F, 0.0F, 0.0F});
+}
+
+TEST_CASE("VZ-1 the preset directory is a texture root", "[vz1][texture]") {
+    TextureRecordingEngine engine;
+    PaintableCanvas canvas(engine);
+    canvas.setTextureSearchRoots({"/textures/base"});
+    canvas.requestPreset("/presets/rocket/foo.milk");
+    canvas.paintGL();
+    REQUIRE(engine.texturePaths.size() == 2);
+    CHECK(engine.texturePaths[0] == "/presets/rocket");
+    CHECK(engine.texturePaths[1] == "/textures/base");
+    CHECK(engine.loaded == "/presets/rocket/foo.milk");
+}
+
+TEST_CASE("VZ-1 the on-screen controls are genex buttons with live state", "[vz1][viswindow]") {
+    auto engine = createEngine();
+    REQUIRE(engine != nullptr);
+    VisualizerWindow window(*engine);
+    auto& controls = window.controls();
+    CHECK(controls.scale() == 1);
+    CHECK(controls.sizeHint().width() > 0);
+    CHECK(controls.sizeHint().height() > 0);
+
+    window.setPresetOrder(true);
+    window.setPresetLocked(true);
+    CHECK(controls.random());
+    CHECK(controls.locked());
+    auto* order = controls.findChild<QPushButton*>(QStringLiteral("visualizerOrder"));
+    auto* lock = controls.findChild<QPushButton*>(QStringLiteral("visualizerLock"));
+    REQUIRE(order != nullptr);
+    REQUIRE(lock != nullptr);
+    CHECK(order->isChecked());
+    CHECK(order->text() == QStringLiteral("RANDOM"));
+    CHECK(lock->isChecked());
+
+    int nexts = 0;
+    int previous = 0;
+    int orders = 0;
+    int locks = 0;
+    int fulls = 0;
+    QObject::connect(&window, &VisualizerWindow::nextPresetRequested, [&nexts] { ++nexts; });
+    QObject::connect(&window, &VisualizerWindow::previousPresetRequested,
+                     [&previous] { ++previous; });
+    QObject::connect(&window, &VisualizerWindow::orderToggleRequested, [&orders] { ++orders; });
+    QObject::connect(&window, &VisualizerWindow::lockedToggleRequested, [&locks] { ++locks; });
+    QObject::connect(&window, &VisualizerWindow::fullscreenChanged, [&fulls] { ++fulls; });
+
+    auto* next = controls.findChild<QPushButton*>(QStringLiteral("visualizerNext"));
+    auto* prev = controls.findChild<QPushButton*>(QStringLiteral("visualizerPrevious"));
+    auto* full = controls.findChild<QPushButton*>(QStringLiteral("visualizerFullscreen"));
+    REQUIRE(next != nullptr);
+    REQUIRE(prev != nullptr);
+    REQUIRE(full != nullptr);
+    next->click();
+    prev->click();
+    order->click();
+    lock->click();
+    full->click();
+    CHECK(nexts == 1);
+    CHECK(previous == 1);
+    CHECK(orders == 1);
+    CHECK(locks == 1);
+    CHECK(fulls == 1);
+    CHECK(window.isFullscreen());
+    CHECK(controls.fullscreen());
+    full->click();
+    CHECK_FALSE(window.isFullscreen());
+    CHECK(fulls == 2);
+
+    // Scale follows the window, so the strip stays usable at 2x.
+    window.setDoubleSize(true);
+    CHECK(controls.scale() == 2);
+    CHECK(controls.sizeHint().width() > 0);
+    window.setDoubleSize(false);
+
+    // No genex sheet: the controls still exist and fall back cleanly.
+    window.setSkin(nullptr);
+    auto* previousButton =
+        controls.findChild<koalaamp::ui::GenexButton*>(QStringLiteral("visualizerPrevious"));
+    REQUIRE(previousButton != nullptr);
+    CHECK(previousButton->skin() == nullptr);
+}
+
+TEST_CASE("VZ-1 the on-screen controls wear the skin's genex faces", "[vz1][viswindow]") {
+    const auto corpus = std::filesystem::path(KOALAAMP_CORPUS_DIR);
+    if (!std::filesystem::exists(corpus)) {
+        SKIP("corpus missing — run scripts/fetch-corpus.sh");
+    }
+    std::optional<koalaamp::skins::SkinSet> skinSet;
+    for (const auto& entry : std::filesystem::directory_iterator(corpus)) {
+        if (entry.path().extension() != ".wsz") {
+            continue;
+        }
+        auto candidate = koalaamp::skins::loadSkinSet(entry.path());
+        if (candidate.has_value() && candidate->hasSheet("GENEX") &&
+            candidate->sheets.sheet("GENEX")->width() >= 130 &&
+            candidate->sheets.sheet("GENEX")->height() >= 75) {
+            skinSet = std::move(candidate);
+            break;
+        }
+    }
+    REQUIRE(skinSet.has_value());
+
+    auto engine = createEngine();
+    REQUIRE(engine != nullptr);
+    VisualizerWindow window(*engine);
+    window.setSkin(&*skinSet);
+    auto& controls = window.controls();
+    auto* next = controls.findChild<koalaamp::ui::GenexButton*>(QStringLiteral("visualizerNext"));
+    REQUIRE(next != nullptr);
+    CHECK(next->skin() == &skinSet->sheets);
+
+    QImage image(controls.size(), QImage::Format_ARGB32);
+    image.fill(Qt::transparent);
+    controls.render(&image);
+    std::set<QRgb> colours;
+    for (int y = 0; y < image.height(); ++y) {
+        for (int x = 0; x < image.width(); ++x) {
+            colours.insert(image.pixel(x, y));
+        }
+    }
+    CHECK(colours.size() > 2);
+    const QByteArray screenshot = qgetenv("KOALAAMP_CONTROLS_SCREENSHOT");
+    if (!screenshot.isEmpty()) {
+        image.save(QString::fromLocal8Bit(screenshot));
+    }
 }
 
 TEST_CASE("VZ-1 the visualizer window's MilkDrop keys ask for a change", "[vz1][viswindow]") {

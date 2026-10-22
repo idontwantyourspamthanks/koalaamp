@@ -22,19 +22,18 @@
 // every UI consumer.
 #pragma once
 
+#include "playback/IAudioEngine.hpp"
+#include "ui/StereoPcmRing.hpp"
+
 #include <QOpenGLWidget>
 #include <QTimer>
-
 #include <cstddef>
 #include <string>
 #include <vector>
 
-#include "playback/IAudioEngine.hpp"
-#include "ui/StereoPcmRing.hpp"
-
 namespace koalaamp::interop::visualizer {
 class IVisualizerEngine;
-}  // namespace koalaamp::interop::visualizer
+} // namespace koalaamp::interop::visualizer
 
 namespace koalaamp::ui {
 
@@ -60,6 +59,10 @@ public:
     /// Ask for a preset. Applied on the next paintGL, with the GL context current.
     void requestPreset(const std::string& path);
 
+    /// Extra texture roots (the bundled/user pack); the preset's own directory
+    /// is prepended automatically in paintGL.
+    void setTextureSearchRoots(std::vector<std::string> roots);
+
     /// Frames rendered since construction — the soak's liveness signal (a preset
     /// that stops producing frames is what "hang" means here).
     std::uint64_t framesRendered() const { return m_frames; }
@@ -83,11 +86,12 @@ private:
 
     interop::visualizer::IVisualizerEngine& m_engine;
     StereoPcmRing m_ring;
-    std::vector<float> m_scratch;  ///< stereo frames, sized once: no per-frame alloc
-    QTimer m_frameClock;           ///< ~60 fps while shown
-    std::string m_pendingPreset;   ///< applied in paintGL
+    std::vector<float> m_scratch;            ///< stereo frames, sized once: no per-frame alloc
+    QTimer m_frameClock;                     ///< ~60 fps while shown
+    std::string m_pendingPreset;             ///< applied in paintGL
+    std::vector<std::string> m_textureRoots; ///< base pack roots, preset dir prepended
     bool m_created = false;
     std::uint64_t m_frames = 0;
 };
 
-}  // namespace koalaamp::ui
+} // namespace koalaamp::ui

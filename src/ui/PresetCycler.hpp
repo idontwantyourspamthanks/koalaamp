@@ -15,10 +15,10 @@
 // docs/spec.md §6.1; docs/tickets/VZ-1-visualizer.md task 4.
 #pragma once
 
+#include "ui/PresetStore.hpp"
+
 #include <QObject>
 #include <QTimer>
-
-#include "ui/PresetStore.hpp"
 
 namespace koalaamp::ui {
 
@@ -55,6 +55,12 @@ public:
     bool next();
     bool previous();
 
+signals:
+    /// The policy changed (including through `toggleOrder`/`toggleLocked`):
+    /// the on-screen toggles mirror these, not their own click state.
+    void orderChanged(PresetOrder order);
+    void lockedChanged(bool locked);
+
 private:
     void restartTimer();
 
@@ -65,4 +71,4 @@ private:
     QTimer m_timer;
 };
 
-}  // namespace koalaamp::ui
+} // namespace koalaamp::ui

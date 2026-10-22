@@ -27,7 +27,10 @@ add_executable(koalaamp main.cpp)
 target_compile_definitions(koalaamp PRIVATE
     "KOALAAMP_BUNDLED_SKINS=\"${CMAKE_SOURCE_DIR}/skins\""
     # VZ-1: the bundled starter presets, so a fresh install has something to show.
-    "KOALAAMP_BUNDLED_PRESETS=\"${CMAKE_SOURCE_DIR}/presets\"")
+    "KOALAAMP_BUNDLED_PRESETS=\"${CMAKE_SOURCE_DIR}/presets\""
+    # VZ-1: the projectM texture pack, when the packager/vendor script placed one
+    # in the gitignored third_party tree. Empty/absent leaves projectM's own search.
+    "KOALAAMP_BUNDLED_TEXTURES=\"${CMAKE_SOURCE_DIR}/third_party/textures\"")
 koalaamp_enable_warnings(koalaamp)
 # Last.fm desktop auth uses an application-wide API key/shared secret. These are
 # registered by the maintainer, never entered by users. Leave empty for a build

@@ -89,13 +89,13 @@ void drawNineSlice(QPainter& painter, const QImage& sheet, const QRect& src, con
     painter.restore();
 }
 
-void drawButtonText(QPainter& painter, const QString& text, const QRect& area,
-                    const QColor& colour) {
+void drawButtonText(QPainter& painter, const QString& text, const QRect& area, const QColor& colour,
+                    int pixelSize) {
     // genex has no bitmap alphabet of its own; the controls use the skin's
     // system font, recoloured by swatch 3 (button text). The gen.bmp alphabet
     // is the title-bar font only.
     QFont font = painter.font();
-    font.setPixelSize(11);
+    font.setPixelSize(pixelSize);
     painter.save();
     painter.setFont(font);
     painter.setPen(colour);
@@ -156,7 +156,7 @@ bool genexHasArt(const skins::Skin* skin) {
 }
 
 bool paintGenexButton(QPainter& painter, const skins::Skin* skin, const QRect& rect,
-                      const QString& text, bool pressed) {
+                      const QString& text, bool pressed, int textPixelSize) {
     if (skin == nullptr) {
         return false;
     }
@@ -170,7 +170,7 @@ bool paintGenexButton(QPainter& painter, const skins::Skin* skin, const QRect& r
     }
     drawNineSlice(painter, *sheet, src, rect, kButtonBorder);
     const GenexPalette palette = genexPalette(skin);
-    drawButtonText(painter, text, rect, palette.buttonText);
+    drawButtonText(painter, text, rect, palette.buttonText, textPixelSize);
     return true;
 }
 
@@ -187,13 +187,23 @@ void GenexButton::setSkin(const skins::Skin* skin) {
     update();
 }
 
+void GenexButton::setTextPixelSize(int pixels) {
+    const int clamped = std::clamp(pixels, 5, 64);
+    if (clamped == m_textPixelSize) {
+        return;
+    }
+    m_textPixelSize = clamped;
+    update();
+}
+
 void GenexButton::paintEvent(QPaintEvent* event) {
     if (m_skin == nullptr) {
         QPushButton::paintEvent(event);
         return;
     }
     QPainter painter(this);
-    if (paintGenexButton(painter, m_skin, rect(), text(), isDown())) {
+    const bool pressed = isDown() || (isCheckable() && isChecked());
+    if (paintGenexButton(painter, m_skin, rect(), text(), pressed, m_textPixelSize)) {
         return;
     }
     QPushButton::paintEvent(event);

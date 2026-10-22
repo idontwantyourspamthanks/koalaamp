@@ -4,35 +4,32 @@
 // recursive scan, the watcher that keeps the list current without a restart, and
 // the ordered/random selection the window cycles through. Qt Core only — no GL, no
 // window, no platform plugin.
-#include <algorithm>
-#include <cstdint>
-#include <cstdint>
-#include <filesystem>
-#include <system_error>
-#include <fstream>
-#include <functional>
-#include <string>
-#include <vector>
+#include "ui/PresetCycler.hpp"
+#include "ui/PresetSoak.hpp"
+#include "ui/PresetStore.hpp"
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QTemporaryDir>
-#include <QTimer>
 #include <QThread>
-
+#include <QTimer>
+#include <algorithm>
 #include <catch2/catch_session.hpp>
 #include <catch2/catch_test_macros.hpp>
-
-#include "ui/PresetCycler.hpp"
-#include "ui/PresetSoak.hpp"
-#include "ui/PresetStore.hpp"
+#include <cstdint>
+#include <filesystem>
+#include <fstream>
+#include <functional>
+#include <string>
+#include <system_error>
+#include <vector>
 
 namespace {
 
 using koalaamp::ui::PresetCycler;
-using koalaamp::ui::PresetSoak;
 using koalaamp::ui::PresetOrder;
+using koalaamp::ui::PresetSoak;
 using koalaamp::ui::PresetStore;
 
 void writeFile(const std::filesystem::path& path, const std::string& contents = "// preset\n") {
@@ -71,7 +68,7 @@ bool containsPath(const std::vector<std::string>& list, const std::string& path)
                        [&path](const std::string& entry) { return samePath(entry, path); });
 }
 
-}  // namespace
+} // namespace
 
 TEST_CASE("VZ-1 preset files are recognised case-insensitively", "[vz1][presets]") {
     CHECK(PresetStore::isPresetFile(QStringLiteral("a.milk")));
@@ -83,8 +80,7 @@ TEST_CASE("VZ-1 preset files are recognised case-insensitively", "[vz1][presets]
     CHECK_FALSE(PresetStore::isPresetFile(QStringLiteral("milk")));
 }
 
-TEST_CASE("VZ-1 the store scans a root recursively and ignores everything else",
-          "[vz1][presets]") {
+TEST_CASE("VZ-1 the store scans a root recursively and ignores everything else", "[vz1][presets]") {
     QTemporaryDir dir;
     REQUIRE(dir.isValid());
     const std::filesystem::path root(dir.path().toStdString());
@@ -112,8 +108,7 @@ TEST_CASE("VZ-1 the store scans a root recursively and ignores everything else",
     CHECK(store.currentIndex() == 0);
 }
 
-TEST_CASE("VZ-1 the store's selection walks the list, wraps, and can be random",
-          "[vz1][presets]") {
+TEST_CASE("VZ-1 the store's selection walks the list, wraps, and can be random", "[vz1][presets]") {
     QTemporaryDir dir;
     REQUIRE(dir.isValid());
     const std::filesystem::path root(dir.path().toStdString());
@@ -130,9 +125,9 @@ TEST_CASE("VZ-1 the store's selection walks the list, wraps, and can be random",
     CHECK(store.current() == list[1]);
     CHECK(store.next());
     CHECK(store.current() == list[2]);
-    CHECK(store.next());  // wraps
+    CHECK(store.next()); // wraps
     CHECK(store.current() == list[0]);
-    CHECK(store.previous());  // ...and wraps back
+    CHECK(store.previous()); // ...and wraps back
     CHECK(store.current() == list[2]);
 
     CHECK_FALSE(store.selectIndex(-1));
@@ -219,10 +214,16 @@ TEST_CASE("VZ-1 the cycler advances the store, and locking stops the timer", "[v
     PresetStore store;
     store.setRoots({root.string()});
     PresetCycler cycler(store);
+    int orderChanges = 0;
+    int lockChanges = 0;
+    QObject::connect(&cycler, &PresetCycler::orderChanged,
+                     [&orderChanges](PresetOrder) { ++orderChanges; });
+    QObject::connect(&cycler, &PresetCycler::lockedChanged,
+                     [&lockChanges](bool) { ++lockChanges; });
 
     CHECK(cycler.order() == PresetOrder::Ordered);
     CHECK(store.order() == PresetOrder::Ordered);
-    CHECK(cycler.isCycling());  // unlocked, interval > 0, presets to move through
+    CHECK(cycler.isCycling()); // unlocked, interval > 0, presets to move through
 
     CHECK(cycler.next());
     CHECK(store.currentIndex() == 1);
@@ -231,17 +232,21 @@ TEST_CASE("VZ-1 the cycler advances the store, and locking stops the timer", "[v
 
     cycler.toggleOrder();
     CHECK(cycler.order() == PresetOrder::Random);
-    CHECK(store.order() == PresetOrder::Random);  // the store owns the order
+    CHECK(orderChanges == 1);
+    CHECK(store.order() == PresetOrder::Random); // the store owns the order
     cycler.setOrder(PresetOrder::Ordered);
     CHECK(store.order() == PresetOrder::Ordered);
+    CHECK(orderChanges == 2);
 
     // Locked: no auto-advance, but the keys still move.
     cycler.setLocked(true);
     CHECK_FALSE(cycler.isCycling());
+    CHECK(lockChanges == 1);
     CHECK(cycler.next());
     CHECK(store.currentIndex() == 1);
     cycler.toggleLocked();
     CHECK_FALSE(cycler.isLocked());
+    CHECK(lockChanges == 2);
     CHECK(cycler.isCycling());
 
     // A non-positive interval is another way to stop the timer (settings may use it).
@@ -260,7 +265,7 @@ TEST_CASE("VZ-1 the cycler advances the store, and locking stops the timer", "[v
 TEST_CASE("VZ-1 an empty store leaves the cycler idle", "[vz1][presets]") {
     PresetStore store;
     PresetCycler cycler(store);
-    CHECK_FALSE(cycler.isCycling());  // nothing to cycle through
+    CHECK_FALSE(cycler.isCycling()); // nothing to cycle through
     CHECK_FALSE(cycler.next());
     cycler.setIntervalMs(20);
     CHECK_FALSE(cycler.isCycling());
@@ -302,10 +307,10 @@ TEST_CASE("VZ-1 the soak holds every preset once and reports its frames", "[vz1]
     CHECK(exitCode == 0);
     CHECK_FALSE(soak.stalled());
     // One line per preset, each carrying its frames and fps...
-    const auto fpsLines = std::count_if(soak.lines().begin(), soak.lines().end(),
-                                        [](const std::string& line) {
-                                            return line.find(" fps") != std::string::npos;
-                                        });
+    const auto fpsLines =
+        std::count_if(soak.lines().begin(), soak.lines().end(), [](const std::string& line) {
+            return line.find(" fps") != std::string::npos;
+        });
     CHECK(fpsLines == 3);
     // ...plus the header and the summary.
     CHECK(soak.lines().size() >= 5);

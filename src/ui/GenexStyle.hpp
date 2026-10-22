@@ -71,20 +71,26 @@ bool genexHasArt(const skins::Skin* skin);
 /// text. Returns false when the sheet/sprite is absent, so the caller can fall
 /// back to its ordinary style.
 bool paintGenexButton(QPainter& painter, const skins::Skin* skin, const QRect& rect,
-                      const QString& text, bool pressed);
+                      const QString& text, bool pressed, int textPixelSize = 11);
 
 /// A QPushButton that paints the genex face when the current skin has one.
 class GenexButton final : public QPushButton {
+    Q_OBJECT
+
 public:
     explicit GenexButton(const QString& text, QWidget* parent = nullptr);
     void setSkin(const skins::Skin* skin);
     const skins::Skin* skin() const { return m_skin; }
+    /// Pixel height of the label; the control strip scales it with the window.
+    void setTextPixelSize(int pixels);
+    int textPixelSize() const { return m_textPixelSize; }
 
 protected:
     void paintEvent(QPaintEvent* event) override;
 
 private:
     const skins::Skin* m_skin = nullptr;
+    int m_textPixelSize = 11;
 };
 
 /// A QScrollBar that paints the genex arrows/slider (14 px thick) while keeping

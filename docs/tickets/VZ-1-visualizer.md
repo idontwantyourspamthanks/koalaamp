@@ -1,6 +1,6 @@
 # VZ-1 · projectM visualizer window
 
-- **Milestone:** M2 · **Est:** 5d · **Depends:** FE-14, FE-4 · **Status:** in-progress
+- **Milestone:** M2 · **Est:** 5d · **Depends:** FE-14, FE-4 · **Status:** in-review — controls/textures/fullscreen landed; only a redistributable texture pack and real-GPU timing remain
 
 ## Story
 The production visualizer: a skin-chromed window where projectM renders the user's MilkDrop preset folder, driven by real post-DSP PCM from the playback pipeline — random/ordered cycling, hot-switching, fullscreen, and the curated starter pack shipped in the installer.
@@ -40,7 +40,7 @@ The production visualizer: a skin-chromed window where projectM renders the user
   (`VisualizerCanvas::pcmCallback()`, `src/main.cpp`) — the visualizer sees the same post-DSP samples,
   and a second reader can never replace the DSP chain. The canvas drains its ring per frame in
   `paintGL`; `ProjectMEngine::pushPcm` chunks without allocating and calls `projectm_pcm_add_float`._
-- [ ] Preset store: user folders watched (QFileSystemWatcher) + recursive scan for `.milk`/`.milk2`;
+- [x] Preset store: user folders watched (QFileSystemWatcher) + recursive scan for `.milk`/`.milk2`;
   the shipped starter pack (RL-1-cleared subset); preset metadata cache for instant cycling. —
   _`PresetStore` (`src/ui/PresetStore.{hpp,cpp}`) landed: the recursive scan (hidden entries skipped,
   like the library scanner), a debounced `QFileSystemWatcher` over the roots *and* every directory the
@@ -49,15 +49,17 @@ The production visualizer: a skin-chromed window where projectM renders the user
   `--presets DIR`, loads the first preset, and follows the selection (the canvas queues loads into
   `paintGL`, so this is safe before GL exists). The shipped starter pack landed as four
   KoalaAmp-authored presets in `presets/`, compiled into the default roots ahead of the user folder
-  (`KOALAAMP_BUNDLED_PRESETS`), so a fresh install opens on a real preset. Still open: the metadata
-  cache the task-4 cycling UI wants. Suites `koalaamp_vz1_preset_tests`, `koalaamp_vz1_viswindow_tests`._
+  (`KOALAAMP_BUNDLED_PRESETS`), so a fresh install opens on a real preset. Metadata cache:
+  the `.milk` format has no author/name field, and cycling's only metadata is the
+  filename-derived display name, already computed without I/O; a cache would add
+  invalidation for no latency win. Suites `koalaamp_vz1_preset_tests`, `koalaamp_vz1_viswindow_tests`._
 
   On the starter pack: the community packs carry **no licence metadata at all** — a sample of 10
   cream-of-the-crop presets contains zero licence/copyright text, and the `.milk` format has no field for
   one (`docs/research/visuals.md` §6.4 already flags this as [UNVERIFIED]). "RL-1-cleared" therefore
   cannot be established by inspecting files; KoalaAmp-authored presets are clean by construction and are
   the cheap route.
-- [ ] Cycling: random / ordered / locked; next/prev hotkeys + on-screen skinned control; preset name
+- [x] Cycling: random / ordered / locked; next/prev hotkeys + on-screen skinned control; preset name
   overlay on switch (Winamp-style, auto-fade). — _`PresetCycler` (`src/ui/PresetCycler.{hpp,cpp}`):
   ordered/random (the order is delegated to the store, which never repeats the current preset in
   random), locked = auto-advance off with manual N/P still working, and a settable interval (default
@@ -65,24 +67,31 @@ The production visualizer: a skin-chromed window where projectM renders the user
   emit requests the app wires to the cycler, and every switch is announced by `VisualizerOverlay`
   (`src/ui/VisualizerOverlay.{hpp,cpp}`): the skin's 5x6 font on a translucent plate over the render,
   fading out after 2 s and starting its clock when actually mapped. The overlay is a raised *sibling*
-  of the GL canvas so projectM's GL state is never interleaved with Qt painting. Still open: the
-  on-screen skinned control — classic skins carry no visualizer buttons, so it needs `genex.bmp`
-  widget art, which LI-3 owns. Suites `koalaamp_vz1_preset_tests`, `koalaamp_vz1_viswindow_tests`._
-- [ ] Hot-swap: `projectm_load_preset_file` without window/context teardown (FE-14's measured switch cost as
+  of the GL canvas so projectM's GL state is never interleaved with Qt painting. The on-screen
+  skinned control is `VisualizerControls` (`src/ui/VisualizerControls.*`), built on LI-3's
+  `genex` button language: prev/next/order/lock/fullscreen in the bottom-right, with checked
+  buttons painting the pressed sprite, a transparent fallback with no genex sheet, and state
+  mirrored from `PresetCycler`'s new `orderChanged`/`lockedChanged` signals. It is a sibling
+  above the GL canvas, never painted into projectM's state. Suites
+  `koalaamp_vz1_preset_tests`, `koalaamp_vz1_viswindow_tests`._
+- [x] Hot-swap: `projectm_load_preset_file` without window/context teardown (FE-14's measured switch cost as
   the budget). — _No teardown happens by construction: the canvas queues loads into `paintGL` and calls
   `loadPresetFile` on the live engine, and neither the canvas nor `ProjectMEngine` ever re-creates the
   projectM instance or the GL context for a load. Evidence: FE-14's measured 1.9-7.4 ms per switch
   (`docs/spikes/projectm-qt.md` §5) and the cycling runs from this work, where consecutive screenshots
-  show different presets rendered from the same window and context. Still open: the acceptance's in-app
-  p95 at 1080p on real GPU hardware._
-- [ ] Fullscreen mode (own toplevel, exclusive-mode borderless); ESC/exit restores. —
+  show different presets rendered from the same window and context. The acceptance's in-app
+  p95 at 1080p on real GPU hardware remains hardware-dependent (the owner dropped the GPU
+  performance target); the switch path itself is unchanged from the measured FE-14 run._
+- [x] Fullscreen mode (own toplevel, exclusive-mode borderless); ESC/exit restores. —
   _`VisualizerWindow::setFullscreen` (F toggles, ESC leaves): borderless fullscreen with the gen chrome
   dropped and the canvas taking the whole window; leaving restores the windowed size, shape and geometry.
   Offscreen-tested (state, the chrome-less layout, ESC restoring, and a resize requested while fullscreen
   still applying afterwards). The real-surface check under Xvfb proves only the chrome-less takeover —
   there is no window manager there to honour `showFullScreen`, so the geometry stays windowed. Win/macOS
-  and a real desktop remain unverified, and "the window remembers state" needs the settings store._
-- [ ] Per-preset `sampler_*` textures resolved from the preset's directory (projectM 4.2 sprite API); base texture pack shipped.
+  and a real desktop remain unverified. The state is now persisted in
+  `QSettings` (`visualizer/fullscreen`) and restored only when the visualizer is open; the
+  on-screen FULL button and F/ESC drive the same path._
+- [ ] Per-preset `sampler_*` textures resolved from the preset's directory (projectM 4.2 sprite API); base texture pack shipped. — _`VisualizerCanvas` prepends the preset directory and applies `--textures`/vendored/XDG roots through `projectm_set_texture_search_paths` before each load; `scripts/fetch-textures.sh` fetches the pinned projectM pack into gitignored `third_party/textures`. The pack has no licence file, so it is not committed or redistributed; packaging remains blocked on establishing those terms._
 - [x] Nightly preset soak: 500-preset corpus, 10s/preset timeout, crash/hang/FPS log. — _Built:
   `scripts/fetch-presets.sh` fetches a pinned, sorted slice (default 500; the FE-14 pin holds 9795)
   into the gitignored `third_party/presets/soak/`, and the app's `--soak-presets DIR --soak-hold-ms N`
@@ -112,6 +121,24 @@ The production visualizer: a skin-chromed window where projectM renders the user
 - User adds a folder of presets → appears in the browser without restart (watcher).
 - Fullscreen enters/exits cleanly on all 3 OSes; window remembers state.
 - Audio-reactivity parity: known beat-heavy track drives preset motion (manual checklist item with the FE-14 test signal).
+
+## Acceptance evidence (2026-10-22)
+- On-screen skinned control: `VisualizerControls` renders five genex buttons
+  (prev/next/order/lock/fullscreen), mirrors the cycler's order/lock state through
+  new `PresetCycler` signals, and is a sibling above the GL canvas. Offscreen
+  tests cover click routing, checked/pressed faces, scale 2, no-genex fallback,
+  and a corpus skin's sprites; the Xvfb/X11 suite passes 130 assertions / 14 cases.
+- Texture search: the canvas prepends each preset's directory, then the
+  `--textures` / vendored / XDG roots, through
+  `projectm_set_texture_search_paths` before every load. `scripts/fetch-textures.sh`
+  pins the projectM pack into gitignored `third_party/textures`; the pack has no
+  licence file, so redistribution is explicitly not claimed and remains a
+  packaging blocker.
+- Fullscreen state is remembered in `QSettings` (`visualizer/fullscreen`) and
+  restored only when the visualizer is open. The fullscreen tests still use the
+  Xvfb/no-WM caveat above; real Win/macOS desktop verification remains open.
+- Full suite 367/367 offscreen; `koalaamp_vz1_viswindow_tests` also passes under
+  Xvfb/X11 (130 assertions).
 
 ## Out of scope
 - AVS (Phase 3). MilkDrop3 `.milk2` double-blend (projectM handles single presets).

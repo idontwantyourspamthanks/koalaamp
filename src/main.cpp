@@ -233,6 +233,10 @@ int main(int argc, char** argv) {
         QStringLiteral("Advance the visualizer to a new preset every N ms (0 = locked)"),
         QStringLiteral("ms"));
     parser.addOption(presetCycleOption);
+    const QCommandLineOption texturesOption(
+        QStringLiteral("textures"),
+        QStringLiteral("MilkDrop texture-pack folder for sampler_* images"), QStringLiteral("dir"));
+    parser.addOption(texturesOption);
     const QCommandLineOption soakPresetsOption(
         QStringLiteral("soak-presets"),
         QStringLiteral("Soak: hold every preset in DIR in turn, logging frames and fps"),
@@ -382,6 +386,12 @@ int main(int argc, char** argv) {
                      [&windowSet](bool on) { windowSet.setVisualizerVisible(on); });
     QObject::connect(&visualizer, &koalaamp::ui::VisualizerWindow::closeRequested, &windowSet,
                      [&windowSet] { windowSet.setVisualizerVisible(false); });
+    QObject::connect(&visualizer, &koalaamp::ui::VisualizerWindow::fullscreenChanged, &app,
+                     [](bool on) {
+                         QSettings settings;
+                         settings.setValue(QStringLiteral("visualizer/fullscreen"), on);
+                         settings.sync();
+                     });
 
     // The preset library (task 3): scanning, the watcher, and the selection. The
     // cycling *policy* is task 4's — this only makes the folder's presets available,
@@ -410,6 +420,22 @@ int main(int argc, char** argv) {
     } else {
         presetStore.setRoots({KOALAAMP_BUNDLED_PRESETS, defaultPresetDir.string()});
     }
+    // Texture roots: an explicit pack wins; otherwise the vendored pack (when the
+    // gitignored third_party folder was populated) and the user's XDG folder. The
+    // preset's own directory is prepended by the canvas for every load.
+    std::vector<std::string> textureRoots;
+    if (parser.isSet(texturesOption)) {
+        textureRoots.push_back(parser.value(texturesOption).toStdString());
+    } else {
+        if (std::filesystem::is_directory(KOALAAMP_BUNDLED_TEXTURES)) {
+            textureRoots.emplace_back(KOALAAMP_BUNDLED_TEXTURES);
+        }
+        const std::filesystem::path userTextures = defaultPresetDir.parent_path() / "textures";
+        std::error_code textureError;
+        std::filesystem::create_directories(userTextures, textureError);
+        textureRoots.push_back(userTextures.string());
+    }
+    visualizer.canvas().setTextureSearchRoots(std::move(textureRoots));
     presetStore.setWatching(true);
     if (!presetStore.empty()) {
         visualizer.canvas().requestPreset(presetStore.current());
@@ -469,6 +495,14 @@ int main(int argc, char** argv) {
                      &presetCycler, &koalaamp::ui::PresetCycler::toggleOrder);
     QObject::connect(&visualizer, &koalaamp::ui::VisualizerWindow::lockedToggleRequested,
                      &presetCycler, &koalaamp::ui::PresetCycler::toggleLocked);
+    QObject::connect(&presetCycler, &koalaamp::ui::PresetCycler::orderChanged, &visualizer,
+                     [&visualizer](koalaamp::ui::PresetOrder order) {
+                         visualizer.setPresetOrder(order == koalaamp::ui::PresetOrder::Random);
+                     });
+    QObject::connect(&presetCycler, &koalaamp::ui::PresetCycler::lockedChanged, &visualizer,
+                     &koalaamp::ui::VisualizerWindow::setPresetLocked);
+    visualizer.setPresetOrder(presetCycler.order() == koalaamp::ui::PresetOrder::Random);
+    visualizer.setPresetLocked(presetCycler.isLocked());
 #endif
 
 #ifdef KOALAAMP_HAS_PLAYBACK_CORE
@@ -1455,6 +1489,12 @@ int main(int argc, char** argv) {
         // the same spot for all of them and reads as one ambiguous pile.
         windowSet.applyDefaultArrangement();
         windowSet.showAll();
+    }
+    if (windowSet.isVisualizerVisible()) {
+        QSettings settings;
+        if (settings.value(QStringLiteral("visualizer/fullscreen"), false).toBool()) {
+            visualizer.setFullscreen(true);
+        }
     }
 
     // Remember where this skin's windows were left (exact restore next launch).

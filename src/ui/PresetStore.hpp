@@ -41,8 +41,8 @@ public:
     static bool isPresetFile(const QString& fileName);
     /// The name a preset is announced by: the file's base name with underscores
     /// turned into spaces ("01_phat_RippleNebula9.milk" -> "01 phat RippleNebula9").
-    /// (MilkDrop's own `psName` would need the file parsed; this is the honest
-    /// approximation until the metadata cache lands.)
+    /// `.milk` has no author/name field to cache; cycling's only metadata is this
+    /// filename-derived display name, so there is no file read on a switch.
     static std::string presetDisplayName(const std::string& path);
 
     explicit PresetStore(QObject* parent = nullptr);

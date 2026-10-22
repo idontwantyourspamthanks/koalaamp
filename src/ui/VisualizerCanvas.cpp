@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: MIT
 #include "ui/VisualizerCanvas.hpp"
 
+#include "interop/projectm/VisualizerEngine.hpp"
+
 #include <QOpenGLContext>
 #include <QShowEvent>
-
 #include <algorithm>
+#include <filesystem>
 #include <utility>
-
-#include "interop/projectm/VisualizerEngine.hpp"
 
 namespace koalaamp::ui {
 namespace {
@@ -21,10 +21,9 @@ constexpr std::size_t kDrainFrames = 4096;
 /// configured rate.
 constexpr int kFrameIntervalMs = 16;
 
-}  // namespace
+} // namespace
 
-VisualizerCanvas::VisualizerCanvas(interop::visualizer::IVisualizerEngine& engine,
-                                   QWidget* parent)
+VisualizerCanvas::VisualizerCanvas(interop::visualizer::IVisualizerEngine& engine, QWidget* parent)
     : QOpenGLWidget(parent), m_engine(engine), m_scratch(kDrainFrames * 2, 0.0F) {
     m_frameClock.setInterval(kFrameIntervalMs);
     connect(&m_frameClock, &QTimer::timeout, this, qOverload<>(&QWidget::update));
@@ -75,8 +74,7 @@ void VisualizerCanvas::pushSizeToEngine() {
 }
 
 playback::IAudioEngine::PcmCb VisualizerCanvas::pcmCallback() {
-    return [this](const float* interleaved, std::size_t frames,
-                  const playback::PcmFormat& format) {
+    return [this](const float* interleaved, std::size_t frames, const playback::PcmFormat& format) {
         // Audio thread: no allocation, no lock, no GUI.
         m_ring.push(interleaved, frames, format.channels);
     };
@@ -84,13 +82,24 @@ playback::IAudioEngine::PcmCb VisualizerCanvas::pcmCallback() {
 
 void VisualizerCanvas::requestPreset(const std::string& path) {
     m_pendingPreset = path;
-    update();  // paintGL applies it, with the context current
+    update(); // paintGL applies it, with the context current
+}
+
+void VisualizerCanvas::setTextureSearchRoots(std::vector<std::string> roots) {
+    m_textureRoots = std::move(roots);
 }
 
 void VisualizerCanvas::paintGL() {
     if (!m_pendingPreset.empty()) {
         const std::string path = std::move(m_pendingPreset);
         m_pendingPreset.clear();
+        std::vector<std::string> textures;
+        const std::filesystem::path presetPath(path);
+        if (presetPath.has_parent_path()) {
+            textures.push_back(presetPath.parent_path().string());
+        }
+        textures.insert(textures.end(), m_textureRoots.begin(), m_textureRoots.end());
+        m_engine.setTextureSearchPaths(textures);
         m_engine.loadPresetFile(path, /*smoothTransition=*/true);
     }
     if (!m_created) {
@@ -107,4 +116,4 @@ void VisualizerCanvas::paintGL() {
     ++m_frames;
 }
 
-}  // namespace koalaamp::ui
+} // namespace koalaamp::ui
