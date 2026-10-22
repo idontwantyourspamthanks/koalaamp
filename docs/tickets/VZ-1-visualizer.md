@@ -138,7 +138,8 @@ The production visualizer: a skin-chromed window where projectM renders the user
   restored only when the visualizer is open. The fullscreen tests still use the
   Xvfb/no-WM caveat above; real Win/macOS desktop verification remains open.
 - Full suite 367/367 offscreen; `koalaamp_vz1_viswindow_tests` also passes under
-  Xvfb/X11 (130 assertions).
+  Xvfb/X11 (130 assertions). CI run `39753640371` green on all six jobs
+  (Linux/macOS ctest, Windows build).
 
 ## Out of scope
 - AVS (Phase 3). MilkDrop3 `.milk2` double-blend (projectM handles single presets).
